@@ -128,7 +128,7 @@ When connecting the gears, make sure to leave ~0.5mm space between them for opti
 
 # Operating the ELS
 
-ELS remembers all the positions and ON/OFF status when powered off. If you move the spindle / carriage when the ELS is off, 
+ELS remembers all the positions and ON/OFF status when powered off.
 
 ## Safety
 
