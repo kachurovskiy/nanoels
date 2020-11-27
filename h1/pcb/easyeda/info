@@ -1,0 +1,115 @@
+{
+  "uuid": "8491be3a09d3e733ead7dbc314ac6cac",
+  "path": "Offline/NanoEls",
+  "name": "NanoEls",
+  "content": "",
+  "created_at": "2020-11-27 21:27:08",
+  "updated_at": "2020-11-27 21:27:08",
+  "stick": "",
+  "documents": [
+    {
+      "uuid": "84893d018e37616190fc38b0b451f5c2",
+      "title": "NanoEls V1 Schematics",
+      "description": "",
+      "docType": "1",
+      "master": "",
+      "thumb": "/images/thumb-default.png",
+      "components": {
+        "e01a736db6054489a77c89aab0dcbabf": 5,
+        "381f111f37554261afd5e17148f0a871": 1,
+        "adb0c9c5d7ba4fdcaf75c204261cdb7c": 1,
+        "339fe2cd55e0c1cf9903870c08bcace8": 10
+      },
+      "BOM": [
+        [
+          "Value",
+          "Quantity",
+          "Package",
+          "Components",
+          "CustomPara"
+        ],
+        [
+          "button6*6*8",
+          10,
+          "KEY-TH_4P-L6.0-W6.0-P4.50-LS7.5",
+          "D4,RIGHT,D8,LEFT,ONOFF,D3,D7,D5,D6,D9",
+          {
+            "BOM_Supplier Part": "C59982",
+            "BOM_Supplier": "LCSC",
+            "BOM_Manufacturer": "ReliaPro",
+            "BOM_Manufacturer Part": "button6*6*8",
+            "puuid": "dce469acea214c44ac101e294d1c2ff5",
+            "uuid": "339fe2cd55e0c1cf9903870c08bcace8"
+          }
+        ],
+        [
+          "ARDUINONANO",
+          1,
+          "ARDUINO_NANO1",
+          "U5",
+          {
+            "BOM_Manufacturer Part": "arduino_nano1",
+            "puuid": "3ac213cef77e49b9a9a55bcaf6b95846",
+            "uuid": "381f111f37554261afd5e17148f0a871"
+          }
+        ],
+        [
+          "0.96\" 128*64 I2C OLED Display",
+          1,
+          "OLED12864_096I2C",
+          "OLED-128-64",
+          {
+            "BOM_Manufacturer Part": "",
+            "puuid": "40553c196c714ffe9422296778f3cad3",
+            "uuid": "adb0c9c5d7ba4fdcaf75c204261cdb7c"
+          }
+        ],
+        [
+          "XY350V-3.5-2P",
+          5,
+          "CONN-TH_XY350V-3.5-2P",
+          "5VGND,GND,DIRSTEP,AB,5VGNDEXT",
+          {
+            "BOM_Supplier": "LCSC",
+            "BOM_Supplier Part": "C784942",
+            "BOM_Manufacturer": "Ningbo Xinlaiya Elec.",
+            "BOM_Manufacturer Part": "XY350V-3.5-2P",
+            "puuid": "9337c5af4325432995eb7a68fc2c1d96",
+            "uuid": "e01a736db6054489a77c89aab0dcbabf"
+          }
+        ]
+      ],
+      "updateTime": 1606508716,
+      "createTime": 1605475732,
+      "histories": [],
+      "created_at": "2020-11-15 22:28:52",
+      "updated_at": "2020-11-27 21:25:16"
+    },
+    {
+      "uuid": "aa91450dc59e79bd7a5bd23cad63d365",
+      "title": "NanoEls V1 PCB",
+      "filename": "NanoEls V1 PCB.json",
+      "description": "",
+      "docType": "3",
+      "master": "",
+      "thumb": "/images/thumb-default.png",
+      "components": {
+        "dce469acea214c44ac101e294d1c2ff5": 10,
+        "9337c5af4325432995eb7a68fc2c1d96": 5,
+        "40553c196c714ffe9422296778f3cad3": 1,
+        "3ac213cef77e49b9a9a55bcaf6b95846": 1
+      },
+      "BOM": [],
+      "updateTime": 1606384953,
+      "createTime": 1605477250,
+      "histories": [],
+      "created_at": "2020-11-15 22:54:10",
+      "updated_at": "2020-11-26 11:02:33"
+    }
+  ],
+  "sort": [],
+  "title": "NanoEls",
+  "foldername": "NanoEls",
+  "schfilename": "NanoEls.json",
+  "schfilemtime": 1606508828679.4893
+}
