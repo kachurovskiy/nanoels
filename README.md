@@ -4,7 +4,7 @@
 
 90€ DIY Electronic Lead Screw (ELS) based on Arduino Nano for metal lathes.
 
-![Assembled ELS without the metal housing](https://github.com/kachurovskiy/nanoels/raw/main/h1/buildexamples/buildexample1.jpg)
+![Assembled ELS without the metal housing](https://github.com/kachurovskiy/nanoels/raw/main/h1/buildexamples/h1-exploded-view.png)
 
 # Features
 
@@ -182,3 +182,7 @@ Setting only one stop is also supported.
   - Split unrelated changes into separate PRs
 - PCB changes: incompatible changes (move button / display / Arduino / change PCB size / change used pin purpose) will require making `h2` folder with another hardware version of the project, please file an Issue first to confirm. Backward-compatible PCB changes are cool.
 - 3D models: in most cases, don't edit the model, add a new file. Also include the PNG preview and a dimension drawing if possible.
+
+# Example builds
+
+![Assembled ELS without the metal housing](https://github.com/kachurovskiy/nanoels/raw/main/h1/buildexamples/buildexample1.jpg)
