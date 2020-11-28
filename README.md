@@ -241,6 +241,15 @@ Setting only one stop is also supported.
 - If stops are set, they will be respected
 - Behavior when ELS is on and spindle is turning is untested
 
+## Losing the thread
+
+The spindle and stepper positions are reset to 0 every time one of the following happens:
+
+- `ON` button is pressed (including long press for reset)
+- Pitch is changed e.g. by pressing `-` or `+`
+
+Thread is **not** lost when ELS is simply powered off.
+
 ## Out-of-sync situations
 
 It's possible for the lead screw to go out of sync with the spindle by removing the `L STOP` or `R STOP` while the carriage is standing on it. It's indicated by the `SYN` word on the display.
