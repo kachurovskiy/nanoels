@@ -1,5 +1,7 @@
 **This software and instructions are provided as is, without warranty of any kind. This is a hobby project. Using this might damage your equipment, cause injury or death. Use at your own risk.**
 
+[🇷🇺 перевод на русский](https://translate.google.com/translate?hl=en&sl=en&tl=ru&u=https%3A%2F%2Fgithub.com%2Fkachurovskiy%2Fnanoels%2Fblob%2Fmain%2FREADME.md)
+
 # NanoEls
 
 90€ DIY Electronic Lead Screw (ELS) based on Arduino Nano for metal lathes.
@@ -144,8 +146,8 @@ This gear is designed to fit the NEMA 23 shaft (10mm diameter / 9.5mm narrow dim
 
 #### Encoder base
 
-![Encoder base](https://github.com/kachurovskiy/nanoels/raw/main/h1/stepper/encoder-base-38.5mm-hole-m4-screw.png)
-[STL file](https://github.com/kachurovskiy/nanoels/raw/main/h1/stepper/encoder-base-38.5mm-hole-m4-screw.png)
+![Encoder base](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/encoder-base-38.5mm-hole-m4-screw.png)
+[STL file](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/encoder-base-38.5mm-hole-m4-screw.png)
 
 To be glued to the lathe wall with the double-sided carpet sticky tape. Holds well if surfaces are properly cleaned with e.g. Acetone.
 
@@ -153,8 +155,8 @@ Using an M4 set screw is optional.
 
 #### Encoder gear
 
-![Encoder gear](https://github.com/kachurovskiy/nanoels/raw/main/h1/stepper/encoder-gear-60t-6.1mm-bore.png)
-[STL file](https://github.com/kachurovskiy/nanoels/raw/main/h1/stepper/encoder-gear-60t-6.1mm-bore.png)
+![Encoder gear](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/encoder-gear-60t-6.1mm-bore.png)
+[STL file](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/encoder-gear-60t-6.1mm-bore.png)
 
 Check the distance between the spindle gear and the lathe housing: for the provided conical gear to fit, it has to be 23mm.
 
@@ -184,7 +186,7 @@ When connecting the gears, make sure to leave ~0.5mm space between them for opti
 
 - Download the Arduino IDE
 - Install `Adafruit_SSD1306` library via the Library Manager in the Arduino IDE
-- Download and open [NanoEls.ino](https://github.com/kachurovskiy/nanoels/raw/main/h1/NanoEls.ino) Arduino IDE
+- Download and open [NanoEls.ino](https://github.com/kachurovskiy/nanoels/raw/main/h1/NanoEls.ino)
 - Upload it to your Arduino Nano
 
 # Operating the ELS
