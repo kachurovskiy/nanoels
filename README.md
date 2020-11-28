@@ -108,6 +108,9 @@ Arduino Nano doesn't draw much current so 0.5A phone charger would work.
 
 **Nov 2020: This version of the PCB design is not yet fully tested, please check back early December 2020**
 
+![NanoEls H1 PCB](https://github.com/kachurovskiy/nanoels/blob/main/h1/pcb/nanoels-pcb-h1-r1.png)
+[Gerber ZIP for production](https://github.com/kachurovskiy/nanoels/blob/main/h1/pcb/nanoels-pcb-h1-r1.zip)
+
 It's a 70mm by 90mm board with holes for M3 mounting bolts, 1.6mm thick. You will need clearance above, below and on the sides of the board for the through-hole components, their pins (legs) and wires coming into the PCB.
 
 PCB is best placed away from the electromagnetic noise sources such as lathe motor wires. Grounded metal housing is ideal.
