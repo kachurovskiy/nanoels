@@ -50,6 +50,13 @@ As long as you can securely connect the rotary encoder to the spindle and steppe
 
 Please note that sometimes 2 lathes of the same model have different dimensions and 3D printed parts might not fit. Please share with us your 3D models if you made new ones.
 
+# Limitations
+
+- Internet says that Arduino Nano can't trigger more than 4000 stepper steps per second unless PWM is used which doesn't seem precise enough for ELS purposes
+- NanoEls is also listening to the rotary encoder which reduces this limit to ~3200 steps
+- In practice this means that cutting e.g. 2mm thread with a 2mm leadscrew (1:1 spindle to leadscrew ratio) with 400 step motor, leadscrew starts lagging behind at 480rpm
+- Or maybe the code can be improved to reach higher speeds 🤷
+
 # Instructions
 
 We've tried to simplify the process as much as possible but building NanoEls is still going to take considerable time and effort, basic mechanical and electrical knowledge.
