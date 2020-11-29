@@ -279,4 +279,4 @@ ELS remembers all the positions and ON/OFF status when powered off.
 
 # Example builds
 
-![Assembled ELS without the metal housing](https://github.com/kachurovskiy/nanoels/raw/main/h1/buildexamples/buildexample1.jpg)
+[![NanoEls demo video](https://img.youtube.com/vi/9uTdDk2EqG4/0.jpg)](https://www.youtube.com/watch?v=9uTdDk2EqG4)
