@@ -197,7 +197,8 @@ When connecting the gears, make sure to leave ~0.5mm space between them for opti
 - Download the Arduino IDE
 - Install `Adafruit_SSD1306` library via the Library Manager in the Arduino IDE
 - Download and open [NanoEls.ino](https://github.com/kachurovskiy/nanoels/raw/main/h1/NanoEls.ino)
-- Upload it to your Arduino Nano
+- Check the top 7 constants (e.g. encoder steps, motor steps, display offset) and adjust if needed
+- Upload the sketch to your Arduino Nano
 
 # Operating the ELS
 
