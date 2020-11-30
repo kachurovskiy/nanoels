@@ -2,20 +2,26 @@
 
 /* Change values in this section to suit your hardware. */
 
-// Define your hardware parameters here.
+// Define your hardware parameters here. Don't remove the ".0" at the end.
 #define ENCODER_STEPS 600.0 // 600 step spindle optical rotary encoder
-#define MOTOR_STEPS 400.0 // 400 step stepper motor
+#define MOTOR_STEPS 200.0 // 200 step stepper motor, no microstepping
 #define LEAD_SCREW_HMM 200.0 // 2mm lead screw
 
 // Tweak these values to move display picture around to center it in the window.
 // Acceptable values 0 to ~10 pixels, anything higher and text will be cropped.
-#define DISPLAY_LEFT 6
-#define DISPLAY_TOP 10
+#define DISPLAY_LEFT 4
+#define DISPLAY_TOP 4
 
 // Spindle rotary encoder pins. Nano only supports interrupts on D2 and D3.
 // Swap values if the rotation direction is wrong.
-#define ENC_A 2 // D2
-#define ENC_B 3 // D3
+#define ENC_A 3 // D3
+#define ENC_B 2 // D2
+
+// Stepper pulse and acceleration constants.
+#define PULSE_LOW_MIN_US 400 // Microseconds to wait after high pulse, min.
+#define PULSE_LOW_MAX_US 1500 // Microseconds to wait after high pulse, max. Slow start.
+#define PULSE_DELTA_US 7 // Microseconds remove from waiting time on every step. Acceleration.
+#define STEPPER_MAX_RPM 600 // Stepper loses most of it's torque at speeds higher than that.
 
 /* Changing anything below shouldn't be needed for basic use. */
 
@@ -28,22 +34,16 @@
 #define EEPROM_VERSION 1
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 1
+#define SOFTWARE_VERSION 2
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 1
 
-// Stepper pulse and acceleration constants.
-#define PULSE_HIGH_US 10 // Microseconds to keep the stepper pulse high
-#define PULSE_LOW_MIN_US 290 // Microseconds to wait after high pulse, min. At 190 it starts skipping steps sometimes.
-#define PULSE_LOW_MAX_US 1490 // Microseconds to wait after high pulse, max. Slow start.
-#define PULSE_DELTA_US 7 // Microseconds remove from waiting time on every step. Acceleration.
-
 #define DIR A0
 #define STEP A1
 
-#define LEFT A7
-#define ONOFF A6
+#define LEFT 11
+#define ONOFF 10
 #define RIGHT A3
 
 #define LEFT_STOP 7
@@ -52,9 +52,8 @@
 #define F1 6
 #define F2 5
 #define F3 4
-#define F4 3
-#define F5 2
-#define F6 8
+#define F4 12
+#define F5 8
 
 #define ADDR_EEPROM_VERSION 0 // takes 1 byte
 #define ADDR_ONOFF 1 // takes 1 byte
@@ -77,6 +76,7 @@ long loopCounter = 0;
 bool onOffFlag = false;
 bool isOn = false;
 int resetCounter = 0;
+bool resetOnStartup = false;
 
 int hmmpr = 0; // hundredth of a mm per rotation
 int savedHmmpr = 0; // hmmpr saved in EEPROM
@@ -102,6 +102,7 @@ volatile int outOfSync = 0;
 int savedOutOfSync = 0;
 
 int stepDelayUs = PULSE_LOW_MAX_US;
+bool stepDelayDirection = true; // To reset stepDelayUs when direction changes.
 unsigned long stepStartMs = 0;
 
 void updateDisplay() {
@@ -109,12 +110,25 @@ void updateDisplay() {
   display.setTextColor(WHITE);
   display.setCursor(DISPLAY_LEFT, DISPLAY_TOP);
   display.setTextSize(2);
-  display.println(String(isOn ? "   ON" : "off  ") + String(outOfSync ? " SYN" : ""));
+  display.print(isOn ? "   ON" : "off  ");
+  display.print(outOfSync ? " SYN" : "");
+  if (!outOfSync && resetOnStartup) {
+    display.print(" LTW");
+  }
   display.setCursor(DISPLAY_LEFT, 20 + DISPLAY_TOP);
-  display.println(String(hmmpr * 1.0 / 100, 2) + "mm");
+  display.print(String(hmmpr * 1.0 / 100, 2));
+  display.print("mm");
+
+  long maxSpindleRpm = hmmpr == 0 ? 1250 : STEPPER_MAX_RPM * LEAD_SCREW_HMM / abs(hmmpr);
+  display.setCursor(DISPLAY_LEFT, 40 + DISPLAY_TOP);
   if (leftStop != 0 || rightStop != 0) {
-    display.setCursor(DISPLAY_LEFT, 40 + DISPLAY_TOP);
-    display.print(String(leftStop != 0 ? "L " : "  ") + "STOP" + (rightStop != 0 ? " R" : "  "));
+    display.print(leftStop != 0 ? "L " : "  ");
+    display.print("STOP");
+    display.print(rightStop != 0 ? " R" : "  ");
+  } else if (maxSpindleRpm < 1250) {
+    display.print("<");
+    display.print(maxSpindleRpm);
+    display.print("rpm");
   }
   display.display();
 }
@@ -156,7 +170,7 @@ long loadLong(int i) {
 // Called on a FALLING interrupt for the spindle rotary encoder pin.
 // Keeps track of the spindle position.
 void spinEnc() {
-  int delta = digitalRead(ENC_B) == HIGH ? -1 : 1;
+  int delta = digitalRead(ENC_B) ? -1 : 1;
   spindlePos += delta;
 
   if (outOfSync != 0) {
@@ -175,18 +189,16 @@ void setup() {
 
   pinMode(LEFT_STOP, INPUT_PULLUP);
   pinMode(RIGHT_STOP, INPUT_PULLUP);
-  
+
   pinMode(F1, INPUT_PULLUP);
   pinMode(F2, INPUT_PULLUP);
   pinMode(F3, INPUT_PULLUP);
-  // Not usable with the PCB version I have on hand.
-  //pinMode(F4, INPUT_PULLUP);
-  //pinMode(F5, INPUT_PULLUP);
-  //pinMode(F6, INPUT_PULLUP);
-  
+  pinMode(F4, INPUT_PULLUP);
+  pinMode(F5, INPUT_PULLUP);
+
   pinMode(ENC_A, INPUT_PULLUP);
   pinMode(ENC_B, INPUT_PULLUP);
-  
+
   pinMode(DIR, OUTPUT);
   pinMode(STEP, OUTPUT);
 
@@ -216,8 +228,16 @@ void setup() {
   Serial.print(HARDWARE_VERSION);
   Serial.print(" V");
   Serial.print(SOFTWARE_VERSION);
-  Serial.print(" E");
-  Serial.println(EEPROM_VERSION);
+
+  // Sometimes, especially if ELS was run outside above max RPM before, pos and spindlePos
+  // will be out of sync causing immediate stepper movement if isOn. This could be dangerous
+  // and surely won't be expected by the operator.
+  long newPos = posFromSpindle(spindlePos, true);
+  if (newPos != pos) {
+    Serial.println("Losing the thread");
+    resetOnStartup = true;
+    markAsZero();
+  }
 }
 
 // Saves all positions in EEPROM, should be called infrequently to reduce EEPROM wear.
@@ -280,7 +300,7 @@ void splashScreen() {
   display.setCursor(DISPLAY_LEFT, 10 + DISPLAY_TOP);
   display.println("NanoEls");
   display.setCursor(DISPLAY_LEFT, 30 + DISPLAY_TOP);
-  display.println("H" + String(HARDWARE_VERSION) + " V" + String(SOFTWARE_VERSION) + " E" + String(EEPROM_VERSION));
+  display.println("H" + String(HARDWARE_VERSION) + " V" + String(SOFTWARE_VERSION));
   display.display();
   delay(2000);
 }
@@ -297,7 +317,7 @@ void reset() {
 // Prevents stepper from rushing to a position far away by waiting for the right
 // spindle position and starting smoothly.
 void setOutOfSync() {
-  outOfSync = (int) ((pos - posFromSpindle(spindlePos)) % (int) MOTOR_STEPS + MOTOR_STEPS) % (int) MOTOR_STEPS;
+  outOfSync = (int) ((pos - posFromSpindle(spindlePos, false)) % (int) MOTOR_STEPS + MOTOR_STEPS) % (int) MOTOR_STEPS;
   Serial.print("outOfSync ");
   Serial.println(outOfSync);
 }
@@ -312,7 +332,7 @@ void secondaryWork() {
   if (loopCounter % 41 == 0) {
     // Speed up scrolling when needed.
     int delta = abs(hmmprPrevious - hmmpr) >= 10 ? 10 : 1;
-    if (analogRead(LEFT) < 100) {
+    if (digitalRead(LEFT) == LOW) {
       if (hmmpr > -1000) {
         hmmpr -= delta;
         markAsZero();
@@ -329,7 +349,7 @@ void secondaryWork() {
 
   // On-off button.
   if (loopCounter % 7 == 0) {
-    if (analogRead(ONOFF) < 500) {
+    if (digitalRead(ONOFF) == LOW) {
       resetCounter++;
       if (onOffFlag) {
         onOffFlag = false;
@@ -389,7 +409,7 @@ void secondaryWork() {
   }
 
   // Carriage left-right buttons.
-  if (loopCounter % 33 == 0) {
+  if (loopCounter % 33 == 0 && !outOfSync && loopCounter > 1000) {
     bool left = digitalRead(F1) == LOW;
     bool right = digitalRead(F2) == LOW;
     if (left || right) {
@@ -403,7 +423,7 @@ void secondaryWork() {
           delta = ceil(MOTOR_STEPS * 100.0 / LEAD_SCREW_HMM * STEPPER_TO_ENCODER_STEP_RATIO / ENCODER_STEPS / hmmpr) * ENCODER_STEPS * sign;
 
           // Don't left-right move out of stops.
-          long deltaPos = posFromSpindle(spindlePos + delta);
+          long deltaPos = posFromSpindle(spindlePos + delta, false);
           if (leftStop != 0 && deltaPos > leftStop) {
             // TODO: support moving exactly to leftPos and setting outOfSync to the right value.
             break;
@@ -417,7 +437,7 @@ void secondaryWork() {
           spindlePos += delta;
           interrupts();
 
-          step(left, abs(posFromSpindle(spindlePos) - pos));
+          step(left, abs(posFromSpindle(spindlePos, false) - pos));
         } while (delta != 0 && (pos == 0 || pos != leftStop && pos != rightStop) && digitalRead(left ? F1 : F2) == LOW);
       } else {
         int delta = 0;
@@ -441,7 +461,7 @@ void secondaryWork() {
           if (delta == 1) {
             break;
           }
-          
+
           step(left, delta);
         } while (delta != 0 && digitalRead(left ? F1 : F2) == LOW);
         markAsZero();
@@ -449,11 +469,31 @@ void secondaryWork() {
     }
   }
 
-  // 1mm pitch shortcut button.
-  if (loopCounter % 17 == 0) {
+  // 0.05mm pitch shortcut button.
+  if (loopCounter % 15 == 0) {
     if (digitalRead(F3) == LOW) {
       if (checkAndMarkButtonTime()) {
+        hmmpr = 5;
+        markAsZero();
+      }
+    }
+  }
+
+  // 1mm pitch shortcut button.
+  if (loopCounter % 17 == 0) {
+    if (digitalRead(F4) == LOW) {
+      if (checkAndMarkButtonTime()) {
         hmmpr = 100;
+        markAsZero();
+      }
+    }
+  }
+
+  // 2mm pitch shortcut button.
+  if (loopCounter % 19 == 0) {
+    if (digitalRead(F5) == LOW) {
+      if (checkAndMarkButtonTime()) {
+        hmmpr = 200;
         markAsZero();
       }
     }
@@ -471,6 +511,12 @@ void secondaryWork() {
 
 // Moves the stepper.
 long step(bool dir, long steps) {
+  // Start slow if direction changed.
+  if (stepDelayDirection != dir) {
+    stepDelayUs = PULSE_LOW_MAX_US;
+    stepDelayDirection = dir;
+  }
+
   digitalWrite(DIR, dir ? HIGH : LOW);
   for (int i = 0; i < steps; i++) {
     unsigned long t = millis();
@@ -479,7 +525,6 @@ long step(bool dir, long steps) {
     stepStartMs = t;
 
     digitalWrite(STEP, HIGH);
-    delayMicroseconds(PULSE_HIGH_US);
     digitalWrite(STEP, LOW);
     delayMicroseconds(stepDelayUs);
   }
@@ -487,8 +532,19 @@ long step(bool dir, long steps) {
 }
 
 // Calculates stepper position from spindle position.
-long posFromSpindle(long s) {
-  return s * ENCODER_TO_STEPPER_STEP_RATIO * hmmpr;
+long posFromSpindle(long s, bool respectStops) {
+  long newPos = s * ENCODER_TO_STEPPER_STEP_RATIO * hmmpr;
+
+  // Respect left/right stops.
+  if (respectStops) {
+    if (rightStop != 0 && newPos < rightStop) {
+      newPos = rightStop;
+    } else if (leftStop != 0 && newPos > leftStop) {
+      newPos = leftStop;
+    }
+  }
+
+  return newPos;
 }
 
 // Calculates spindle position from stepper position.
@@ -497,15 +553,7 @@ long spindleFromPos(long s) {
 }
 
 void loop() {
-  long newPos = posFromSpindle(spindlePos);
-
-  // Respect left/right stops.
-  if (rightStop != 0 && newPos < rightStop) {
-    newPos = rightStop;
-  } else if (leftStop != 0 && newPos > leftStop) {
-    newPos = leftStop;
-  }
-
+  long newPos = posFromSpindle(spindlePos, true);
   if (isOn && !outOfSync && newPos != pos) {
     // Move the stepper to the right position.
     step(newPos > pos, abs(newPos - pos));
@@ -554,6 +602,11 @@ void loop() {
       // It might have to run any millisecond though e.g. when leaving the stop
       // so it still should complete within milliseconds.
       secondaryWork();
+
+      // Drop the lost thread warning after some time.
+      if (resetOnStartup && loopCounter > 2000) {
+        resetOnStartup = false;
+      }
     }
   }
 }
