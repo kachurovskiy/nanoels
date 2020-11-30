@@ -4,7 +4,7 @@
   "name": "NanoEls",
   "content": "",
   "created_at": "2020-11-27 21:27:08",
-  "updated_at": "2020-11-27 21:27:08",
+  "updated_at": "2020-11-30 23:34:45",
   "stick": "",
   "documents": [
     {
@@ -32,7 +32,7 @@
           "button6*6*8",
           10,
           "KEY-TH_4P-L6.0-W6.0-P4.50-LS7.5",
-          "D4,RIGHT,D8,LEFT,ONOFF,D3,D7,D5,D6,D9",
+          "D4,RIGHT,D8,LEFT,ONOFF,D12,D7,D5,D6,D9",
           {
             "BOM_Supplier Part": "C59982",
             "BOM_Supplier": "LCSC",
@@ -79,11 +79,11 @@
           }
         ]
       ],
-      "updateTime": 1606508716,
+      "updateTime": 1606775475,
       "createTime": 1605475732,
       "histories": [],
       "created_at": "2020-11-15 22:28:52",
-      "updated_at": "2020-11-27 21:25:16"
+      "updated_at": "2020-11-30 23:31:15"
     },
     {
       "uuid": "aa91450dc59e79bd7a5bd23cad63d365",
@@ -100,16 +100,16 @@
         "3ac213cef77e49b9a9a55bcaf6b95846": 1
       },
       "BOM": [],
-      "updateTime": 1606384953,
+      "updateTime": 1606775685,
       "createTime": 1605477250,
       "histories": [],
       "created_at": "2020-11-15 22:54:10",
-      "updated_at": "2020-11-26 11:02:33"
+      "updated_at": "2020-11-30 23:34:45"
     }
   ],
   "sort": [],
   "title": "NanoEls",
   "foldername": "NanoEls",
   "schfilename": "NanoEls.json",
-  "schfilemtime": 1606508828679.4893
+  "schfilemtime": 1606775475558
 }
