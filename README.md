@@ -52,10 +52,8 @@ Please note that sometimes 2 lathes of the same model have different dimensions 
 
 # Limitations
 
-- Internet says that Arduino Nano can't trigger more than 4000 stepper steps per second unless PWM is used which doesn't seem precise enough for ELS purposes
-- NanoEls is also listening to the rotary encoder which reduces this limit to ~3200 steps
-- In practice this means that cutting e.g. 2mm thread with a 2mm leadscrew (1:1 spindle to leadscrew ratio) with 400 step motor, leadscrew starts lagging behind at 480rpm
-- Or maybe the code can be improved to reach higher speeds 🤷
+- Nema 23 stepper usable maximum is ~600 RPM, here a 1:1 stepper to leadscrew ratio is used
+- In practice this means that cutting e.g. 2mm thread with a 2mm leadscrew (1:1 spindle to leadscrew ratio) with 200 step motor, leadscrew starts lagging behind at 600rpm of the spindle
 
 # Instructions
 
@@ -78,7 +76,7 @@ Closed Loop stepper might be nice to have but not necessary for NanoEls to work 
 
 It's entirely reasonable to locate the driver in the electrical cabinet and not under the lathe as shown above - but make sure to get the stepper with a shielded cable in that case.
 
-It's suggested to run the stepper in the 400 steps mode as a balance between Arduino Nano signalling capabilities and the smoothness of the movements.
+It's suggested to run the stepper in the 200 steps mode, microstepping will reduce the torque and will make Arduino spend more time issuing steps, potentially lowering the maximum usable rpm.
 
 ### Encoder
 
@@ -178,7 +176,7 @@ Connect the 24V and 5V power supplies to the lathe power so that the lathe on/of
 
 Make sure Arduino Nano is working before soldering it on, unsoldering it without a desoldering station is very hard.
 
-Carefully solder 11 buttons (6X6X11 switches to fit the provided case), OLED 128x64 4-pin display and an Arduino Nano onto it.
+Carefully solder 10 buttons (6X6X11 switches to fit the provided case), OLED 128x64 4-pin display and an Arduino Nano onto it.
 
 ![Assembly](https://github.com/kachurovskiy/nanoels/raw/main/h1/buildexamples/h1-assembly.jpg)
 
@@ -188,7 +186,7 @@ Solder encoder and stepper driver wires to the PCB according to the input/output
 
 ## Gears
 
-When connecting the gears, make sure to leave ~0.5mm space between them for optimal threading. This can be achieved e.g. by temporarily placing a piece of paper between them.
+When connecting the gears, make sure to leave ~0.5mm space between them for optimal threading. This can be achieved e.g. by temporarily placing a piece of paper between them. Add grease and spread it between the gear teeth, remove the excess.
 
 ## Programming the Arduino
 
@@ -197,6 +195,7 @@ When connecting the gears, make sure to leave ~0.5mm space between them for opti
 - Download and open [NanoEls.ino](https://github.com/kachurovskiy/nanoels/raw/main/h1/NanoEls.ino)
 - Check the top 7 constants (e.g. encoder steps, motor steps, display offset) and adjust if needed
 - Upload the sketch to your Arduino Nano
+- Swap D2 and D3 pins in the code if carriage direction is inverted, re-upload
 
 # Operating the ELS
 
@@ -209,7 +208,7 @@ When connecting the gears, make sure to leave ~0.5mm space between them for opti
 
 ## Turning
 
-- Select the desired pitch using `-` and `+` buttons
+- Select the desired pitch using `-` and `+` buttons or `0.05mm`, `1mm` and `2mm` shortcut buttons in the top row
 - Turn on the lead screw using the `ON` button
 - Start the lathe spindle
 - **Warning: it's not currently possible to turn `OFF` the ELS while spindle is running due to Arduino Nano limitations**
@@ -218,12 +217,10 @@ When connecting the gears, make sure to leave ~0.5mm space between them for opti
 
 ## Automatic stops
 
-- Move the carriage manually or with the help of ELS to the desired stop position
-- Turn on the lead screw using the `ON` button
-- Set the stop using the `R STOP` button
-- Start the lathe spindle
-- Stop the lathe spindle when at the end position
+- Move the carriage with the help of ELS to the desired stop position
+  - Moving the carriage manually may introduce a small error due to backlash
 - Set the stop using the `L STOP` button
+- Use ELS to move to another stop position and press `R STOP`
 
 Now you can:
 
@@ -231,14 +228,15 @@ Now you can:
 - Use `LEFT` and `RIGHT` buttons to move the carriage ~1mm (possibly more when required to stay on the thread) within the stops in either direction when spindle is not turning
   - Moving exactly onto the stop with `LEFT` and `RIGHT` buttons is not currently supported, carriage will only go to the closest thread position to the stop
 
-Setting only one stop is also supported.
+Setting only one stop is also supported. Stops aren't lost when `ON` button is clicked or pitch is changed.
 
 ## Carriage movements
 
 - Make sure the cutting tool is not goign to contact the material and there's room to move the carriage physically
 - Use `LEFT` and `RIGHT` buttons to move the carriage ~1mm (possibly more when required to stay on the thread) when spindle is not turning
 - If stops are set, they will be respected
-- Behavior when ELS is on and spindle is turning is untested
+
+Using `LEFT` and `RIGHT` buttons when ELS is ON and spindle is turning is undefined
 
 ## Losing the thread
 
@@ -246,6 +244,9 @@ The spindle and stepper positions are reset to 0 every time one of the following
 
 - `ON` button is pressed (including long press for reset)
 - Pitch is changed e.g. by pressing `-` or `+`
+- Stepper is not in the desired position when ELS is powered up
+  - Results in `LTW` lost thread warning
+  - Can happen e.g. if spindle was running above max rpm supported by ELS and/or shutdown abruptly
 
 Thread is **not** lost when ELS is simply powered off.
 
@@ -277,4 +278,4 @@ ELS remembers all the positions and ON/OFF status when powered off.
 
 # Example builds
 
-[![NanoEls demo video](https://img.youtube.com/vi/9uTdDk2EqG4/0.jpg)](https://www.youtube.com/watch?v=9uTdDk2EqG4)
+[![NanoEls demo video](https://img.youtube.com/vi/9uTdDk2EqG4/0.jpg)](https://www.youtube.com/watch?v=9uTdDk2EqG4?t=272)
