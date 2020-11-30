@@ -50,6 +50,13 @@ As long as you can securely connect the rotary encoder to the spindle and steppe
 
 Please note that sometimes 2 lathes of the same model have different dimensions and 3D printed parts might not fit. Please share with us your 3D models if you made new ones.
 
+# Limitations
+
+- Internet says that Arduino Nano can't trigger more than 4000 stepper steps per second unless PWM is used which doesn't seem precise enough for ELS purposes
+- NanoEls is also listening to the rotary encoder which reduces this limit to ~3200 steps
+- In practice this means that cutting e.g. 2mm thread with a 2mm leadscrew (1:1 spindle to leadscrew ratio) with 400 step motor, leadscrew starts lagging behind at 480rpm
+- Or maybe the code can be improved to reach higher speeds 🤷
+
 # Instructions
 
 We've tried to simplify the process as much as possible but building NanoEls is still going to take considerable time and effort, basic mechanical and electrical knowledge.
@@ -100,6 +107,9 @@ Arduino Nano doesn't draw much current so 0.5A phone charger would work.
 ### PCB
 
 **Nov 2020: This version of the PCB design is not yet fully tested, please check back early December 2020**
+
+![NanoEls H1 PCB](https://github.com/kachurovskiy/nanoels/blob/main/h1/pcb/nanoels-pcb-h1-r1.png)
+[Gerber ZIP for production](https://github.com/kachurovskiy/nanoels/blob/main/h1/pcb/nanoels-pcb-h1-r1.zip)
 
 It's a 70mm by 90mm board with holes for M3 mounting bolts, 1.6mm thick. You will need clearance above, below and on the sides of the board for the through-hole components, their pins (legs) and wires coming into the PCB.
 
@@ -187,7 +197,8 @@ When connecting the gears, make sure to leave ~0.5mm space between them for opti
 - Download the Arduino IDE
 - Install `Adafruit_SSD1306` library via the Library Manager in the Arduino IDE
 - Download and open [NanoEls.ino](https://github.com/kachurovskiy/nanoels/raw/main/h1/NanoEls.ino)
-- Upload it to your Arduino Nano
+- Check the top 7 constants (e.g. encoder steps, motor steps, display offset) and adjust if needed
+- Upload the sketch to your Arduino Nano
 
 # Operating the ELS
 
@@ -231,6 +242,15 @@ Setting only one stop is also supported.
 - If stops are set, they will be respected
 - Behavior when ELS is on and spindle is turning is untested
 
+## Losing the thread
+
+The spindle and stepper positions are reset to 0 every time one of the following happens:
+
+- `ON` button is pressed (including long press for reset)
+- Pitch is changed e.g. by pressing `-` or `+`
+
+Thread is **not** lost when ELS is simply powered off.
+
 ## Out-of-sync situations
 
 It's possible for the lead screw to go out of sync with the spindle by removing the `L STOP` or `R STOP` while the carriage is standing on it. It's indicated by the `SYN` word on the display.
@@ -259,4 +279,4 @@ ELS remembers all the positions and ON/OFF status when powered off.
 
 # Example builds
 
-![Assembled ELS without the metal housing](https://github.com/kachurovskiy/nanoels/raw/main/h1/buildexamples/buildexample1.jpg)
+[![NanoEls demo video](https://img.youtube.com/vi/9uTdDk2EqG4/0.jpg)](https://www.youtube.com/watch?v=9uTdDk2EqG4)
