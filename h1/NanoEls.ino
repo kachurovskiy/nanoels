@@ -18,8 +18,8 @@
 #define ENC_B 2 // D2
 
 // Stepper pulse and acceleration constants.
-#define PULSE_LOW_MIN_US 400 // Microseconds to wait after high pulse, min.
-#define PULSE_LOW_MAX_US 1500 // Microseconds to wait after high pulse, max. Slow start.
+#define PULSE_LOW_MIN_US 500 // Microseconds to wait after high pulse, min.
+#define PULSE_LOW_MAX_US 2000 // Microseconds to wait after high pulse, max. Slow start.
 #define PULSE_DELTA_US 7 // Microseconds remove from waiting time on every step. Acceleration.
 #define STEPPER_MAX_RPM 600 // Stepper loses most of it's torque at speeds higher than that.
 
@@ -437,7 +437,8 @@ void secondaryWork() {
           spindlePos += delta;
           interrupts();
 
-          step(left, abs(posFromSpindle(spindlePos, false) - pos));
+          long newPos = posFromSpindle(spindlePos, true);
+          step(newPos > pos, abs(newPos - pos));
         } while (delta != 0 && (pos == 0 || pos != leftStop && pos != rightStop) && digitalRead(left ? F1 : F2) == LOW);
       } else {
         int delta = 0;
@@ -515,6 +516,10 @@ long step(bool dir, long steps) {
   if (stepDelayDirection != dir) {
     stepDelayUs = PULSE_LOW_MAX_US;
     stepDelayDirection = dir;
+  }
+  // Stepper basically has no speed if it was standing for 10ms.
+  if (millis() - stepStartMs > 10) {
+    stepDelayUs = PULSE_LOW_MAX_US;
   }
 
   digitalWrite(DIR, dir ? HIGH : LOW);
