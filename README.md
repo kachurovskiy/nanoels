@@ -16,6 +16,14 @@
 - Automatic lead screw stops
 - Independent carriage moves without losing the thread
 
+# Limitations
+
+- System has known rarely occuring bugs root causes for which are yet to be found such as:
+  - Stepper direction reversing unexpectedly for 0.5s during turning
+  - Stepper failing to soft-start during left/right moves, skipping all steps
+- Nema 23 stepper usable maximum is ~600 RPM, here a 1:1 stepper to leadscrew ratio is used
+- In practice this means that cutting e.g. 2mm thread with a 2mm leadscrew with 200 step motor, leadscrew starts lagging behind at 600rpm of the spindle
+
 # Hardware overview
 
 - 5 plastic 3D-printed parts (gears, mounts)
@@ -49,11 +57,6 @@ As long as you can securely connect the rotary encoder to the spindle and steppe
 - WM210 or WM210V
 
 Please note that sometimes 2 lathes of the same model have different dimensions and 3D printed parts might not fit. Please share with us your 3D models if you made new ones.
-
-# Limitations
-
-- Nema 23 stepper usable maximum is ~600 RPM, here a 1:1 stepper to leadscrew ratio is used
-- In practice this means that cutting e.g. 2mm thread with a 2mm leadscrew (1:1 spindle to leadscrew ratio) with 200 step motor, leadscrew starts lagging behind at 600rpm of the spindle
 
 # Instructions
 
