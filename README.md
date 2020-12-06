@@ -20,7 +20,6 @@
 
 - System has known rarely occuring bugs root causes for which are yet to be found such as:
   - Stepper direction reversing unexpectedly for 0.5s during turning
-  - Stepper failing to soft-start during left/right moves, skipping all steps
 - Nema 23 stepper usable maximum is ~600 RPM, here a 1:1 stepper to leadscrew ratio is used
 - In practice this means that cutting e.g. 2mm thread with a 2mm leadscrew with 200 step motor, leadscrew starts lagging behind at 600rpm of the spindle
 

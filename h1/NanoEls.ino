@@ -18,8 +18,8 @@
 #define ENC_B 2 // D2
 
 // Stepper pulse and acceleration constants.
-#define PULSE_LOW_MIN_US 500 // Microseconds to wait after high pulse, min.
-#define PULSE_LOW_MAX_US 2000 // Microseconds to wait after high pulse, max. Slow start.
+#define PULSE_MIN_US 500 // Microseconds to wait after high pulse, min.
+#define PULSE_MAX_US 2000 // Microseconds to wait after high pulse, max. Slow start.
 #define PULSE_DELTA_US 7 // Microseconds remove from waiting time on every step. Acceleration.
 #define STEPPER_MAX_RPM 600 // Stepper loses most of it's torque at speeds higher than that.
 
@@ -101,7 +101,7 @@ long spindleRightStop = 0;
 volatile int outOfSync = 0;
 int savedOutOfSync = 0;
 
-int stepDelayUs = PULSE_LOW_MAX_US;
+int stepDelayUs = PULSE_MAX_US;
 bool stepDelayDirection = true; // To reset stepDelayUs when direction changes.
 unsigned long stepStartMs = 0;
 
@@ -514,19 +514,24 @@ void secondaryWork() {
 long step(bool dir, long steps) {
   // Start slow if direction changed.
   if (stepDelayDirection != dir) {
-    stepDelayUs = PULSE_LOW_MAX_US;
+    stepDelayUs = PULSE_MAX_US;
     stepDelayDirection = dir;
   }
   // Stepper basically has no speed if it was standing for 10ms.
   if (millis() - stepStartMs > 10) {
-    stepDelayUs = PULSE_LOW_MAX_US;
+    stepDelayUs = PULSE_MAX_US;
   }
 
   digitalWrite(DIR, dir ? HIGH : LOW);
   for (int i = 0; i < steps; i++) {
     unsigned long t = millis();
-    int tDiffMs = t - stepStartMs;
-    stepDelayUs = min(PULSE_LOW_MAX_US, max(PULSE_LOW_MIN_US, stepDelayUs - PULSE_DELTA_US + tDiffMs));
+    int tDiffMs = stepStartMs == 0 ? 0 : t - stepStartMs;
+    // long to int can overflow
+    if (tDiffMs < 0 || tDiffMs > PULSE_MAX_US) {
+      stepDelayUs = PULSE_MAX_US;
+    } else {
+      stepDelayUs = min(PULSE_MAX_US, max(PULSE_MIN_US, stepDelayUs - PULSE_DELTA_US + tDiffMs));
+    }
     stepStartMs = t;
 
     digitalWrite(STEP, HIGH);
