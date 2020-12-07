@@ -516,13 +516,13 @@ long step(bool dir, long steps) {
   if (stepDelayDirection != dir) {
     stepDelayUs = PULSE_MAX_US;
     stepDelayDirection = dir;
+    digitalWrite(DIR, dir ? HIGH : LOW);
   }
   // Stepper basically has no speed if it was standing for 10ms.
   if (millis() - stepStartMs > 10) {
     stepDelayUs = PULSE_MAX_US;
   }
 
-  digitalWrite(DIR, dir ? HIGH : LOW);
   for (int i = 0; i < steps; i++) {
     unsigned long t = millis();
     int tDiffMs = stepStartMs == 0 ? 0 : t - stepStartMs;

@@ -19,9 +19,9 @@
 # Limitations
 
 - System has known rarely occuring bugs root causes for which are yet to be found such as:
-  - Stepper direction reversing unexpectedly for 0.5s during turning
-- Nema 23 stepper usable maximum is ~600 RPM, here a 1:1 stepper to leadscrew ratio is used
-- In practice this means that cutting e.g. 2mm thread with a 2mm leadscrew with 200 step motor, leadscrew starts lagging behind at 600rpm of the spindle
+  - Stepper direction reversing unexpectedly for 0.1s during turning (possibly fixed)
+- Nema 23 stepper usable maximum is ~600 RPM, here a 1:1 stepper to leadscrew ratio is used. In practice this means that cutting e.g. 2mm thread with a 2mm leadscrew spindle top speed should stay under 600 RPM.
+  - This can be mitigated to some extent by using e.g. 40 tooth gear on the leadscrew and 60 tooth gear on the motor at the expense of the maximum leadsrew torque
 
 # Hardware overview
 
