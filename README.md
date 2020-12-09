@@ -125,6 +125,7 @@ Ideally, a 50 tooth metal gear (~8mm thick) from the original lathe gear set wou
 #### Case
 
 ![Case](https://github.com/kachurovskiy/nanoels/raw/main/h1/case/case-120mm-2m6-2m5-4m3.png)
+
 [STL file](https://github.com/kachurovskiy/nanoels/raw/main/h1/case/case-120mm-2m6-2m5-4m3.stl)
 
 This case is designed for the 120mm wide lathe base with two holes for M5 bolts on the bottom plate.
