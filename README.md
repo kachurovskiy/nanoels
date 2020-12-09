@@ -150,6 +150,19 @@ Stepper should rest on e.g. a piece of rubber when attached to the lathe - provi
 
 This gear is designed to fit the NEMA 23 shaft (10mm diameter / 9.5mm narrow dimension) without any set screws. Gear is 10mm wide, entire part is 20mm wide.
 
+Using this gear can be very noisy on certain RPMs.
+
+##### Alternative: adapter for lathe gear
+
+![Stepper gear adapter](https://github.com/kachurovskiy/nanoels/raw/main/h1/stepper/stepper-to-gear-adapter-12mm-10mm.png)
+[STL file](https://github.com/kachurovskiy/nanoels/raw/main/h1/stepper/stepper-to-gear-adapter-12mm-10mm.png)
+
+If you have 2 metal gears that add up to 100 tooth together (e.g. 2x50 tooth gears) that came with the lathe, it's possible to simply use one of them on the leadscrew and one on the stepper with the help of the adapter above. It can be somewhat noisy on certain RPMs but otherwise works well.
+
+##### Alternative: 2 printed 20 tooth pulleys with a 300mm HTD 5M belt
+
+I'm exploring this option to reduce the gear noise, will update once I have the results.
+
 #### Encoder base
 
 ![Encoder base](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/encoder-base-38.5mm-hole-m4-screw.png)
