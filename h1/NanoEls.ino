@@ -22,6 +22,7 @@
 #define PULSE_MAX_US 2000 // Microseconds to wait after high pulse, max. Slow start.
 #define PULSE_DELTA_US 7 // Microseconds remove from waiting time on every step. Acceleration.
 #define STEPPER_MAX_RPM 600 // Stepper loses most of it's torque at speeds higher than that.
+#define INVERT_STEPPER true // false for 1:1 geared connection, true for 1:1 belt connection
 
 /* Changing anything below shouldn't be needed for basic use. */
 
@@ -516,7 +517,7 @@ long step(bool dir, long steps) {
   if (stepDelayDirection != dir) {
     stepDelayUs = PULSE_MAX_US;
     stepDelayDirection = dir;
-    digitalWrite(DIR, dir ? HIGH : LOW);
+    digitalWrite(DIR, dir ^ INVERT_STEPPER ? HIGH : LOW);
   }
   // Stepper basically has no speed if it was standing for 10ms.
   if (millis() - stepStartMs > 10) {
