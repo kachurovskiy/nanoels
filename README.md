@@ -146,7 +146,9 @@ Dimensions of the lead screw front bearing housing for the provided 3D-printed p
 
 Stepper should rest on e.g. a piece of rubber when attached to the lathe - provided 3D printed part is only held by friction and is not designed to hold the full weight of the stepper long term.
 
-#### Stepper gear
+#### Stepper to leadscrew
+
+##### Option 1: plastic gear
 
 ![Stepper gear](https://github.com/kachurovskiy/nanoels/raw/main/h1/stepper/stepper-gear-nema23-50t-10mm-10mm.png)
 
@@ -156,7 +158,7 @@ This gear is designed to fit the NEMA 23 shaft (10mm diameter / 9.5mm narrow dim
 
 Using this gear can be very noisy on certain RPMs.
 
-##### Alternative: adapter for lathe gear
+##### Option 2: adapter for the lathe gear
 
 ![Stepper gear adapter](https://github.com/kachurovskiy/nanoels/raw/main/h1/stepper/stepper-to-gear-adapter-12mm-10mm.png)
 
@@ -164,9 +166,17 @@ Using this gear can be very noisy on certain RPMs.
 
 If you have 2 metal gears that add up to 100 tooth together (e.g. 2x50 tooth gears) that came with the lathe, it's possible to simply use one of them on the leadscrew and one on the stepper with the help of the adapter above. It can be somewhat noisy on certain RPMs but otherwise works well.
 
-##### Alternative: 2 printed 20 tooth pulleys with a 300mm HTD 5M belt
+##### Option 3: HTD 5M belt connection
 
-I'm exploring this option to reduce the gear noise, will update once I have the results.
+![Stepper HTD 5M pulleys](https://github.com/kachurovskiy/nanoels/raw/main/h1/stepper/htd5m-16-pair.png)
+
+[STL pulley 10mm bore](https://github.com/kachurovskiy/nanoels/raw/main/h1/stepper/htd5m-16t-10b.stl)
+
+[STL pulley 12mm bore](https://github.com/kachurovskiy/nanoels/raw/main/h1/stepper/htd5m-16t-12b.stl)
+
+This is the best stepper to leadscrew connection method that I tried so far but it requires printing 2 parts above and buying a 180mm HTD 5M belt which is not expensive (5-10€) but can be hard to find depending on where you live.
+
+This is the quietest option that also doesn't need greasing. 2 pulleys and a belt fit tight on the normal stepper mount shown above without a need for a tensioner.
 
 #### Encoder base
 
