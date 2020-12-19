@@ -204,9 +204,11 @@ Encoder gear should fit loosely to the spindle allowing for it to move ~1 degree
 
 Connect the 24V and 5V power supplies to the lathe power so that the lathe on/off and safety switches cut off the power for the ELS too.
 
-Make sure Arduino Nano is working before soldering it on, unsoldering it without a desoldering station is very hard.
+Test Arduino Nano **before** soldering it on, unsoldering it without a desoldering station is very hard.
 
 Carefully solder 10 buttons (6X6X11 switches to fit the provided case), OLED 128x64 4-pin display and an Arduino Nano onto it.
+
+It's important that buttons are soldered vertically or the result won't fit into a case. To achieve this, solder only 2 diagonal legs for each button first while pressing on the button firmly. Then check all buttons for verticalness, at this point it's easy to correct the angle by pressing on the button and re-heating one of the legs. Once satisfied, proceed to solder all the remaining legs. 
 
 ![Assembly](https://github.com/kachurovskiy/nanoels/raw/main/h1/buildexamples/h1-assembly.jpg)
 
@@ -223,7 +225,7 @@ When connecting the gears, make sure to leave ~0.5mm space between them for opti
 - Download the Arduino IDE
 - Install `Adafruit_SSD1306` library via the Library Manager in the Arduino IDE
 - Download and open [NanoEls.ino](https://github.com/kachurovskiy/nanoels/raw/main/h1/NanoEls.ino)
-- Check the top 7 constants (e.g. encoder steps, motor steps, display offset) and adjust if needed
+- Check the top constants (e.g. encoder steps, motor steps, display offset) and adjust if needed
 - Upload the sketch to your Arduino Nano
 - Swap D2 and D3 pins in the code if carriage direction is inverted, re-upload
 
