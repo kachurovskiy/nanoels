@@ -26,6 +26,12 @@
 
 /* Changing anything below shouldn't be needed for basic use. */
 
+#define LOOP_COUNTER_MAX 1500 // 1500 loops without stepper move to start reading buttons
+#define HMMPR_MAX 1000 // 10mm
+
+// Uncomment to run the self-test of the code instead of the actual program.
+// #define TEST
+
 // Ratios between spindle and stepper.
 #define ENCODER_TO_STEPPER_STEP_RATIO MOTOR_STEPS / (LEAD_SCREW_HMM * ENCODER_STEPS)
 #define STEPPER_TO_ENCODER_STEP_RATIO LEAD_SCREW_HMM * ENCODER_STEPS / MOTOR_STEPS
@@ -161,11 +167,15 @@ void saveLong(int i, long v) {
   EEPROM.write(i + 3, v & 0xFF);
 }
 long loadLong(int i) {
+  long p0 = EEPROM.read(i);
+  long p1 = EEPROM.read(i + 1);
+  long p2 = EEPROM.read(i + 2);
+  long p3 = EEPROM.read(i + 3);
   // 255 is the default value when nothing was written before.
-  if (EEPROM.read(i) == 255 && EEPROM.read(i + 1) == 255 && EEPROM.read(i + 2) == 255 && EEPROM.read(i + 3) == 255) {
+  if (p0 == 255 && p1 == 255 && p2 == 255 && p3 == 255) {
     return 0;
   }
-  return (EEPROM.read(i) << 24) + (EEPROM.read(i + 1) << 16) + (EEPROM.read(i + 2) << 8) + EEPROM.read(i + 3);
+  return (p0 << 24) + (p1 << 16) + (p2 << 8) + p3;
 }
 
 // Called on a FALLING interrupt for the spindle rotary encoder pin.
@@ -334,12 +344,12 @@ void secondaryWork() {
     // Speed up scrolling when needed.
     int delta = abs(hmmprPrevious - hmmpr) >= 10 ? 10 : 1;
     if (digitalRead(LEFT) == LOW) {
-      if (hmmpr > -1000) {
+      if (hmmpr > -HMMPR_MAX) {
         hmmpr -= delta;
         markAsZero();
       }
     } else if (digitalRead(RIGHT) == LOW) {
-      if (hmmpr < 1000) {
+      if (hmmpr < HMMPR_MAX) {
         hmmpr += delta;
         markAsZero();
       }
@@ -410,7 +420,7 @@ void secondaryWork() {
   }
 
   // Carriage left-right buttons.
-  if (loopCounter % 33 == 0 && !outOfSync && loopCounter > 1000) {
+  if (loopCounter % 33 == 0 && !outOfSync && loopCounter > LOOP_COUNTER_MAX) {
     bool left = digitalRead(F1) == LOW;
     bool right = digitalRead(F2) == LOW;
     if (left || right) {
@@ -536,8 +546,12 @@ long step(bool dir, long steps) {
     stepStartMs = t;
 
     digitalWrite(STEP, HIGH);
+    // digitalWrite() is slow enough that we don't need to wait in the HIGH position.
     digitalWrite(STEP, LOW);
-    delayMicroseconds(stepDelayUs);
+    // Don't wait during the last step, it will pass by itself before we get back to stepping again.
+    if (i < steps - 1) {
+      delayMicroseconds(stepDelayUs);
+    }
   }
   pos += (dir ? 1 : -1) * steps;
 }
@@ -563,7 +577,19 @@ long spindleFromPos(long s) {
   return s * STEPPER_TO_ENCODER_STEP_RATIO / hmmpr;
 }
 
+// In unit testing mode, include test library.
+#ifdef TEST
+#include <AUnitVerbose.h>
+using namespace aunit;
+#endif
+
 void loop() {
+  // In unit testing mode, only run tests.
+  #ifdef TEST
+    TestRunner::run();
+    return;
+  #endif
+
   long newPos = posFromSpindle(spindlePos, true);
   if (isOn && !outOfSync && newPos != pos) {
     // Move the stepper to the right position.
@@ -595,8 +621,8 @@ void loop() {
     }
 
     loopCounter++;
-    if (loopCounter > 1000) {
-      if (loopCounter % 1000 == 0) {
+    if (loopCounter > LOOP_COUNTER_MAX) {
+      if (loopCounter % LOOP_COUNTER_MAX == 0) {
         Serial.print("pos ");
         Serial.print(pos);
         Serial.print(" hmmpr ");
@@ -615,7 +641,7 @@ void loop() {
       secondaryWork();
 
       // Drop the lost thread warning after some time.
-      if (resetOnStartup && loopCounter > 2000) {
+      if (resetOnStartup && loopCounter > 2 * LOOP_COUNTER_MAX) {
         resetOnStartup = false;
       }
     }
