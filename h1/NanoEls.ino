@@ -29,9 +29,6 @@
 #define LOOP_COUNTER_MAX 1500 // 1500 loops without stepper move to start reading buttons
 #define HMMPR_MAX 1000 // 10mm
 
-// Uncomment to run the self-test of the code instead of the actual program.
-// #define TEST
-
 // Ratios between spindle and stepper.
 #define ENCODER_TO_STEPPER_STEP_RATIO MOTOR_STEPS / (LEAD_SCREW_HMM * ENCODER_STEPS)
 #define STEPPER_TO_ENCODER_STEP_RATIO LEAD_SCREW_HMM * ENCODER_STEPS / MOTOR_STEPS
@@ -71,6 +68,15 @@
 #define ADDR_SPINDLE_POS 16 // takes 4 bytes
 #define ADDR_OUT_OF_SYNC 20 // takes 2 bytes
 
+// Uncomment to run the self-test of the code instead of the actual program.
+// #define TEST
+#ifdef TEST
+  bool mockDigitalPins[20] = {0};
+  #define DREAD(x) mockDigitalPins[x]
+#else
+  #define DREAD(x) digitalRead(x)
+#endif
+
 #include <SPI.h>
 #include <Wire.h>
 #include <Adafruit_SSD1306.h>
@@ -105,8 +111,8 @@ long savedSpindlePos = 0; // value saved in EEPROM
 long spindleLeftStop = 0;
 long spindleRightStop = 0;
 
-volatile int outOfSync = 0;
-int savedOutOfSync = 0;
+volatile int spindlePosSync = 0;
+int savedSpindlePosSync = 0;
 
 int stepDelayUs = PULSE_MAX_US;
 bool stepDelayDirection = true; // To reset stepDelayUs when direction changes.
@@ -118,8 +124,8 @@ void updateDisplay() {
   display.setCursor(DISPLAY_LEFT, DISPLAY_TOP);
   display.setTextSize(2);
   display.print(isOn ? "   ON" : "off  ");
-  display.print(outOfSync ? " SYN" : "");
-  if (!outOfSync && resetOnStartup) {
+  display.print(spindlePosSync ? " SYN" : "");
+  if (!spindlePosSync && resetOnStartup) {
     display.print(" LTW");
   }
   display.setCursor(DISPLAY_LEFT, 20 + DISPLAY_TOP);
@@ -181,18 +187,23 @@ long loadLong(int i) {
 // Called on a FALLING interrupt for the spindle rotary encoder pin.
 // Keeps track of the spindle position.
 void spinEnc() {
-  int delta = digitalRead(ENC_B) ? -1 : 1;
+  int delta = DREAD(ENC_B) ? -1 : 1;
   spindlePos += delta;
 
-  if (outOfSync != 0) {
-    outOfSync += delta;
-    if (outOfSync == 0 || outOfSync == ENCODER_STEPS) {
-      outOfSync = 0;
-      spindlePos = pos * STEPPER_TO_ENCODER_STEP_RATIO / hmmpr;
+  if (spindlePosSync != 0) {
+    spindlePosSync += delta;
+    if (spindlePosSync == 0 || spindlePosSync == ENCODER_STEPS) {
+      spindlePosSync = 0;
+      spindlePos = spindleFromPos(pos);
     }
   }
 }
 
+#ifdef TEST
+void setup() {
+  Serial.begin(9600);
+}
+#else
 void setup() {
   pinMode(LEFT, INPUT_PULLUP);
   pinMode(ONOFF, INPUT_PULLUP);
@@ -227,7 +238,7 @@ void setup() {
   savedLeftStop = leftStop = loadLong(ADDR_LEFT_STOP);
   savedRightStop = rightStop = loadLong(ADDR_RIGHT_STOP);
   savedSpindlePos = spindlePos = loadLong(ADDR_SPINDLE_POS);
-  savedOutOfSync = outOfSync = loadInt(ADDR_OUT_OF_SYNC);
+  savedSpindlePosSync = spindlePosSync = loadInt(ADDR_OUT_OF_SYNC);
 
   attachInterrupt(digitalPinToInterrupt(ENC_A), spinEnc, FALLING);
 
@@ -240,6 +251,11 @@ void setup() {
   Serial.print(" V");
   Serial.print(SOFTWARE_VERSION);
 
+  preventMoveOnStart();
+}
+#endif
+
+void preventMoveOnStart() {
   // Sometimes, especially if ELS was run outside above max RPM before, pos and spindlePos
   // will be out of sync causing immediate stepper movement if isOn. This could be dangerous
   // and surely won't be expected by the operator.
@@ -268,8 +284,8 @@ void saveIfChanged() {
   if (spindlePos != savedSpindlePos) {
     saveLong(ADDR_SPINDLE_POS, savedSpindlePos = spindlePos);
   }
-  if (outOfSync != savedOutOfSync) {
-    saveInt(ADDR_OUT_OF_SYNC, savedOutOfSync = outOfSync);
+  if (spindlePosSync != savedSpindlePosSync) {
+    saveInt(ADDR_OUT_OF_SYNC, savedSpindlePosSync = spindlePosSync);
   }
 }
 
@@ -301,7 +317,7 @@ void markAsZero() {
   }
   pos = 0;
   spindlePos = 0;
-  outOfSync = 0;
+  spindlePosSync = 0;
 }
 
 void splashScreen() {
@@ -328,9 +344,9 @@ void reset() {
 // Prevents stepper from rushing to a position far away by waiting for the right
 // spindle position and starting smoothly.
 void setOutOfSync() {
-  outOfSync = (int) ((pos - posFromSpindle(spindlePos, false)) % (int) MOTOR_STEPS + MOTOR_STEPS) % (int) MOTOR_STEPS;
-  Serial.print("outOfSync ");
-  Serial.println(outOfSync);
+  spindlePosSync = ((spindlePos - spindleFromPos(pos)) % (int) ENCODER_STEPS + (int) ENCODER_STEPS) % (int) ENCODER_STEPS;
+  Serial.print("spindlePosSync ");
+  Serial.println(spindlePosSync);
 }
 
 // Called when loop() is not busy running the stepper.
@@ -420,7 +436,7 @@ void secondaryWork() {
   }
 
   // Carriage left-right buttons.
-  if (loopCounter % 33 == 0 && !outOfSync && loopCounter > LOOP_COUNTER_MAX) {
+  if (loopCounter % 33 == 0 && !spindlePosSync && loopCounter > LOOP_COUNTER_MAX) {
     bool left = digitalRead(F1) == LOW;
     bool right = digitalRead(F2) == LOW;
     if (left || right) {
@@ -436,11 +452,11 @@ void secondaryWork() {
           // Don't left-right move out of stops.
           long deltaPos = posFromSpindle(spindlePos + delta, false);
           if (leftStop != 0 && deltaPos > leftStop) {
-            // TODO: support moving exactly to leftPos and setting outOfSync to the right value.
+            // TODO: support moving exactly to leftPos and setting spindlePosSync to the right value.
             break;
           }
           if (rightStop != 0 && deltaPos < rightStop) {
-            // TODO: support moving exactly to rightPos and setting outOfSync to the right value.
+            // TODO: support moving exactly to rightPos and setting spindlePosSync to the right value.
             break;
           }
 
@@ -573,8 +589,8 @@ long posFromSpindle(long s, bool respectStops) {
 }
 
 // Calculates spindle position from stepper position.
-long spindleFromPos(long s) {
-  return s * STEPPER_TO_ENCODER_STEP_RATIO / hmmpr;
+long spindleFromPos(long p) {
+  return p * STEPPER_TO_ENCODER_STEP_RATIO / hmmpr;
 }
 
 // In unit testing mode, include test library.
@@ -586,12 +602,10 @@ using namespace aunit;
 void loop() {
   // In unit testing mode, only run tests.
   #ifdef TEST
-    TestRunner::run();
-    return;
-  #endif
-
+  TestRunner::run();
+  #else
   long newPos = posFromSpindle(spindlePos, true);
-  if (isOn && !outOfSync && newPos != pos) {
+  if (isOn && !spindlePosSync && newPos != pos) {
     // Move the stepper to the right position.
     step(newPos > pos, abs(newPos - pos));
     loopCounter = 0;
@@ -646,4 +660,5 @@ void loop() {
       }
     }
   }
+  #endif
 }
