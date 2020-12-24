@@ -24,6 +24,11 @@
 #define STEPPER_MAX_RPM 600 // Stepper loses most of it's torque at speeds higher than that.
 #define INVERT_STEPPER true // false for 1:1 geared connection, true for 1:1 belt connection
 
+// Pitch shortcut buttons, set to your most used values that should be available within 1 click.
+#define F3_PITCH 5 // 0.05mm
+#define F4_PITCH 100 // 1mm
+#define F5_PITCH 200 // 2mm
+
 /* Changing anything below shouldn't be needed for basic use. */
 
 #define LOOP_COUNTER_MAX 1500 // 1500 loops without stepper move to start reading buttons
@@ -33,12 +38,16 @@
 #define ENCODER_TO_STEPPER_STEP_RATIO MOTOR_STEPS / (LEAD_SCREW_HMM * ENCODER_STEPS)
 #define STEPPER_TO_ENCODER_STEP_RATIO LEAD_SCREW_HMM * ENCODER_STEPS / MOTOR_STEPS
 
+// If time between encoder ticks is less than this, direction change is not allowed.
+// Effectively this limits direction change to the time when spindle is <20rpm.
+#define DIR_CHANGE_DIFF_MS (int) (5 * ENCODER_STEPS / 600)
+
 // Version of the EEPROM storage format, should be changed when non-backward-compatible
 // changes are made to the storage logic, resulting in EEPROM wipe on first start.
 #define EEPROM_VERSION 1
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 3
+#define SOFTWARE_VERSION 4
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 1
@@ -68,6 +77,9 @@
 #define ADDR_SPINDLE_POS 16 // takes 4 bytes
 #define ADDR_OUT_OF_SYNC 20 // takes 2 bytes
 
+// Uncomment to print out debug info in Serial.
+// #define DEBUG
+
 // Uncomment to run the self-test of the code instead of the actual program.
 // #define TEST
 #ifdef TEST
@@ -77,12 +89,14 @@
   #define DREAD(x) digitalRead(x)
 #endif
 
+#ifndef TEST
 #include <SPI.h>
 #include <Wire.h>
 #include <Adafruit_SSD1306.h>
-#include <EEPROM.h>
-
 Adafruit_SSD1306 display(128, 64, &Wire, -1);
+#endif
+
+#include <EEPROM.h>
 
 unsigned long buttonTime = 0;
 long loopCounter = 0;
@@ -106,6 +120,8 @@ long rightStop = 0; // right stop value of pos
 long savedRightStop = 0; // value saved in EEPROM
 bool rightStopFlag = true; // prevent toggling the stop while button is pressed.
 
+volatile unsigned long spindleDeltaTime = 0; // millis() of the previous spindle update
+volatile int spindleDeltaPrev = 0; // Previous delta value
 volatile long spindlePos = 0; // spindle position
 long savedSpindlePos = 0; // value saved in EEPROM
 long spindleLeftStop = 0;
@@ -119,6 +135,7 @@ bool stepDelayDirection = true; // To reset stepDelayUs when direction changes.
 unsigned long stepStartMs = 0;
 
 void updateDisplay() {
+  #ifndef TEST
   display.clearDisplay();
   display.setTextColor(WHITE);
   display.setCursor(DISPLAY_LEFT, DISPLAY_TOP);
@@ -128,8 +145,17 @@ void updateDisplay() {
   if (!spindlePosSync && resetOnStartup) {
     display.print(" LTW");
   }
+
+  // Show hmmpr, print(String(hmmpr * 1.0 / 100, 2)) doesn't always work for some reason.
   display.setCursor(DISPLAY_LEFT, 20 + DISPLAY_TOP);
-  display.print(String(hmmpr * 1.0 / 100, 2));
+  if (hmmpr < 0) {
+    display.print("-");
+  }
+  int hmmprAbs = abs(hmmpr);
+  display.print((int) floor(hmmprAbs / 100));
+  display.print(".");
+  display.print((int) floor(hmmprAbs / 10) % 10);
+  display.print(hmmprAbs % 10);
   display.print("mm");
 
   long maxSpindleRpm = hmmpr == 0 ? 1250 : STEPPER_MAX_RPM * LEAD_SCREW_HMM / abs(hmmpr);
@@ -144,14 +170,17 @@ void updateDisplay() {
     display.print("rpm");
   }
   display.display();
+  #endif
 }
 
 void saveInt(int i, int v) {
   // Can't concatenate all in one line due to compiler problems, same throughout the code.
+  #ifdef DEBUG
   Serial.print("Saving int at ");
   Serial.print(i);
   Serial.print(" = ");
   Serial.println(v);
+  #endif
   EEPROM.write(i, v >> 8 & 0xFF);
   EEPROM.write(i + 1, v & 0xFF);
 }
@@ -163,10 +192,12 @@ int loadInt(int i) {
   return (EEPROM.read(i) << 8) + EEPROM.read(i + 1);
 }
 void saveLong(int i, long v) {
+  #ifdef DEBUG
   Serial.print("Saving long at ");
   Serial.print(i);
   Serial.print(" = ");
   Serial.println(v);
+  #endif
   EEPROM.write(i, v >> 24 & 0xFF);
   EEPROM.write(i + 1, v >> 16 & 0xFF);
   EEPROM.write(i + 2, v >> 8 & 0xFF);
@@ -187,8 +218,17 @@ long loadLong(int i) {
 // Called on a FALLING interrupt for the spindle rotary encoder pin.
 // Keeps track of the spindle position.
 void spinEnc() {
-  int delta = DREAD(ENC_B) ? -1 : 1;
+  int delta;
+  unsigned long timeDiff = millis() - spindleDeltaTime;
+  if (timeDiff > DIR_CHANGE_DIFF_MS) {
+    delta = DREAD(ENC_B) ? -1 : 1;
+    spindleDeltaPrev = delta;
+  } else {
+    // Spindle is going fast, unlikely to change direction momentarily.
+    delta = spindleDeltaPrev;
+  }
   spindlePos += delta;
+  spindleDeltaTime += timeDiff;
 
   if (spindlePosSync != 0) {
     spindlePosSync += delta;
@@ -205,6 +245,7 @@ void setup() {
 }
 #else
 void setup() {
+  pinMode(LED_BUILTIN, OUTPUT);
   pinMode(LEFT, INPUT_PULLUP);
   pinMode(ONOFF, INPUT_PULLUP);
   pinMode(RIGHT, INPUT_PULLUP);
@@ -249,7 +290,7 @@ void setup() {
   Serial.print("NanoEls H");
   Serial.print(HARDWARE_VERSION);
   Serial.print(" V");
-  Serial.print(SOFTWARE_VERSION);
+  Serial.println(SOFTWARE_VERSION);
 
   preventMoveOnStart();
 }
@@ -261,7 +302,9 @@ void preventMoveOnStart() {
   // and surely won't be expected by the operator.
   long newPos = posFromSpindle(spindlePos, true);
   if (newPos != pos) {
+    #ifdef DEBUG
     Serial.println("Losing the thread");
+    #endif
     resetOnStartup = true;
     markAsZero();
   }
@@ -320,7 +363,13 @@ void markAsZero() {
   spindlePosSync = 0;
 }
 
+void setHmmpr(int value) {
+  hmmpr = value;
+  markAsZero();
+}
+
 void splashScreen() {
+  #ifndef TEST
   display.clearDisplay();
   display.setTextColor(WHITE);
   display.setTextSize(2);
@@ -330,13 +379,13 @@ void splashScreen() {
   display.println("H" + String(HARDWARE_VERSION) + " V" + String(SOFTWARE_VERSION));
   display.display();
   delay(2000);
+  #endif
 }
 
 void reset() {
-  hmmpr = 0;
   leftStop = 0;
   rightStop = 0;
-  markAsZero();
+  setHmmpr(0);
   splashScreen();
 }
 
@@ -345,8 +394,163 @@ void reset() {
 // spindle position and starting smoothly.
 void setOutOfSync() {
   spindlePosSync = ((spindlePos - spindleFromPos(pos)) % (int) ENCODER_STEPS + (int) ENCODER_STEPS) % (int) ENCODER_STEPS;
+  #ifdef DEBUG
   Serial.print("spindlePosSync ");
   Serial.println(spindlePosSync);
+  #endif
+}
+
+// Check if the - or + buttons are pressed.
+void checkPlusMinusButtons() {
+  // Speed up scrolling when needed.
+  int delta = abs(hmmprPrevious - hmmpr) >= 10 ? 10 : 1;
+  if (DREAD(LEFT) == LOW) {
+    if (hmmpr > -HMMPR_MAX) {
+      setHmmpr(max(-HMMPR_MAX, hmmpr - delta));
+    }
+  } else if (DREAD(RIGHT) == LOW) {
+    if (hmmpr < HMMPR_MAX) {
+      setHmmpr(min(HMMPR_MAX, hmmpr + delta));
+    }
+  } else {
+    hmmprPrevious = hmmpr;
+  }
+}
+
+// Check if the ON/OFF button is pressed.
+void checkOnOffButton() {
+  if (DREAD(ONOFF) == LOW) {
+    resetCounter++;
+    if (onOffFlag) {
+      onOffFlag = false;
+      isOn = !isOn;
+      EEPROM.write(ADDR_ONOFF, isOn ? 1 : 0);
+      #ifdef DEBUG
+      Serial.print("isOn ");
+      Serial.println(isOn);
+      #endif
+      markAsZero();
+    } else if (resetCounter > 100) {
+      resetCounter = 0;
+      reset();
+    }
+  } else {
+    resetCounter = 0;
+    onOffFlag = true;
+  }
+}
+
+// Check if the left stop button is pressed.
+void checkLeftStopButton() {
+  if (DREAD(LEFT_STOP) == LOW) {
+    if (leftStopFlag) {
+      leftStopFlag = false;
+      if (leftStop == 0) {
+        leftStop = pos == 0 ? 1 : pos;
+      } else {
+        if (pos == leftStop) {
+          // Spindle is most likely out of sync with the stepper because
+          // it was spinning while the lead screw was on the stop.
+          setOutOfSync();
+        }
+        leftStop = 0;
+      }
+    }
+  } else {
+    leftStopFlag = true;
+  }
+}
+
+// Check if the right stop button is pressed.
+void checkRightStopButton() {
+  if (DREAD(RIGHT_STOP) == LOW) {
+    if (rightStopFlag) {
+      rightStopFlag = false;
+      if (rightStop == 0) {
+        rightStop = pos == 0 ? -1 : pos;
+      } else {
+        if (pos == rightStop) {
+          // Spindle is most likely out of sync with the stepper because
+          // it was spinning while the lead screw was on the stop.
+          setOutOfSync();
+        }
+        rightStop = 0;
+      }
+    }
+  } else {
+    rightStopFlag = true;
+  }
+}
+
+void checkMoveButtons() {
+  bool left = DREAD(F1) == LOW;
+  bool right = DREAD(F2) == LOW;
+  if (!left && !right) {
+    return;
+  }
+
+  int sign = left ? 1 : -1;
+  // There was some weir bug when hmmpr == 1 and isOn == true in the first branch.
+  // Carriage moved back-and-forth.
+  if (isOn && hmmpr != 0 && abs(hmmpr) != 1) {
+    int delta = 0;
+    do {
+      // Move 1mm in the desired direction but stay in the thread by possibly traveling a little more.
+      delta = ceil(MOTOR_STEPS * 100.0 / LEAD_SCREW_HMM * STEPPER_TO_ENCODER_STEP_RATIO / ENCODER_STEPS / hmmpr) * ENCODER_STEPS * sign;
+
+      // Don't left-right move out of stops.
+      long deltaPos = posFromSpindle(spindlePos + delta, false);
+      if (leftStop != 0 && deltaPos > leftStop) {
+        // TODO: support moving exactly to leftPos and setting spindlePosSync to the right value.
+        break;
+      }
+      if (rightStop != 0 && deltaPos < rightStop) {
+        // TODO: support moving exactly to rightPos and setting spindlePosSync to the right value.
+        break;
+      }
+
+      noInterrupts();
+      spindlePos += delta;
+      interrupts();
+
+      long newPos = posFromSpindle(spindlePos, true);
+      step(newPos > pos, abs(newPos - pos));
+    } while (delta != 0 && (pos == 0 || pos != leftStop && pos != rightStop) && digitalRead(left ? F1 : F2) == LOW);
+  } else {
+    int delta = 0;
+    do {
+      if (hmmpr == 0 || abs(hmmpr) == 1) {
+        delta = 100.0 / LEAD_SCREW_HMM * MOTOR_STEPS;
+      } else {
+        int increments = MOTOR_STEPS * abs(hmmpr) / LEAD_SCREW_HMM;
+        delta = ceil(MOTOR_STEPS * 100.0 / LEAD_SCREW_HMM / increments) * increments;
+      }
+
+      // Don't left-right move out of stops.
+      int signedDelta = delta * (left ? 1 : -1);
+      if (leftStop != 0 && pos + signedDelta > leftStop) {
+        delta = leftStop - pos;
+      } else if (rightStop != 0 && pos + signedDelta < rightStop) {
+        delta = pos - rightStop;
+      }
+
+      // markAsZero() can move leftStop and rightStop by 1, don't allow to creep to them.
+      if (delta == 1) {
+        break;
+      }
+
+      step(left, delta);
+    } while (delta != 0 && DREAD(left ? F1 : F2) == LOW);
+    markAsZero();
+  }
+}
+
+// Checks if one of the pitch shortcut buttons were pressed.
+void checkPitchShortcutButton(int pin, int value) {
+  if (DREAD(pin) == LOW && checkAndMarkButtonTime()) {
+    hmmpr = value;
+    markAsZero();
+  }
 }
 
 // Called when loop() is not busy running the stepper.
@@ -355,183 +559,34 @@ void setOutOfSync() {
 // Don't do more than 2 digitalRead()-s in one run, spread them out using loopCounter
 // or the stepper won't run smooth.
 void secondaryWork() {
-  // Left-right buttons.
   if (loopCounter % 41 == 0) {
-    // Speed up scrolling when needed.
-    int delta = abs(hmmprPrevious - hmmpr) >= 10 ? 10 : 1;
-    if (digitalRead(LEFT) == LOW) {
-      if (hmmpr > -HMMPR_MAX) {
-        hmmpr -= delta;
-        markAsZero();
-      }
-    } else if (digitalRead(RIGHT) == LOW) {
-      if (hmmpr < HMMPR_MAX) {
-        hmmpr += delta;
-        markAsZero();
-      }
-    } else {
-      hmmprPrevious = hmmpr;
-    }
+    checkPlusMinusButtons();
   }
-
-  // On-off button.
   if (loopCounter % 7 == 0) {
-    if (digitalRead(ONOFF) == LOW) {
-      resetCounter++;
-      if (onOffFlag) {
-        onOffFlag = false;
-        isOn = !isOn;
-        EEPROM.write(ADDR_ONOFF, isOn ? 1 : 0);
-        Serial.print("isOn ");
-        Serial.println(isOn);
-        markAsZero();
-      } else if (resetCounter > 100) {
-        resetCounter = 0;
-        reset();
-      }
-    } else {
-      resetCounter = 0;
-      onOffFlag = true;
-    }
+    checkOnOffButton();
   }
-
-  // Left-right stop buttons.
   if (loopCounter % 9 == 0) {
-    if (digitalRead(LEFT_STOP) == LOW) {
-      if (leftStopFlag) {
-        leftStopFlag = false;
-        if (leftStop == 0) {
-          leftStop = pos == 0 ? 1 : pos;
-        } else {
-          if (pos == leftStop) {
-            // Spindle is most likely out of sync with the stepper because
-            // it was spinning while the lead screw was on the stop.
-            setOutOfSync();
-          }
-          leftStop = 0;
-        }
-      }
-    } else {
-      leftStopFlag = true;
-    }
+    checkLeftStopButton();
   }
   if (loopCounter % 11 == 0) {
-    if (digitalRead(RIGHT_STOP) == LOW) {
-      if (rightStopFlag) {
-        rightStopFlag = false;
-        if (rightStop == 0) {
-          rightStop = pos == 0 ? -1 : pos;
-        } else {
-          if (pos == rightStop) {
-            // Spindle is most likely out of sync with the stepper because
-            // it was spinning while the lead screw was on the stop.
-            setOutOfSync();
-          }
-          rightStop = 0;
-        }
-      }
-    } else {
-      rightStopFlag = true;
-    }
+    checkRightStopButton();
   }
-
-  // Carriage left-right buttons.
   if (loopCounter % 33 == 0 && !spindlePosSync && loopCounter > LOOP_COUNTER_MAX) {
-    bool left = digitalRead(F1) == LOW;
-    bool right = digitalRead(F2) == LOW;
-    if (left || right) {
-      int sign = left ? 1 : -1;
-      // There was some weir bug when hmmpr == 1 and isOn == true in the first branch.
-      // Carriage moved back-and-forth.
-      if (isOn && hmmpr != 0 && abs(hmmpr) != 1) {
-        int delta = 0;
-        do {
-          // Move 1mm in the desired direction but stay in the thread by possibly traveling a little more.
-          delta = ceil(MOTOR_STEPS * 100.0 / LEAD_SCREW_HMM * STEPPER_TO_ENCODER_STEP_RATIO / ENCODER_STEPS / hmmpr) * ENCODER_STEPS * sign;
-
-          // Don't left-right move out of stops.
-          long deltaPos = posFromSpindle(spindlePos + delta, false);
-          if (leftStop != 0 && deltaPos > leftStop) {
-            // TODO: support moving exactly to leftPos and setting spindlePosSync to the right value.
-            break;
-          }
-          if (rightStop != 0 && deltaPos < rightStop) {
-            // TODO: support moving exactly to rightPos and setting spindlePosSync to the right value.
-            break;
-          }
-
-          noInterrupts();
-          spindlePos += delta;
-          interrupts();
-
-          long newPos = posFromSpindle(spindlePos, true);
-          step(newPos > pos, abs(newPos - pos));
-        } while (delta != 0 && (pos == 0 || pos != leftStop && pos != rightStop) && digitalRead(left ? F1 : F2) == LOW);
-      } else {
-        int delta = 0;
-        do {
-          if (hmmpr == 0 || abs(hmmpr) == 1) {
-            delta = 100.0 / LEAD_SCREW_HMM * MOTOR_STEPS;
-          } else {
-            int increments = MOTOR_STEPS * abs(hmmpr) / LEAD_SCREW_HMM;
-            delta = ceil(MOTOR_STEPS * 100.0 / LEAD_SCREW_HMM / increments) * increments;
-          }
-
-          // Don't left-right move out of stops.
-          int signedDelta = delta * (left ? 1 : -1);
-          if (leftStop != 0 && pos + signedDelta > leftStop) {
-            delta = leftStop - pos;
-          } else if (rightStop != 0 && pos + signedDelta < rightStop) {
-            delta = pos - rightStop;
-          }
-
-          // markAsZero() can move leftStop and rightStop by 1, don't allow to creep to them.
-          if (delta == 1) {
-            break;
-          }
-
-          step(left, delta);
-        } while (delta != 0 && digitalRead(left ? F1 : F2) == LOW);
-        markAsZero();
-      }
-    }
+    checkMoveButtons();
   }
-
-  // 0.05mm pitch shortcut button.
   if (loopCounter % 15 == 0) {
-    if (digitalRead(F3) == LOW) {
-      if (checkAndMarkButtonTime()) {
-        hmmpr = 5;
-        markAsZero();
-      }
-    }
+    checkPitchShortcutButton(F3, F3_PITCH);
   }
-
-  // 1mm pitch shortcut button.
   if (loopCounter % 17 == 0) {
-    if (digitalRead(F4) == LOW) {
-      if (checkAndMarkButtonTime()) {
-        hmmpr = 100;
-        markAsZero();
-      }
-    }
+    checkPitchShortcutButton(F4, F4_PITCH);
   }
-
-  // 2mm pitch shortcut button.
   if (loopCounter % 19 == 0) {
-    if (digitalRead(F5) == LOW) {
-      if (checkAndMarkButtonTime()) {
-        hmmpr = 200;
-        markAsZero();
-      }
-    }
+    checkPitchShortcutButton(F5, F5_PITCH);
   }
-
   if (loopCounter % 8 == 0) {
     // This takes a really long time.
     updateDisplay();
   }
-
   if (loopCounter % 137 == 0) {
     saveIfChanged();
   }
@@ -544,7 +599,11 @@ long step(bool dir, long steps) {
     stepDelayUs = PULSE_MAX_US;
     stepDelayDirection = dir;
     digitalWrite(DIR, dir ^ INVERT_STEPPER ? HIGH : LOW);
+    #ifdef DEBUG
+    Serial.print("Direction change");
+    #endif
   }
+
   // Stepper basically has no speed if it was standing for 10ms.
   if (millis() - stepStartMs > 10) {
     stepDelayUs = PULSE_MAX_US;
@@ -593,72 +652,91 @@ long spindleFromPos(long p) {
   return p * STEPPER_TO_ENCODER_STEP_RATIO / hmmpr;
 }
 
+// What is called in the loop() function in when not in test mode.
+void nonTestLoop() {
+  noInterrupts();
+  long spindlePosCopy = spindlePos;
+  long spindlePosSyncCopy = spindlePosSync;
+  interrupts();
+
+  // Move the stepper if needed.
+  long newPos = posFromSpindle(spindlePosCopy, true);
+  if (isOn && !spindlePosSyncCopy && newPos != pos) {
+    // Move the stepper to the right position.
+    step(newPos > pos, abs(newPos - pos));
+    if (loopCounter > 0) {
+      digitalWrite(LED_BUILTIN, HIGH);
+      loopCounter = 0;
+    }
+    // No long calls such as digitalRead() allowed on this path or stepper will move unevenly.
+    return;
+  }
+
+  if (loopCounter == 0) {
+    digitalWrite(LED_BUILTIN, LOW);
+  }
+
+  // Perform auxiliary logic but don't take more than a few milliseconds since
+  // stepper just be moving slowly and will need signalling soon.
+
+  // When standing at the stop, ignore full spindle turns.
+  // This allows to avoid waiting when spindle direction reverses
+  // and reduces the chance of the skipped stepper steps since
+  // after a reverse the spindle starts slow.
+  noInterrupts();
+  if (rightStop != 0 && pos == rightStop) {
+    long minSpindlePos = rightStop * STEPPER_TO_ENCODER_STEP_RATIO / hmmpr - ENCODER_STEPS;
+    if (spindlePos < minSpindlePos) {
+      spindlePos += ENCODER_STEPS;
+    }
+  } else if (leftStop != 0 && pos == leftStop) {
+    long maxSpindlePos = leftStop * STEPPER_TO_ENCODER_STEP_RATIO / hmmpr + ENCODER_STEPS;
+    if (spindlePos > maxSpindlePos) {
+      spindlePos -= ENCODER_STEPS;
+    }
+  }
+  interrupts();
+
+  loopCounter++;
+  if (loopCounter > LOOP_COUNTER_MAX) {
+    #ifdef DEBUG
+    if (loopCounter % LOOP_COUNTER_MAX == 0) {
+      Serial.print("pos ");
+      Serial.print(pos);
+      Serial.print(" hmmpr ");
+      Serial.print(hmmpr);
+      Serial.print(" leftStop ");
+      Serial.print(leftStop);
+      Serial.print(" rightStop ");
+      Serial.print(rightStop);
+      Serial.print(" spindlePos ");
+      Serial.println(spindlePos);
+    }
+    #endif
+
+    // Only check buttons when stepper is surely not running.
+    // It might have to run any millisecond though e.g. when leaving the stop
+    // so it still should complete within milliseconds.
+    secondaryWork();
+
+    // Drop the lost thread warning after some time.
+    if (resetOnStartup && loopCounter > 2 * LOOP_COUNTER_MAX) {
+      resetOnStartup = false;
+    }
+  }
+}
+
 // In unit testing mode, include test library.
 #ifdef TEST
-#include <AUnitVerbose.h>
-using namespace aunit;
+#include <AUnit.h>
 #endif
 
 void loop() {
   // In unit testing mode, only run tests.
   #ifdef TEST
-  TestRunner::run();
+  setupEach();
+  aunit::TestRunner::run();
   #else
-  long newPos = posFromSpindle(spindlePos, true);
-  if (isOn && !spindlePosSync && newPos != pos) {
-    // Move the stepper to the right position.
-    step(newPos > pos, abs(newPos - pos));
-    loopCounter = 0;
-    // No long calls such as digitalRead() allowed on this path or stepper will move unevenly.
-  } else {
-    // Perform auxiliary logic but don't take more than a few milliseconds since
-    // stepper just be moving slowly and will need signalling soon.
-
-    // When standing at the stop, ignore full spindle turns.
-    // This allows to avoid waiting when spindle direction reverses
-    // and reduces the chance of the skipped stepper steps since
-    // after a reverse the spindle starts slow.
-    if (rightStop != 0 && pos == rightStop) {
-      long minSpindlePos = rightStop * STEPPER_TO_ENCODER_STEP_RATIO / hmmpr - ENCODER_STEPS;
-      if (spindlePos < minSpindlePos) {
-        noInterrupts();
-        spindlePos += ENCODER_STEPS;
-        interrupts();
-      }
-    } else if (leftStop != 0 && pos == leftStop) {
-      long maxSpindlePos = leftStop * STEPPER_TO_ENCODER_STEP_RATIO / hmmpr + ENCODER_STEPS;
-      if (spindlePos > maxSpindlePos) {
-        noInterrupts();
-        spindlePos -= ENCODER_STEPS;
-        interrupts();
-      }
-    }
-
-    loopCounter++;
-    if (loopCounter > LOOP_COUNTER_MAX) {
-      if (loopCounter % LOOP_COUNTER_MAX == 0) {
-        Serial.print("pos ");
-        Serial.print(pos);
-        Serial.print(" hmmpr ");
-        Serial.print(hmmpr);
-        Serial.print(" leftStop ");
-        Serial.print(leftStop);
-        Serial.print(" rightStop ");
-        Serial.print(rightStop);
-        Serial.print(" spindlePos ");
-        Serial.println(spindlePos);
-      }
-
-      // Only check buttons when stepper is surely not running.
-      // It might have to run any millisecond though e.g. when leaving the stop
-      // so it still should complete within milliseconds.
-      secondaryWork();
-
-      // Drop the lost thread warning after some time.
-      if (resetOnStartup && loopCounter > 2 * LOOP_COUNTER_MAX) {
-        resetOnStartup = false;
-      }
-    }
-  }
+  nonTestLoop();
   #endif
 }

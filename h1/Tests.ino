@@ -2,6 +2,51 @@
 
 #define TEST_ADDR 200
 
+void spinEncTimes(int times) {
+  for (int i = 0; i < times; i++) {
+    spinEnc();
+  }
+}
+
+void setupEach() {
+  buttonTime = 0;
+  loopCounter = 0;
+  onOffFlag = false;
+  isOn = false;
+  resetCounter = 0;
+  resetOnStartup = false;
+
+  hmmpr = 0;
+  savedHmmpr = 0;
+  hmmprPrevious = 0;
+
+  pos = 0;
+  savedPos = 0;
+
+  leftStop = 0;
+  savedLeftStop = 0;
+  leftStopFlag = true;
+
+  rightStop = 0;
+  savedRightStop = 0;
+  rightStopFlag = true;
+
+  spindlePos = 0;
+  savedSpindlePos = 0;
+  spindleLeftStop = 0;
+  spindleRightStop = 0;
+
+  spindlePosSync = 0;
+  savedSpindlePosSync = 0;
+
+  stepDelayUs = PULSE_MAX_US;
+  stepDelayDirection = true;
+  stepStartMs = 0;
+
+  // Wait a bit so that time-sensitive spindle turning logic resets too.
+  delay(100);
+}
+
 test(saveLoadInt) {
   saveInt(TEST_ADDR, 15);
   assertEqual(15, loadInt(TEST_ADDR));
@@ -27,6 +72,7 @@ test(spinEnc) {
   spinEnc();
   assertEqual(2L, spindlePos);
 
+  delay(100);
   mockDigitalPins[ENC_B] = HIGH;
   spinEnc();
   spinEnc();
@@ -69,9 +115,7 @@ test(spinEncSyncLow) {
   assertEqual(1L, spindlePos);
   assertEqual(101, spindlePosSync);
 
-  for (int i = 0; i < 498; i++) {
-    spinEnc();
-  }
+  spinEncTimes(498);
   assertEqual(499L, spindlePos);
   assertEqual(599, spindlePosSync);
 
@@ -209,7 +253,206 @@ test(setOutOfSync) {
   spindlePos = -60400;
   setOutOfSync();
   assertEqual(500, spindlePosSync);
+}
 
+test(checkPlusMinusButtons) {
+  mockDigitalPins[LEFT] = HIGH;
+  mockDigitalPins[RIGHT] = HIGH;
+  pos = 100;
+  hmmpr = 1;
+  hmmprPrevious = 0;
+  checkPlusMinusButtons();
+  assertEqual(100L, pos);
+  assertEqual(1, hmmpr);
+  assertEqual(1, hmmprPrevious);
+
+  mockDigitalPins[LEFT] = LOW;
+  mockDigitalPins[RIGHT] = HIGH;
+  checkPlusMinusButtons();
+  assertEqual(0L, pos);
+  assertEqual(0, hmmpr);
+  assertEqual(1, hmmprPrevious);
+
+  checkPlusMinusButtons();
+  assertEqual(0L, pos);
+  assertEqual(-1, hmmpr);
+  assertEqual(1, hmmprPrevious);
+
+  mockDigitalPins[LEFT] = HIGH;
+  checkPlusMinusButtons();
+  assertEqual(0L, pos);
+  assertEqual(-1, hmmpr);
+  assertEqual(-1, hmmprPrevious);
+
+  mockDigitalPins[LEFT] = LOW;
+  for (int i = 0; i < 200; i++) {
+    checkPlusMinusButtons();
+  }
+  assertEqual(0L, pos);
+  assertEqual(-1000, hmmpr);
+  assertEqual(-1, hmmprPrevious);
+
+  mockDigitalPins[LEFT] = HIGH;
+  checkPlusMinusButtons();
+  assertEqual(-1000, hmmprPrevious);
+
+  mockDigitalPins[RIGHT] = LOW;
+  for (int i = 0; i < 300; i++) {
+    checkPlusMinusButtons();
+  }
+  assertEqual(0L, pos);
+  assertEqual(1000, hmmpr);
+  assertEqual(-1000, hmmprPrevious);
+}
+
+test(checkOnOffButton) {
+  isOn = false;
+  mockDigitalPins[ONOFF] = HIGH;
+  checkOnOffButton();
+  assertFalse(isOn);
+
+  mockDigitalPins[ONOFF] = LOW;
+  checkOnOffButton();
+  assertTrue(isOn);
+  checkOnOffButton();
+  assertTrue(isOn);
+
+  mockDigitalPins[ONOFF] = HIGH;
+  checkOnOffButton();
+  assertTrue(isOn);
+
+  mockDigitalPins[ONOFF] = LOW;
+  checkOnOffButton();
+  assertFalse(isOn);
+  checkOnOffButton();
+  assertFalse(isOn);
+
+  hmmpr = 1;
+  pos = 2;
+  leftStop = 3;
+  rightStop = -1;
+  for (int i = 0; i < 100; i++) {
+    checkOnOffButton();
+  }
+  assertFalse(isOn);
+  assertEqual(0, hmmpr);
+  assertEqual(0L, pos);
+  assertEqual(0L, leftStop);
+  assertEqual(0L, rightStop);
+}
+
+test(checkLeftStopButton) {
+  isOn = true;
+  leftStop = 0;
+  hmmpr = 100;
+  pos = 200;
+  spindlePos = 1200;
+  spindlePosSync = 0;
+  mockDigitalPins[LEFT_STOP] = HIGH;
+  checkLeftStopButton();
+  assertEqual(0L, leftStop);
+
+  mockDigitalPins[LEFT_STOP] = LOW;
+  checkLeftStopButton();
+  assertEqual(200L, leftStop);
+  checkLeftStopButton();
+  assertEqual(200L, leftStop);
+
+  mockDigitalPins[LEFT_STOP] = HIGH;
+  checkLeftStopButton();
+  mockDigitalPins[LEFT_STOP] = LOW;
+  checkLeftStopButton();
+  assertEqual(0L, leftStop);
+  assertEqual(0, spindlePosSync);
+
+  mockDigitalPins[LEFT_STOP] = HIGH;
+  checkLeftStopButton();
+  mockDigitalPins[LEFT_STOP] = LOW;
+  checkLeftStopButton();
+  assertEqual(200L, leftStop);
+
+  // Go left beyound the left stop.
+  mockDigitalPins[ENC_B] = LOW;
+  spinEncTimes(6);
+  nonTestLoop();
+  assertEqual(1206L, spindlePos);
+  assertEqual(200L, pos);
+  assertEqual(200L, leftStop);
+
+  // Full spindle turns should be discarded.
+  spinEncTimes(600);
+  nonTestLoop();
+  assertEqual(1206L, spindlePos);
+  assertEqual(200L, pos);
+  assertEqual(200L, leftStop);
+
+  // Go back into the allowed interval.
+  delay(100);
+  mockDigitalPins[ENC_B] = HIGH;
+  spinEncTimes(12);
+  nonTestLoop();
+  assertEqual(1194L, spindlePos);
+  assertEqual(199L, pos);
+  assertEqual(200L, leftStop);
+  assertEqual(0, spindlePosSync);
+
+  // Go left beyound the left stop.
+  delay(100);
+  mockDigitalPins[ENC_B] = LOW;
+  spinEncTimes(12);
+  nonTestLoop();
+  assertEqual(1206L, spindlePos);
+  assertEqual(200L, pos);
+  assertEqual(200L, leftStop);
+
+  // Remove the stop when spindle is out of sync with the stepper.
+  mockDigitalPins[LEFT_STOP] = HIGH;
+  checkLeftStopButton();
+  mockDigitalPins[LEFT_STOP] = LOW;
+  checkLeftStopButton();
+  assertEqual(1206L, spindlePos);
+  assertEqual(200L, pos);
+  assertEqual(0L, leftStop);
+  assertEqual(6, spindlePosSync);
+
+  // Move spindle back to the sync position.
+  delay(100);
+  mockDigitalPins[ENC_B] = HIGH;
+  spinEncTimes(6);
+  nonTestLoop();
+  assertEqual(1200L, spindlePos);
+  assertEqual(200L, pos);
+  assertEqual(0L, leftStop);
+  assertEqual(0, spindlePosSync);
+
+  // Move spindle some more to test that stepper is now moving too.
+  spinEncTimes(6);
+  nonTestLoop();
+  assertEqual(1194L, spindlePos);
+  assertEqual(199L, pos);
+  assertEqual(0L, leftStop);
+  assertEqual(0, spindlePosSync);
+  spinEncTimes(594);
+  nonTestLoop();
+  assertEqual(600L, spindlePos);
+  assertEqual(100L, pos);
+  assertEqual(0L, leftStop);
+  assertEqual(0, spindlePosSync);
+}
+
+test(turn160Left) {
+  isOn = true;
+  hmmpr = 100;
+  delay(100);
+  mockDigitalPins[ENC_B] = LOW;
+  long lastPos = pos;
+  for (long i = 0; i < 3000; i++) {
+    spinEnc();
+    nonTestLoop();
+    assertLessOrEqual(lastPos, pos);
+    lastPos = pos;
+  }
+  assertEqual(500L, pos);
 }
 
 #endif
