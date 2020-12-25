@@ -117,6 +117,14 @@ PCB is best placed away from the electromagnetic noise sources such as lathe mot
 
 Ordering it from JLCPCB takes just a few clicks - upload the ZIP file, use all default settings, choose shipping and checkout.
 
+#### New, untested version of the PCB
+
+There's a new, yet to be tested PCB version with an option to add external pull-up resistors for the rotary encoder and a second stepper motor for the cross-slide.
+
+![NanoEls H1 PCB](https://github.com/kachurovskiy/nanoels/blob/main/h1/pcb/nanoels-pcb-h1-untested.png)
+
+[Untested Gerber ZIP for production](https://github.com/kachurovskiy/nanoels/blob/main/h1/pcb/nanoels-pcb-h1-untested.zip)
+
 #### Leadscrew gear
 
 Ideally, a 50 tooth metal gear (~8mm thick) from the original lathe gear set would be used.
