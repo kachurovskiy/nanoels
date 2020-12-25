@@ -26,7 +26,7 @@
 
 - 5 plastic 3D-printed parts (gears, mounts)
 - Uses readily available hardware
-  - 52€ Nema 23 stepper and driver
+  - 46€ Nema 23 stepper and driver
   - 10€ 24V 5A power supply
   - 9€ printed curcuit board (PCB)
   - 9€ rotary encoder
