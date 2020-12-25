@@ -84,7 +84,13 @@
 // #define TEST
 #ifdef TEST
   bool mockDigitalPins[20] = {0};
-  #define DREAD(x) mockDigitalPins[x]
+  bool mockDigitalPinsToggleOnRead = false;
+  int mockDigitalRead(int x) {
+    int value = mockDigitalPins[x];
+    mockDigitalPins[x] = value ^ mockDigitalPinsToggleOnRead;
+    return value;
+  }
+  #define DREAD(x) mockDigitalRead(x)
 #else
   #define DREAD(x) digitalRead(x)
 #endif
@@ -383,6 +389,7 @@ void splashScreen() {
 }
 
 void reset() {
+  resetOnStartup = false;
   leftStop = 0;
   rightStop = 0;
   setHmmpr(0);
@@ -488,34 +495,32 @@ void checkMoveButtons() {
   if (!left && !right) {
     return;
   }
+  if (millis() - spindleDeltaTime < 100) {
+    // Spindle is still moving.
+    return;
+  }
+  if (spindlePosSync) {
+    // Edge case.
+    return;
+  }
 
   int sign = left ? 1 : -1;
   // There was some weir bug when hmmpr == 1 and isOn == true in the first branch.
   // Carriage moved back-and-forth.
   if (isOn && hmmpr != 0 && abs(hmmpr) != 1) {
-    int delta = 0;
+    int posDiff = 0;
     do {
-      // Move 1mm in the desired direction but stay in the thread by possibly traveling a little more.
-      delta = ceil(MOTOR_STEPS * 100.0 / LEAD_SCREW_HMM * STEPPER_TO_ENCODER_STEP_RATIO / ENCODER_STEPS / hmmpr) * ENCODER_STEPS * sign;
-
-      // Don't left-right move out of stops.
-      long deltaPos = posFromSpindle(spindlePos + delta, false);
-      if (leftStop != 0 && deltaPos > leftStop) {
-        // TODO: support moving exactly to leftPos and setting spindlePosSync to the right value.
-        break;
-      }
-      if (rightStop != 0 && deltaPos < rightStop) {
-        // TODO: support moving exactly to rightPos and setting spindlePosSync to the right value.
-        break;
-      }
-
       noInterrupts();
-      spindlePos += delta;
-      interrupts();
-
+      // Move 1mm in the desired direction but stay in the thread by possibly traveling a little more.
+      spindlePos += ceil(MOTOR_STEPS * 100.0 / LEAD_SCREW_HMM * STEPPER_TO_ENCODER_STEP_RATIO / ENCODER_STEPS / abs(hmmpr))
+        * ENCODER_STEPS
+        * sign
+        * (hmmpr > 0 ? 1 : -1);
       long newPos = posFromSpindle(spindlePos, true);
-      step(newPos > pos, abs(newPos - pos));
-    } while (delta != 0 && (pos == 0 || pos != leftStop && pos != rightStop) && digitalRead(left ? F1 : F2) == LOW);
+      interrupts();
+      posDiff = abs(newPos - pos);
+      step(newPos > pos, posDiff);
+    } while (posDiff != 0 && DREAD(left ? F1 : F2) == LOW);
   } else {
     int delta = 0;
     do {
@@ -527,11 +532,10 @@ void checkMoveButtons() {
       }
 
       // Don't left-right move out of stops.
-      int signedDelta = delta * (left ? 1 : -1);
-      if (leftStop != 0 && pos + signedDelta > leftStop) {
+      if (leftStop != 0 && pos + delta * sign > leftStop) {
         delta = leftStop - pos;
-      } else if (rightStop != 0 && pos + signedDelta < rightStop) {
-        delta = pos - rightStop;
+      } else if (rightStop != 0 && pos + delta * sign < rightStop) {
+        delta = rightStop - pos;
       }
 
       // markAsZero() can move leftStop and rightStop by 1, don't allow to creep to them.
@@ -539,7 +543,7 @@ void checkMoveButtons() {
         break;
       }
 
-      step(left, delta);
+      step(left, abs(delta));
     } while (delta != 0 && DREAD(left ? F1 : F2) == LOW);
     markAsZero();
   }
@@ -683,19 +687,33 @@ void nonTestLoop() {
   // This allows to avoid waiting when spindle direction reverses
   // and reduces the chance of the skipped stepper steps since
   // after a reverse the spindle starts slow.
-  noInterrupts();
-  if (rightStop != 0 && pos == rightStop) {
-    long minSpindlePos = rightStop * STEPPER_TO_ENCODER_STEP_RATIO / hmmpr - ENCODER_STEPS;
-    if (spindlePos < minSpindlePos) {
-      spindlePos += ENCODER_STEPS;
+  if (hmmpr != 0) {
+    noInterrupts();
+    if (rightStop != 0 && pos == rightStop) {
+      long stopSpindlePos = spindleFromPos(rightStop);
+      if (hmmpr > 0) {
+        if (spindlePos < stopSpindlePos - ENCODER_STEPS) {
+          spindlePos += ENCODER_STEPS;
+        }
+      } else {
+        if (spindlePos > stopSpindlePos + ENCODER_STEPS) {
+          spindlePos -= ENCODER_STEPS;
+        }
+      }
+    } else if (leftStop != 0 && pos == leftStop) {
+      long stopSpindlePos = spindleFromPos(leftStop);
+      if (hmmpr > 0) {
+        if (spindlePos > stopSpindlePos + ENCODER_STEPS) {
+          spindlePos -= ENCODER_STEPS;
+        }
+      } else {
+        if (spindlePos < stopSpindlePos - ENCODER_STEPS) {
+          spindlePos += ENCODER_STEPS;
+        }
+      }
     }
-  } else if (leftStop != 0 && pos == leftStop) {
-    long maxSpindlePos = leftStop * STEPPER_TO_ENCODER_STEP_RATIO / hmmpr + ENCODER_STEPS;
-    if (spindlePos > maxSpindlePos) {
-      spindlePos -= ENCODER_STEPS;
-    }
+    interrupts();
   }
-  interrupts();
 
   loopCounter++;
   if (loopCounter > LOOP_COUNTER_MAX) {
