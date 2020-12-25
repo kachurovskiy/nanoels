@@ -18,9 +18,10 @@
 
 # Limitations
 
+- Plastic gears shouldn't heat up or they will deform and disconnect. Stepper can heat up quite a bit during continuous operation. Depending on the stepper driver current, the limit seems to be ~50% duty cycle with 10min operation / 10min cooldown. For higher duty cycle something like metal HTD 5M gears, belt and a metal stepper mount would be required.
 - Nema 23 stepper usable maximum is ~600 RPM, here a 1:1 stepper to leadscrew ratio is used. In practice this means that cutting e.g. 2mm thread with a 2mm leadscrew spindle top speed should stay under 600 RPM.
+  - NanoEls would take the stepper at 1000 RPM and higher but it likely won't have much torque at that point
   - This can be mitigated to some extent by using e.g. 40 tooth gear on the leadscrew and 60 tooth gear on the motor at the expense of the maximum leadsrew torque
-- Might need to add 2 pull-up resistors (try 2kOhm) on encoder inputs on the PCB if you see the problem with rare and short stepper reverses. This problem should be mitigated with the V4 software update though.
 
 # Hardware overview
 
@@ -73,7 +74,9 @@ I used the following one but most Nema 23 or higher steppers should work.
 
 DM556Y is 118.5mm wide which fits the case 3D model. Other drivers might not fit into it.
 
-Closed Loop stepper might be nice to have but not necessary for NanoEls to work on small lathes. For bigger lathes or heavy cuts, closed loop system would be better.
+Cheap drivers like TB6600 are not recommended, they are very rough and noisy.
+
+Closed Loop stepper might be nice to have but not necessary for NanoEls to work on small lathes. For bigger lathes or heavy cuts, closed loop system might be better.
 
 It's entirely reasonable to locate the driver in the electrical cabinet and not under the lathe as shown above - but make sure to get the stepper with a shielded cable in that case.
 
@@ -183,9 +186,11 @@ If you have 2 metal gears that add up to 100 tooth together (e.g. 2x50 tooth gea
 
 [STL pulley 12mm bore](https://github.com/kachurovskiy/nanoels/raw/main/h1/stepper/htd5m-16t-12b.stl)
 
-This is the best stepper to leadscrew connection method that I tried so far but it requires printing 2 parts above and buying a 180mm HTD 5M belt which is not expensive (5-10€) but can be hard to find depending on where you live.
+This is the best stepper to leadscrew connection method that I tried so far but it requires printing 2 parts above and buying a 180mm HTD 5M belt which is not expensive (2-10€) but can be hard to find.
 
 This is the quietest option that also doesn't need greasing. 2 pulleys and a belt fit tight on the normal stepper mount shown above without a need for a tensioner.
+
+16T-5M pulleys with various inner bore diameters are also available on AliExpress for 5-6€ each.
 
 #### Encoder base
 
@@ -274,10 +279,10 @@ Setting only one stop is also supported. Stops aren't lost when `ON` button is c
 ## Carriage movements
 
 - Make sure the cutting tool is not goign to contact the material and there's room to move the carriage physically
-- Use `LEFT` and `RIGHT` buttons to move the carriage ~1mm (possibly more when required to stay on the thread) when spindle is not turning
+- Use `LEFT` and `RIGHT` buttons to move the carriage ~1mm (possibly more or less when required to stay on the thread) when spindle is not turning
 - If stops are set, they will be respected
 
-Using `LEFT` and `RIGHT` buttons when ELS is ON and spindle is turning is undefined
+Using `LEFT` and `RIGHT` buttons is not possible when the spindle is turning.
 
 ## Losing the thread
 
@@ -287,7 +292,7 @@ The spindle and stepper positions are reset to 0 every time one of the following
 - Pitch is changed e.g. by pressing `-` or `+`
 - Stepper is not in the desired position when ELS is powered up
   - Results in `LTW` lost thread warning
-  - Can happen e.g. if spindle was running above max rpm supported by ELS and/or shutdown abruptly
+  - Might happen if ELS was abruptly shutdown
 
 Thread is **not** lost when ELS is simply powered off.
 
@@ -313,6 +318,7 @@ ELS remembers all the positions and ON/OFF status when powered off.
 - Questions: please file a GitHub Issue
 - Successful/failed builds: please file a GitHub Issue with explanations and photos
 - Code changes: please only make the necessary minimal edits
+  - Run in the `TEST` mode, add new tests if needed
   - Split unrelated changes into separate PRs
 - PCB changes: incompatible changes (move button / display / Arduino / change PCB size / change used pin purpose) will require making `h2` folder with another hardware version of the project, please file an Issue first to confirm. Backward-compatible PCB changes are cool.
 - 3D models: in most cases, don't edit the model, add a new file. Also include the PNG preview and a dimension drawing if possible.
