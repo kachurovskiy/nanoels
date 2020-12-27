@@ -29,6 +29,9 @@
 #define F4_PITCH 100 // 1mm
 #define F5_PITCH 200 // 2mm
 
+// Comment out with "//" to hide 0-359 angle of the spindle on the screen bottom line.
+#define SHOW_ANGLE
+
 /* Changing anything below shouldn't be needed for basic use. */
 
 #define LOOP_COUNTER_MAX 1500 // 1500 loops without stepper move to start reading buttons
@@ -47,7 +50,7 @@
 #define EEPROM_VERSION 1
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 5
+#define SOFTWARE_VERSION 6
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 1
@@ -146,35 +149,36 @@ void updateDisplay() {
   display.setTextColor(WHITE);
   display.setCursor(DISPLAY_LEFT, DISPLAY_TOP);
   display.setTextSize(2);
-  display.print(isOn ? "   ON" : "off  ");
-  display.print(spindlePosSync ? " SYN" : "");
+  display.print(isOn ? "ON" : "off");
+  if (leftStop != 0 && rightStop != 0) {
+    display.print(" LR");
+  } else if (leftStop != 0) {
+    display.print(" L");
+  }else if (rightStop != 0) {
+    display.print(" R");
+  }
+  if (spindlePosSync) {
+    display.print(" SYN");
+  }
   if (!spindlePosSync && resetOnStartup) {
     display.print(" LTW");
   }
 
-  // Show hmmpr, print(String(hmmpr * 1.0 / 100, 2)) doesn't always work for some reason.
   display.setCursor(DISPLAY_LEFT, 20 + DISPLAY_TOP);
-  if (hmmpr < 0) {
-    display.print("-");
-  }
-  int hmmprAbs = abs(hmmpr);
-  display.print((int) floor(hmmprAbs / 100));
-  display.print(".");
-  display.print((int) floor(hmmprAbs / 10) % 10);
-  display.print(hmmprAbs % 10);
+  display.print(hmmpr * 1.0 / 100, 2);
   display.print("mm");
 
-  long maxSpindleRpm = hmmpr == 0 ? 1250 : STEPPER_MAX_RPM * LEAD_SCREW_HMM / abs(hmmpr);
   display.setCursor(DISPLAY_LEFT, 40 + DISPLAY_TOP);
-  if (leftStop != 0 || rightStop != 0) {
-    display.print(leftStop != 0 ? "L " : "  ");
-    display.print("STOP");
-    display.print(rightStop != 0 ? " R" : "  ");
-  } else if (maxSpindleRpm < 1250) {
-    display.print("<");
-    display.print(maxSpindleRpm);
-    display.print("rpm");
+  float posMm = pos * LEAD_SCREW_HMM / MOTOR_STEPS / 100;
+  display.print(posMm, 2);
+  display.print(" ");
+
+  #ifdef SHOW_ANGLE
+  if (abs(posMm) < 100) {
+    display.print(round(((spindlePos % (int) ENCODER_STEPS + (int) ENCODER_STEPS) % (int) ENCODER_STEPS) * 360 / ENCODER_STEPS));
   }
+  #endif
+
   display.display();
   #endif
 }
