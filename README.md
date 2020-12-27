@@ -15,11 +15,12 @@
   - Resolution 0.01mm
 - Automatic lead screw stops
 - Independent carriage moves without losing the thread
-- Carriage position indication
+- Lead screw position indication
 - Spindle angle indication
 
 # Limitations
 
+- Lead screw position only equals the carriage position if the backlash was taken out before the measurement started. Changing the direction introduces the backlash again.
 - Plastic gears shouldn't heat up or they will deform and disconnect. Stepper can heat up quite a bit during continuous operation. Depending on the stepper driver current, the limit seems to be ~50% duty cycle with 10min operation / 10min cooldown. For higher duty cycle something like metal HTD 5M gears, belt and a metal stepper mount would be required.
 - Nema 23 stepper usable maximum is ~600 RPM, here a 1:1 stepper to leadscrew ratio is used. In practice this means that cutting e.g. 2mm thread with a 2mm leadscrew spindle top speed should stay under 600 RPM.
   - NanoEls would take the stepper at 1000 RPM and higher but it likely won't have much torque at that point
