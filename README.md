@@ -15,6 +15,8 @@
   - Resolution 0.01mm
 - Automatic lead screw stops
 - Independent carriage moves without losing the thread
+- Carriage position indication
+- Spindle angle indication
 
 # Limitations
 
