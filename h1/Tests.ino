@@ -670,16 +670,18 @@ test(moveLeftIsOff) {
   checkMoveButtons();
 
   // Moving zeroes the coordinates but the stops move.
-  assertEqual(0L, pos);
+  assertEqual(100L, pos);
   assertEqual(0L, spindlePos);
-  assertEqual(50L, leftStop);
-  assertEqual(-200L, rightStop);
+  assertEqual(150L, leftStop);
+  assertEqual(-100L, rightStop);
 
   mockDigitalPins[F1] = LOW;
   mockDigitalPins[F2] = HIGH;
   checkMoveButtons();
-  assertEqual(1L, leftStop);
-  assertEqual(-250L, rightStop);
+  assertEqual(150L, pos);
+  assertEqual(0L, spindlePos);
+  assertEqual(150L, leftStop);
+  assertEqual(-100L, rightStop);
 }
 
 test(moveLeftIsOffNegativeHmmpr) {
@@ -695,10 +697,10 @@ test(moveLeftIsOffNegativeHmmpr) {
   checkMoveButtons();
 
   // Moving zeroes the coordinates but the stops move.
-  assertEqual(0L, pos);
+  assertEqual(100L, pos);
   assertEqual(0L, spindlePos);
-  assertEqual(50L, leftStop);
-  assertEqual(-200L, rightStop);
+  assertEqual(150L, leftStop);
+  assertEqual(-100L, rightStop);
 }
 
 test(moveRightIsOff) {
@@ -712,19 +714,18 @@ test(moveRightIsOff) {
   mockDigitalPinsToggleOnRead = true;
   checkMoveButtons();
 
-  // Moving zeroes the coordinates but the stops move.
-  assertEqual(0L, pos);
+  assertEqual(-100L, pos);
   assertEqual(0L, spindlePos);
-  assertEqual(200L, leftStop);
-  assertEqual(-50L, rightStop);
+  assertEqual(100L, leftStop);
+  assertEqual(-150L, rightStop);
 
   mockDigitalPins[F1] = HIGH;
   mockDigitalPins[F2] = LOW;
   checkMoveButtons();
-  assertEqual(0L, pos);
+  assertEqual(-150L, pos);
   assertEqual(0L, spindlePos);
-  assertEqual(250L, leftStop);
-  assertEqual(-1L, rightStop);
+  assertEqual(100L, leftStop);
+  assertEqual(-150L, rightStop);
 }
 
 test(moveRightIsOffNegativeHmmpr) {
@@ -739,11 +740,10 @@ test(moveRightIsOffNegativeHmmpr) {
   mockDigitalPinsToggleOnRead = true;
   checkMoveButtons();
 
-  // Moving zeroes the coordinates but the stops move.
-  assertEqual(0L, pos);
+  assertEqual(-100L, pos);
   assertEqual(0L, spindlePos);
-  assertEqual(200L, leftStop);
-  assertEqual(-50L, rightStop);
+  assertEqual(100L, leftStop);
+  assertEqual(-150L, rightStop);
 }
 
 test(moveIsOn) {

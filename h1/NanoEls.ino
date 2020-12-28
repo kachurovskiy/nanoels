@@ -29,8 +29,8 @@
 #define F4_PITCH 100 // 1mm
 #define F5_PITCH 200 // 2mm
 
-// Comment out with "//" to hide 0-359 angle of the spindle on the screen bottom line.
-#define SHOW_ANGLE
+// Uncomment to show 0-359 angle of the spindle on the screen bottom line.
+// #define SHOW_ANGLE
 
 /* Changing anything below shouldn't be needed for basic use. */
 
@@ -171,12 +171,14 @@ void updateDisplay() {
   display.setCursor(DISPLAY_LEFT, 40 + DISPLAY_TOP);
   float posMm = pos * LEAD_SCREW_HMM / MOTOR_STEPS / 100;
   display.print(posMm, 2);
-  display.print(" ");
 
   #ifdef SHOW_ANGLE
+  display.print(" ");
   if (abs(posMm) < 100) {
     display.print(round(((spindlePos % (int) ENCODER_STEPS + (int) ENCODER_STEPS) % (int) ENCODER_STEPS) * 360 / ENCODER_STEPS));
   }
+  #else
+  display.print("mm");
   #endif
 
   display.display();
@@ -499,7 +501,7 @@ void checkMoveButtons() {
   if (!left && !right) {
     return;
   }
-  if (millis() - spindleDeltaTime < 100) {
+  if (isOn && millis() - spindleDeltaTime < 100) {
     // Spindle is still moving.
     return;
   }
@@ -509,7 +511,7 @@ void checkMoveButtons() {
   }
 
   int sign = left ? 1 : -1;
-  // There was some weir bug when hmmpr == 1 and isOn == true in the first branch.
+  // There was some weird bug when hmmpr == 1 and isOn == true in the first branch.
   // Carriage moved back-and-forth.
   if (isOn && hmmpr != 0 && abs(hmmpr) != 1) {
     int posDiff = 0;
@@ -542,14 +544,13 @@ void checkMoveButtons() {
         delta = rightStop - pos;
       }
 
-      // markAsZero() can move leftStop and rightStop by 1, don't allow to creep to them.
+      // markAsZero() can move leftStop and rightStop by 1.
       if (delta == 1) {
         break;
       }
 
       step(left, abs(delta));
     } while (delta != 0 && DREAD(left ? F1 : F2) == LOW);
-    markAsZero();
   }
 }
 
