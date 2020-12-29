@@ -315,7 +315,7 @@ void preventMoveOnStart() {
   // will be out of sync causing immediate stepper movement if isOn. This could be dangerous
   // and surely won't be expected by the operator.
   long newPos = posFromSpindle(spindlePos, true);
-  if (newPos != pos) {
+  if (isOn && newPos != pos) {
     #ifdef DEBUG
     Serial.println("Losing the thread");
     #endif

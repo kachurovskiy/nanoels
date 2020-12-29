@@ -132,6 +132,7 @@ test(spinEncSyncLow) {
 }
 
 test(preventMoveOnStart) {
+  isOn = true;
   leftStop = 0;
   rightStop = 0;
   hmmpr = 100;
