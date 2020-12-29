@@ -18,14 +18,14 @@
 #define ENC_B 2 // D2
 
 // Stepper pulse and acceleration constants.
-#define PULSE_MIN_US 500 // Microseconds to wait after high pulse, min.
-#define PULSE_MAX_US 2000 // Microseconds to wait after high pulse, max. Slow start.
+#define PULSE_MIN_US round(500 * (200.0 / MOTOR_STEPS)) // Microseconds to wait after high pulse, min.
+#define PULSE_MAX_US round(2000 * (200.0 / MOTOR_STEPS)) // Microseconds to wait after high pulse, max. Slow start.
 #define PULSE_DELTA_US 7 // Microseconds remove from waiting time on every step. Acceleration.
 #define STEPPER_MAX_RPM 600 // Stepper loses most of it's torque at speeds higher than that.
 #define INVERT_STEPPER true // false for 1:1 geared connection, true for 1:1 belt connection
 
 // Pitch shortcut buttons, set to your most used values that should be available within 1 click.
-#define F3_PITCH 5 // 0.05mm
+#define F3_PITCH 10 // 0.1mm
 #define F4_PITCH 100 // 1mm
 #define F5_PITCH 200 // 2mm
 
@@ -50,7 +50,7 @@
 #define EEPROM_VERSION 1
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 6
+#define SOFTWARE_VERSION 7
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 1
@@ -87,15 +87,18 @@
 // #define TEST
 #ifdef TEST
   bool mockDigitalPins[20] = {0};
-  bool mockDigitalPinsToggleOnRead = false;
+  int mockDigitalPinToggleOnRead = -1;
   int mockDigitalRead(int x) {
     int value = mockDigitalPins[x];
-    mockDigitalPins[x] = value ^ mockDigitalPinsToggleOnRead;
+    if (x == mockDigitalPinToggleOnRead) {
+      mockDigitalPins[x] ^= 1;
+    }
     return value;
   }
   #define DREAD(x) mockDigitalRead(x)
 #else
-  #define DREAD(x) digitalRead(x)
+  #include <FastGPIO.h>
+  #define DREAD(x) FastGPIO::Pin<x>::isInputHigh()
 #endif
 
 #ifndef TEST
@@ -109,9 +112,8 @@ Adafruit_SSD1306 display(128, 64, &Wire, -1);
 
 unsigned long buttonTime = 0;
 long loopCounter = 0;
-bool onOffFlag = false;
 bool isOn = false;
-int resetCounter = 0;
+unsigned long resetMillis = 0;
 bool resetOnStartup = false;
 
 int hmmpr = 0; // hundredth of a mm per rotation
@@ -130,9 +132,9 @@ long savedRightStop = 0; // value saved in EEPROM
 bool rightStopFlag = true; // prevent toggling the stop while button is pressed.
 
 volatile unsigned long spindleDeltaTime = 0; // millis() of the previous spindle update
-volatile int spindleDeltaPrev = 0; // Previous delta value
-volatile long spindlePos = 0; // spindle position
-long savedSpindlePos = 0; // value saved in EEPROM
+volatile int spindleDeltaPrev = 0; // Previously detected spindle direction
+volatile long spindlePos = 0; // Spindle position
+long savedSpindlePos = 0; // spindlePos value saved in EEPROM
 long spindleLeftStop = 0;
 long spindleRightStop = 0;
 
@@ -358,6 +360,7 @@ bool checkAndMarkButtonTime() {
 // or ELS is turned on/off. Without this, changing hmmpr will
 // result in stepper rushing across the lathe to the new position.
 void markAsZero() {
+  noInterrupts();
   if (leftStop != 0) {
     leftStop -= pos;
     if (leftStop == 0) {
@@ -373,11 +376,13 @@ void markAsZero() {
   pos = 0;
   spindlePos = 0;
   spindlePosSync = 0;
+  interrupts();
 }
 
 void setHmmpr(int value) {
   hmmpr = value;
   markAsZero();
+  updateDisplay();
 }
 
 void splashScreen() {
@@ -417,15 +422,17 @@ void setOutOfSync() {
 void checkPlusMinusButtons() {
   // Speed up scrolling when needed.
   int delta = abs(hmmprPrevious - hmmpr) >= 10 ? 10 : 1;
-  if (DREAD(LEFT) == LOW) {
+  bool left = DREAD(LEFT) == LOW;
+  bool right = DREAD(RIGHT) == LOW;
+  if (left && checkAndMarkButtonTime()) {
     if (hmmpr > -HMMPR_MAX) {
       setHmmpr(max(-HMMPR_MAX, hmmpr - delta));
     }
-  } else if (DREAD(RIGHT) == LOW) {
+  } else if (right && checkAndMarkButtonTime()) {
     if (hmmpr < HMMPR_MAX) {
       setHmmpr(min(HMMPR_MAX, hmmpr + delta));
     }
-  } else {
+  } else if (!left && !right) {
     hmmprPrevious = hmmpr;
   }
 }
@@ -433,9 +440,8 @@ void checkPlusMinusButtons() {
 // Check if the ON/OFF button is pressed.
 void checkOnOffButton() {
   if (DREAD(ONOFF) == LOW) {
-    resetCounter++;
-    if (onOffFlag) {
-      onOffFlag = false;
+    if (resetMillis == 0) {
+      resetMillis = millis();
       isOn = !isOn;
       EEPROM.write(ADDR_ONOFF, isOn ? 1 : 0);
       #ifdef DEBUG
@@ -443,13 +449,13 @@ void checkOnOffButton() {
       Serial.println(isOn);
       #endif
       markAsZero();
-    } else if (resetCounter > 100) {
-      resetCounter = 0;
+      updateDisplay();
+    } else if (resetMillis > 0 && millis() - resetMillis > 6000) {
+      resetMillis = 0;
       reset();
     }
   } else {
-    resetCounter = 0;
-    onOffFlag = true;
+    resetMillis = 0;
   }
 }
 
@@ -526,7 +532,7 @@ void checkMoveButtons() {
       interrupts();
       posDiff = abs(newPos - pos);
       step(newPos > pos, posDiff);
-    } while (posDiff != 0 && DREAD(left ? F1 : F2) == LOW);
+    } while (posDiff != 0 && (left ? DREAD(F1) : DREAD(F2)) == LOW);
   } else {
     int delta = 0;
     do {
@@ -550,14 +556,14 @@ void checkMoveButtons() {
       }
 
       step(left, abs(delta));
-    } while (delta != 0 && DREAD(left ? F1 : F2) == LOW);
+    } while (delta != 0 && (left ? DREAD(F1) : DREAD(F2)) == LOW);
   }
 }
 
 // Checks if one of the pitch shortcut buttons were pressed.
-void checkPitchShortcutButton(int pin, int value) {
-  if (DREAD(pin) == LOW && checkAndMarkButtonTime()) {
-    hmmpr = value;
+void checkPitchShortcutButton(int pinValue, int pitch) {
+  if (pinValue == LOW && checkAndMarkButtonTime()) {
+    hmmpr = pitch;
     markAsZero();
   }
 }
@@ -565,33 +571,14 @@ void checkPitchShortcutButton(int pin, int value) {
 // Called when loop() is not busy running the stepper.
 // Should take as little time as possible since it's possible that
 // lead screw is ON and stepper has to run in a few milliseconds.
-// Don't do more than 2 digitalRead()-s in one run, spread them out using loopCounter
-// or the stepper won't run smooth.
 void secondaryWork() {
-  if (loopCounter % 41 == 0) {
-    checkPlusMinusButtons();
-  }
-  if (loopCounter % 7 == 0) {
-    checkOnOffButton();
-  }
-  if (loopCounter % 9 == 0) {
-    checkLeftStopButton();
-  }
-  if (loopCounter % 11 == 0) {
-    checkRightStopButton();
-  }
-  if (loopCounter % 33 == 0 && !spindlePosSync && loopCounter > LOOP_COUNTER_MAX) {
-    checkMoveButtons();
-  }
-  if (loopCounter % 15 == 0) {
-    checkPitchShortcutButton(F3, F3_PITCH);
-  }
-  if (loopCounter % 17 == 0) {
-    checkPitchShortcutButton(F4, F4_PITCH);
-  }
-  if (loopCounter % 19 == 0) {
-    checkPitchShortcutButton(F5, F5_PITCH);
-  }
+  checkLeftStopButton();
+  checkRightStopButton();
+  checkMoveButtons();
+  checkPitchShortcutButton(DREAD(F3), F3_PITCH);
+  checkPitchShortcutButton(DREAD(F4), F4_PITCH);
+  checkPitchShortcutButton(DREAD(F5), F5_PITCH);
+
   if (loopCounter % 8 == 0) {
     // This takes a really long time.
     updateDisplay();
@@ -633,6 +620,8 @@ long step(bool dir, long steps) {
     // digitalWrite() is slow enough that we don't need to wait in the HIGH position.
     digitalWrite(STEP, LOW);
     // Don't wait during the last step, it will pass by itself before we get back to stepping again.
+    // This condition is the reason moving left-right is limited to 600rpm but with ELS On and spindle
+    // gradually speeding up, stepper can go to ~1200rpm.
     if (i < steps - 1) {
       delayMicroseconds(stepDelayUs);
     }
@@ -663,6 +652,10 @@ long spindleFromPos(long p) {
 
 // What is called in the loop() function in when not in test mode.
 void nonTestLoop() {
+  // Has to be called before reading the spindle value because it can zero it.
+  checkOnOffButton();
+  checkPlusMinusButtons();
+
   noInterrupts();
   long spindlePosCopy = spindlePos;
   long spindlePosSyncCopy = spindlePosSync;
@@ -674,15 +667,11 @@ void nonTestLoop() {
     // Move the stepper to the right position.
     step(newPos > pos, abs(newPos - pos));
     if (loopCounter > 0) {
-      digitalWrite(LED_BUILTIN, HIGH);
       loopCounter = 0;
     }
-    // No long calls such as digitalRead() allowed on this path or stepper will move unevenly.
-    return;
-  }
 
-  if (loopCounter == 0) {
-    digitalWrite(LED_BUILTIN, LOW);
+    // No long calls on this path or stepper will move unevenly.
+    return;
   }
 
   // Perform auxiliary logic but don't take more than a few milliseconds since

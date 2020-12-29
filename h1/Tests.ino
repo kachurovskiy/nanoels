@@ -11,9 +11,8 @@ void spinEncTimes(int times) {
 void setupEach() {
   buttonTime = 0;
   loopCounter = 0;
-  onOffFlag = false;
+  resetMillis = false;
   isOn = false;
-  resetCounter = 0;
   resetOnStartup = false;
 
   hmmpr = 0;
@@ -44,10 +43,9 @@ void setupEach() {
   stepStartMs = 0;
 
   for (int i = 0; i < sizeof(mockDigitalPins); i++) {
-    mockDigitalPins[i] = 0;
+    mockDigitalPins[i] = HIGH;
   }
-
-  mockDigitalPinsToggleOnRead = false;
+  mockDigitalPinToggleOnRead = false;
 
   // Wait a bit so that time-sensitive spindle turning logic resets too.
   delay(10);
@@ -268,6 +266,7 @@ test(checkPlusMinusButtons) {
   pos = 100;
   hmmpr = 1;
   hmmprPrevious = 0;
+  buttonTime = 0L;
   checkPlusMinusButtons();
   assertEqual(100L, pos);
   assertEqual(1, hmmpr);
@@ -275,17 +274,20 @@ test(checkPlusMinusButtons) {
 
   mockDigitalPins[LEFT] = LOW;
   mockDigitalPins[RIGHT] = HIGH;
+  buttonTime = 0L;
   checkPlusMinusButtons();
   assertEqual(0L, pos);
   assertEqual(0, hmmpr);
   assertEqual(1, hmmprPrevious);
 
+  buttonTime = 0L;
   checkPlusMinusButtons();
   assertEqual(0L, pos);
   assertEqual(-1, hmmpr);
   assertEqual(1, hmmprPrevious);
 
   mockDigitalPins[LEFT] = HIGH;
+  buttonTime = 0L;
   checkPlusMinusButtons();
   assertEqual(0L, pos);
   assertEqual(-1, hmmpr);
@@ -293,6 +295,7 @@ test(checkPlusMinusButtons) {
 
   mockDigitalPins[LEFT] = LOW;
   for (int i = 0; i < 200; i++) {
+    buttonTime = 0L;
     checkPlusMinusButtons();
   }
   assertEqual(0L, pos);
@@ -300,11 +303,13 @@ test(checkPlusMinusButtons) {
   assertEqual(-1, hmmprPrevious);
 
   mockDigitalPins[LEFT] = HIGH;
+  buttonTime = 0L;
   checkPlusMinusButtons();
   assertEqual(-1000, hmmprPrevious);
 
   mockDigitalPins[RIGHT] = LOW;
   for (int i = 0; i < 300; i++) {
+    buttonTime = 0L;
     checkPlusMinusButtons();
   }
   assertEqual(0L, pos);
@@ -338,9 +343,8 @@ test(checkOnOffButton) {
   pos = 2;
   leftStop = 3;
   rightStop = -1;
-  for (int i = 0; i < 100; i++) {
-    checkOnOffButton();
-  }
+  resetMillis = millis() - 6001;
+  checkOnOffButton();
   assertFalse(isOn);
   assertEqual(0, hmmpr);
   assertEqual(0L, pos);
@@ -599,7 +603,19 @@ test(rightStopNegativePitch) {
 }
 
 test(turnForward) {
-  isOn = true;
+  isOn = false;
+  hmmpr = 100;
+  delay(10);
+  mockDigitalPins[ENC_B] = LOW;
+  for (long i = 0; i < 300; i++) {
+    spinEnc();
+    nonTestLoop();
+  }
+
+  mockDigitalPins[ONOFF] = LOW;
+  checkOnOffButton();
+  mockDigitalPins[ONOFF] = HIGH;
+
   hmmpr = 100;
   delay(10);
   mockDigitalPins[ENC_B] = LOW;
@@ -666,10 +682,9 @@ test(moveLeftIsOff) {
   rightStop = -100L;
   mockDigitalPins[F1] = LOW;
   mockDigitalPins[F2] = HIGH;
-  mockDigitalPinsToggleOnRead = true;
+  mockDigitalPinToggleOnRead = F1;
   checkMoveButtons();
 
-  // Moving zeroes the coordinates but the stops move.
   assertEqual(100L, pos);
   assertEqual(0L, spindlePos);
   assertEqual(150L, leftStop);
@@ -693,10 +708,9 @@ test(moveLeftIsOffNegativeHmmpr) {
   rightStop = -100L;
   mockDigitalPins[F1] = LOW;
   mockDigitalPins[F2] = HIGH;
-  mockDigitalPinsToggleOnRead = true;
+  mockDigitalPinToggleOnRead = F1;
   checkMoveButtons();
 
-  // Moving zeroes the coordinates but the stops move.
   assertEqual(100L, pos);
   assertEqual(0L, spindlePos);
   assertEqual(150L, leftStop);
@@ -711,7 +725,7 @@ test(moveRightIsOff) {
   rightStop = -150L;
   mockDigitalPins[F1] = HIGH;
   mockDigitalPins[F2] = LOW;
-  mockDigitalPinsToggleOnRead = true;
+  mockDigitalPinToggleOnRead = F2;
   checkMoveButtons();
 
   assertEqual(-100L, pos);
@@ -737,7 +751,7 @@ test(moveRightIsOffNegativeHmmpr) {
   rightStop = -150L;
   mockDigitalPins[F1] = HIGH;
   mockDigitalPins[F2] = LOW;
-  mockDigitalPinsToggleOnRead = true;
+  mockDigitalPinToggleOnRead = F2;
   checkMoveButtons();
 
   assertEqual(-100L, pos);
@@ -755,7 +769,7 @@ test(moveIsOn) {
   rightStop = -200L;
   mockDigitalPins[F1] = LOW;
   mockDigitalPins[F2] = HIGH;
-  mockDigitalPinsToggleOnRead = true;
+  mockDigitalPinToggleOnRead = F1;
   checkMoveButtons();
 
   assertEqual(150L, pos);
@@ -773,6 +787,7 @@ test(moveIsOn) {
 
   mockDigitalPins[F1] = HIGH;
   mockDigitalPins[F2] = LOW;
+  mockDigitalPinToggleOnRead = F2;
   checkMoveButtons();
 
   assertEqual(75L, pos);
@@ -797,6 +812,7 @@ test(moveIsOn) {
 
   mockDigitalPins[F1] = LOW;
   mockDigitalPins[F2] = HIGH;
+  mockDigitalPinToggleOnRead = F1;
   checkMoveButtons();
 
   assertEqual(-75L, pos);
@@ -812,7 +828,7 @@ test(moveIsOnNegativeHmmpr) {
   rightStop = -200L;
   mockDigitalPins[F1] = LOW;
   mockDigitalPins[F2] = HIGH;
-  mockDigitalPinsToggleOnRead = true;
+  mockDigitalPinToggleOnRead = F1;
   checkMoveButtons();
 
   assertEqual(150L, pos);
@@ -830,6 +846,7 @@ test(moveIsOnNegativeHmmpr) {
 
   mockDigitalPins[F1] = HIGH;
   mockDigitalPins[F2] = LOW;
+  mockDigitalPinToggleOnRead = F2;
   checkMoveButtons();
 
   assertEqual(75L, pos);
@@ -854,6 +871,7 @@ test(moveIsOnNegativeHmmpr) {
 
   mockDigitalPins[F1] = LOW;
   mockDigitalPins[F2] = HIGH;
+  mockDigitalPinToggleOnRead = F1;
   checkMoveButtons();
 
   assertEqual(-75L, pos);

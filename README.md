@@ -20,11 +20,11 @@
 
 # Limitations
 
-- Lead screw position only equals the carriage position if the backlash was taken out before the measurement started. Changing the direction introduces the backlash again.
-- Plastic gears shouldn't heat up or they will deform and disconnect. Stepper can heat up quite a bit during continuous operation. Depending on the stepper driver current, the limit seems to be ~50% duty cycle with 10min operation / 10min cooldown. For higher duty cycle something like metal HTD 5M gears, belt and a metal stepper mount would be required.
+- Plastic gears and mounts shouldn't heat up or they will deform and disconnect. Stepper can heat up quite a bit during continuous operation. Depending on the stepper driver current, the limit seems to be ~50% duty cycle with 10min operation / 10min cooldown. For higher duty cycle something like metal HTD 5M gears, belt and a metal stepper mount would be required.
 - Nema 23 stepper usable maximum is ~600 RPM, here a 1:1 stepper to leadscrew ratio is used. In practice this means that cutting e.g. 2mm thread with a 2mm leadscrew spindle top speed should stay under 600 RPM.
   - NanoEls would take the stepper at 1000 RPM and higher but it likely won't have much torque at that point
   - This can be mitigated to some extent by using e.g. 40 tooth gear on the leadscrew and 60 tooth gear on the motor at the expense of the maximum leadsrew torque
+- Lead screw position only equals the carriage position if the backlash was taken out before the measurement started. Changing the direction introduces the backlash again.
 
 # Hardware overview
 
@@ -101,13 +101,15 @@ SSD1306 monochrome 4-pin I2C OLED 128x64 display.
 
 Using 6x6x13mm switches. 13mm is the optimal height for the provided case, if you're using a different case, desired height might be different. AliExpress has very convenient 200 button sets of different height for a few euros.
 
+6x6 buttons can be too small for fingers to comfortably click, consider buying caps to put on them, keywords for AliExpress are "switch push button hat 6mm".
+
 ### 24V power supply
 
 [24V 5A power supply](https://www.ebay.com/itm/173522502114) worked well. Stepper driver allows picking the current, 2A current was so far sufficient for my small lathe so power supply is running in the light mode.
 
 ### 5A power supply
 
-Arduino Nano doesn't draw much current so 0.5A phone charger would work.
+Arduino Nano doesn't draw much current so a 0.5A phone charger would work.
 
 ### PCB
 
@@ -240,7 +242,7 @@ When connecting the gears, make sure to leave ~0.5mm space between them for opti
 ## Programming the Arduino
 
 - Download the Arduino IDE
-- Install `Adafruit_SSD1306` library via the Library Manager in the Arduino IDE
+- Install `Adafruit_SSD1306` and `FastGPIO` libraries via the Library Manager in the Arduino IDE
 - Download and open [NanoEls.ino](https://github.com/kachurovskiy/nanoels/raw/main/h1/NanoEls.ino)
 - Check the top constants (e.g. encoder steps, motor steps, display offset) and adjust if needed
 - Upload the sketch to your Arduino Nano
@@ -253,39 +255,35 @@ When connecting the gears, make sure to leave ~0.5mm space between them for opti
 - Make sure that stepper motor and ELS are turned off using the lathe emergency power off switch
 - Test the automatic stop and other ELS functionality before relying on it
 - **In case of unexpected movements, disengage the half-nut or use the emergency power off switch**
-- **ELS buttons might not respond when stepper is working**
 
 ## Turning
 
-- Select the desired pitch using `-` and `+` buttons or `0.05mm`, `1mm` and `2mm` shortcut buttons in the top row
+- Select the desired pitch using `-` and `+` buttons or `0.10mm`, `1mm` and `2mm` shortcut buttons in the top row
 - Turn on the lead screw using the `ON` button
 - Start the lathe spindle
-- **Warning: it's not currently possible to turn `OFF` the ELS while spindle is running due to Arduino Nano limitations**
 - Stop the lathe spindle when done
 - Turn off the lead screw using the `ON` button
 
 ## Automatic stops
 
 - Move the carriage with the help of ELS to the desired stop position
-  - Moving the carriage manually may introduce a small error due to backlash
-- Set the stop using the `L STOP` button
-- Use ELS to move to another stop position and press `R STOP`
+- Set the stop using e.g. `L STOP` button
+- Hold `RIGHT` to move to another stop position and press `R STOP`
 
 Now you can:
 
 - Use lathe forward/reverse spindle movements to move the carriage between the stops
 - Use `LEFT` and `RIGHT` buttons to move the carriage ~1mm (possibly more when required to stay on the thread) within the stops in either direction when spindle is not turning
-  - Moving exactly onto the stop with `LEFT` and `RIGHT` buttons is not currently supported, carriage will only go to the closest thread position to the stop
 
 Setting only one stop is also supported. Stops aren't lost when `ON` button is clicked or pitch is changed.
 
 ## Carriage movements
 
-- Make sure the cutting tool is not goign to contact the material and there's room to move the carriage physically
+- Make sure the cutting tool is not going to contact the material and there's room to move the carriage physically
 - Use `LEFT` and `RIGHT` buttons to move the carriage ~1mm (possibly more or less when required to stay on the thread) when spindle is not turning
 - If stops are set, they will be respected
 
-Using `LEFT` and `RIGHT` buttons is not possible when the spindle is turning.
+Using `LEFT` and `RIGHT` buttons is not supported when the spindle is turning and ELS is on.
 
 ## Losing the thread
 
