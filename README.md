@@ -39,6 +39,7 @@
   - 2€ OLED display
   - 5V power supply e.g. an old phone charger
   - 8 bolts, 2 nuts, 2 washers and a few wires
+  - Optionally, two `2kOhm` resistors
 - Does not require metalworking
 - Does not require drilling holes in the lathe
 
