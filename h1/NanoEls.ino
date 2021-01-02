@@ -21,7 +21,6 @@
 #define PULSE_MIN_US round(500 * (200.0 / MOTOR_STEPS)) // Microseconds to wait after high pulse, min.
 #define PULSE_MAX_US round(2000 * (200.0 / MOTOR_STEPS)) // Microseconds to wait after high pulse, max. Slow start.
 #define PULSE_DELTA_US 7 // Microseconds remove from waiting time on every step. Acceleration.
-#define STEPPER_MAX_RPM 600 // Stepper loses most of it's torque at speeds higher than that.
 #define INVERT_STEPPER true // false for 1:1 geared connection, true for 1:1 belt connection
 
 // Pitch shortcut buttons, set to your most used values that should be available within 1 click.
