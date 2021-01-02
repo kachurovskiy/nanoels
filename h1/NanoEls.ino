@@ -550,6 +550,10 @@ void checkMoveButtons() {
 
       step(left, abs(delta));
     } while (delta != 0 && (left ? DREAD(F1) : DREAD(F2)) == LOW);
+    if (isOn) {
+      // Prevent stepper from jumping back to position calculated from the spindle.
+      markAsZero();
+    }
   }
 }
 

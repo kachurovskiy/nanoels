@@ -814,6 +814,24 @@ test(moveIsOn) {
   assertEqual(-600L, spindlePos);
 }
 
+test(moveIsOnZeroHmmpr) {
+  isOn = true;
+  pos = 0L;
+  hmmpr = 0;
+  spindlePos = 0L;
+  leftStop = 200L;
+  rightStop = -200L;
+  mockDigitalPins[F1] = LOW;
+  mockDigitalPins[F2] = HIGH;
+  mockDigitalPinToggleOnRead = F1;
+  checkMoveButtons();
+
+  assertEqual(0L, pos);
+  assertEqual(0L, spindlePos);
+  assertEqual(100L, leftStop);
+  assertEqual(-300L, rightStop);
+}
+
 test(moveIsOnNegativeHmmpr) {
   isOn = true;
   pos = 0L;
