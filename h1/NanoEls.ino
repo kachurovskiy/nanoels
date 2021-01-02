@@ -33,6 +33,9 @@
 
 /* Changing anything below shouldn't be needed for basic use. */
 
+#define LONG_MIN long(-2147483648)
+#define LONG_MAX long(2147483647)
+
 #define LOOP_COUNTER_MAX 1500 // 1500 loops without stepper move to start reading buttons
 #define HMMPR_MAX 1000 // 10mm
 
@@ -46,10 +49,10 @@
 
 // Version of the EEPROM storage format, should be changed when non-backward-compatible
 // changes are made to the storage logic, resulting in EEPROM wipe on first start.
-#define EEPROM_VERSION 1
+#define EEPROM_VERSION 2
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 7
+#define SOFTWARE_VERSION 8
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 1
@@ -151,11 +154,11 @@ void updateDisplay() {
   display.setCursor(DISPLAY_LEFT, DISPLAY_TOP);
   display.setTextSize(2);
   display.print(isOn ? "ON" : "off");
-  if (leftStop != 0 && rightStop != 0) {
+  if (leftStop != LONG_MAX && rightStop != LONG_MIN) {
     display.print(" LR");
-  } else if (leftStop != 0) {
+  } else if (leftStop != LONG_MAX) {
     display.print(" L");
-  }else if (rightStop != 0) {
+  } else if (rightStop != LONG_MIN) {
     display.print(" R");
   }
   if (spindlePosSync) {
@@ -284,6 +287,8 @@ void setup() {
       EEPROM.write(i, 255); // 255 is the default value.
     }
     EEPROM.write(ADDR_EEPROM_VERSION, EEPROM_VERSION);
+    saveLong(ADDR_LEFT_STOP, savedLeftStop = leftStop = LONG_MAX);
+    saveLong(ADDR_RIGHT_STOP, savedRightStop = rightStop = LONG_MIN);
   }
 
   isOn = EEPROM.read(ADDR_ONOFF) == 1;
@@ -360,17 +365,11 @@ bool checkAndMarkButtonTime() {
 // result in stepper rushing across the lathe to the new position.
 void markAsZero() {
   noInterrupts();
-  if (leftStop != 0) {
+  if (leftStop != LONG_MAX) {
     leftStop -= pos;
-    if (leftStop == 0) {
-      leftStop = 1;
-    }
   }
-  if (rightStop != 0) {
+  if (rightStop != LONG_MIN) {
     rightStop -= pos;
-    if (rightStop == 0) {
-      rightStop = -1;
-    }
   }
   pos = 0;
   spindlePos = 0;
@@ -400,8 +399,8 @@ void splashScreen() {
 
 void reset() {
   resetOnStartup = false;
-  leftStop = 0;
-  rightStop = 0;
+  leftStop = LONG_MAX;
+  rightStop = LONG_MIN;
   setHmmpr(0);
   splashScreen();
 }
@@ -463,15 +462,15 @@ void checkLeftStopButton() {
   if (DREAD(LEFT_STOP) == LOW) {
     if (leftStopFlag) {
       leftStopFlag = false;
-      if (leftStop == 0) {
-        leftStop = pos == 0 ? 1 : pos;
+      if (leftStop == LONG_MAX) {
+        leftStop = pos;
       } else {
         if (pos == leftStop) {
           // Spindle is most likely out of sync with the stepper because
           // it was spinning while the lead screw was on the stop.
           setOutOfSync();
         }
-        leftStop = 0;
+        leftStop = LONG_MAX;
       }
     }
   } else {
@@ -484,15 +483,15 @@ void checkRightStopButton() {
   if (DREAD(RIGHT_STOP) == LOW) {
     if (rightStopFlag) {
       rightStopFlag = false;
-      if (rightStop == 0) {
-        rightStop = pos == 0 ? -1 : pos;
+      if (rightStop == LONG_MIN) {
+        rightStop = pos;
       } else {
         if (pos == rightStop) {
           // Spindle is most likely out of sync with the stepper because
           // it was spinning while the lead screw was on the stop.
           setOutOfSync();
         }
-        rightStop = 0;
+        rightStop = LONG_MIN;
       }
     }
   } else {
@@ -543,15 +542,10 @@ void checkMoveButtons() {
       }
 
       // Don't left-right move out of stops.
-      if (leftStop != 0 && pos + delta * sign > leftStop) {
+      if (leftStop != LONG_MAX && pos + delta * sign > leftStop) {
         delta = leftStop - pos;
-      } else if (rightStop != 0 && pos + delta * sign < rightStop) {
+      } else if (rightStop != LONG_MIN && pos + delta * sign < rightStop) {
         delta = rightStop - pos;
-      }
-
-      // markAsZero() can move leftStop and rightStop by 1.
-      if (delta == 1) {
-        break;
       }
 
       step(left, abs(delta));
@@ -634,9 +628,9 @@ long posFromSpindle(long s, bool respectStops) {
 
   // Respect left/right stops.
   if (respectStops) {
-    if (rightStop != 0 && newPos < rightStop) {
+    if (rightStop != LONG_MIN && newPos < rightStop) {
       newPos = rightStop;
-    } else if (leftStop != 0 && newPos > leftStop) {
+    } else if (leftStop != LONG_MAX && newPos > leftStop) {
       newPos = leftStop;
     }
   }
@@ -682,7 +676,7 @@ void nonTestLoop() {
   // after a reverse the spindle starts slow.
   if (hmmpr != 0) {
     noInterrupts();
-    if (rightStop != 0 && pos == rightStop) {
+    if (rightStop != LONG_MIN && pos == rightStop) {
       long stopSpindlePos = spindleFromPos(rightStop);
       if (hmmpr > 0) {
         if (spindlePos < stopSpindlePos - ENCODER_STEPS) {
@@ -693,7 +687,7 @@ void nonTestLoop() {
           spindlePos -= ENCODER_STEPS;
         }
       }
-    } else if (leftStop != 0 && pos == leftStop) {
+    } else if (leftStop != LONG_MAX && pos == leftStop) {
       long stopSpindlePos = spindleFromPos(leftStop);
       if (hmmpr > 0) {
         if (spindlePos > stopSpindlePos + ENCODER_STEPS) {
@@ -717,9 +711,9 @@ void nonTestLoop() {
       Serial.print(" hmmpr ");
       Serial.print(hmmpr);
       Serial.print(" leftStop ");
-      Serial.print(leftStop);
+      Serial.print(leftStop == LONG_MAX ? "-" : String(leftStop));
       Serial.print(" rightStop ");
-      Serial.print(rightStop);
+      Serial.print(rightStop == LONG_MIN ? "-" : String(rightStop));
       Serial.print(" spindlePos ");
       Serial.println(spindlePos);
     }

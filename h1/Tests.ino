@@ -22,12 +22,12 @@ void setupEach() {
   pos = 0;
   savedPos = 0;
 
-  leftStop = 0;
-  savedLeftStop = 0;
+  leftStop = LONG_MAX;
+  savedLeftStop = LONG_MAX;
   leftStopFlag = true;
 
-  rightStop = 0;
-  savedRightStop = 0;
+  rightStop = LONG_MIN;
+  savedRightStop = LONG_MIN;
   rightStopFlag = true;
 
   spindlePos = 0;
@@ -133,8 +133,6 @@ test(spinEncSyncLow) {
 
 test(preventMoveOnStart) {
   isOn = true;
-  leftStop = 0;
-  rightStop = 0;
   hmmpr = 100;
   spindlePos = 300;
   pos = 50;
@@ -180,14 +178,12 @@ test(checkAndMarkButtonTime) {
 
 test(markAsZero) {
   pos = 0;
-  leftStop = 0;
-  rightStop = 0;
   spindlePos = 0;
   spindlePosSync = 0;
   markAsZero();
   assertEqual(0L, pos);
-  assertEqual(0L, leftStop);
-  assertEqual(0L, rightStop);
+  assertEqual(LONG_MAX, leftStop);
+  assertEqual(LONG_MIN, rightStop);
   assertEqual(0L, spindlePos);
   assertEqual(0, spindlePosSync);
 
@@ -211,7 +207,7 @@ test(markAsZero) {
   markAsZero();
   assertEqual(0L, pos);
   assertEqual(200L, leftStop);
-  assertEqual(-1L, rightStop);
+  assertEqual(0L, rightStop);
   assertEqual(0L, spindlePos);
   assertEqual(0, spindlePosSync);
 
@@ -222,7 +218,7 @@ test(markAsZero) {
   spindlePosSync = 0;
   markAsZero();
   assertEqual(0L, pos);
-  assertEqual(1L, leftStop);
+  assertEqual(0L, leftStop);
   assertEqual(-200L, rightStop);
   assertEqual(0L, spindlePos);
   assertEqual(0, spindlePosSync);
@@ -349,20 +345,19 @@ test(checkOnOffButton) {
   assertFalse(isOn);
   assertEqual(0, hmmpr);
   assertEqual(0L, pos);
-  assertEqual(0L, leftStop);
-  assertEqual(0L, rightStop);
+  assertEqual(LONG_MAX, leftStop);
+  assertEqual(LONG_MIN, rightStop);
 }
 
 test(checkLeftStopButton) {
   isOn = true;
-  leftStop = 0;
   hmmpr = 100;
   pos = 200;
   spindlePos = 1200;
   spindlePosSync = 0;
   mockDigitalPins[LEFT_STOP] = HIGH;
   checkLeftStopButton();
-  assertEqual(0L, leftStop);
+  assertEqual(LONG_MAX, leftStop);
 
   mockDigitalPins[LEFT_STOP] = LOW;
   checkLeftStopButton();
@@ -374,7 +369,7 @@ test(checkLeftStopButton) {
   checkLeftStopButton();
   mockDigitalPins[LEFT_STOP] = LOW;
   checkLeftStopButton();
-  assertEqual(0L, leftStop);
+  assertEqual(LONG_MAX, leftStop);
   assertEqual(0, spindlePosSync);
 
   mockDigitalPins[LEFT_STOP] = HIGH;
@@ -424,7 +419,7 @@ test(checkLeftStopButton) {
   checkLeftStopButton();
   assertEqual(1206L, spindlePos);
   assertEqual(200L, pos);
-  assertEqual(0L, leftStop);
+  assertEqual(LONG_MAX, leftStop);
   assertEqual(6, spindlePosSync);
 
   // Move spindle back to the sync position.
@@ -434,7 +429,7 @@ test(checkLeftStopButton) {
   nonTestLoop();
   assertEqual(1200L, spindlePos);
   assertEqual(200L, pos);
-  assertEqual(0L, leftStop);
+  assertEqual(LONG_MAX, leftStop);
   assertEqual(0, spindlePosSync);
 
   // Move spindle some more to test that stepper is now moving too.
@@ -442,26 +437,25 @@ test(checkLeftStopButton) {
   nonTestLoop();
   assertEqual(1194L, spindlePos);
   assertEqual(199L, pos);
-  assertEqual(0L, leftStop);
+  assertEqual(LONG_MAX, leftStop);
   assertEqual(0, spindlePosSync);
   spinEncTimes(594);
   nonTestLoop();
   assertEqual(600L, spindlePos);
   assertEqual(100L, pos);
-  assertEqual(0L, leftStop);
+  assertEqual(LONG_MAX, leftStop);
   assertEqual(0, spindlePosSync);
 }
 
 test(checkRightStopButton) {
   isOn = true;
-  rightStop = 0;
   hmmpr = 100;
   pos = 200;
   spindlePos = 1200;
   spindlePosSync = 0;
   mockDigitalPins[RIGHT_STOP] = HIGH;
   checkRightStopButton();
-  assertEqual(0L, rightStop);
+  assertEqual(LONG_MIN, rightStop);
 
   mockDigitalPins[RIGHT_STOP] = LOW;
   checkRightStopButton();
@@ -473,7 +467,7 @@ test(checkRightStopButton) {
   checkRightStopButton();
   mockDigitalPins[RIGHT_STOP] = LOW;
   checkRightStopButton();
-  assertEqual(0L, rightStop);
+  assertEqual(LONG_MIN, rightStop);
   assertEqual(0, spindlePosSync);
 
   mockDigitalPins[RIGHT_STOP] = HIGH;
@@ -523,7 +517,7 @@ test(checkRightStopButton) {
   checkRightStopButton();
   assertEqual(1194L, spindlePos);
   assertEqual(200L, pos);
-  assertEqual(0L, rightStop);
+  assertEqual(LONG_MIN, rightStop);
   assertEqual(594, spindlePosSync);
 
   // Move spindle back to the sync position.
@@ -533,7 +527,7 @@ test(checkRightStopButton) {
   nonTestLoop();
   assertEqual(1200L, spindlePos);
   assertEqual(200L, pos);
-  assertEqual(0L, rightStop);
+  assertEqual(LONG_MIN, rightStop);
   assertEqual(0, spindlePosSync);
 
   // Move spindle some more to test that stepper is now moving too.
@@ -541,13 +535,13 @@ test(checkRightStopButton) {
   nonTestLoop();
   assertEqual(1206L, spindlePos);
   assertEqual(201L, pos);
-  assertEqual(0L, rightStop);
+  assertEqual(LONG_MIN, rightStop);
   assertEqual(0, spindlePosSync);
   spinEncTimes(594);
   nonTestLoop();
   assertEqual(1800L, spindlePos);
   assertEqual(300L, pos);
-  assertEqual(0L, rightStop);
+  assertEqual(LONG_MIN, rightStop);
   assertEqual(0, spindlePosSync);
 }
 
