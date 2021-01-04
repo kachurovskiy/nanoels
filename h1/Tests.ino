@@ -42,6 +42,9 @@ void setupEach() {
   stepDelayDirection = true;
   stepStartMs = 0;
 
+  showAngle = false;
+  savedShowAngle = false;
+
   for (int i = 0; i < sizeof(mockDigitalPins); i++) {
     mockDigitalPins[i] = HIGH;
   }

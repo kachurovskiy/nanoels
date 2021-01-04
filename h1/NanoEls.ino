@@ -28,9 +28,6 @@
 #define F4_PITCH 100 // 1mm
 #define F5_PITCH 200 // 2mm
 
-// Uncomment to show 0-359 angle of the spindle on the screen bottom line.
-// #define SHOW_ANGLE
-
 /* Changing anything below shouldn't be needed for basic use. */
 
 #define LONG_MIN long(-2147483648)
@@ -81,6 +78,7 @@
 #define ADDR_RIGHT_STOP 12 // takes 4 bytes
 #define ADDR_SPINDLE_POS 16 // takes 4 bytes
 #define ADDR_OUT_OF_SYNC 20 // takes 2 bytes
+#define ADDR_SHOW_ANGLE 22 // takes 1 byte
 
 // Uncomment to print out debug info in Serial.
 // #define DEBUG
@@ -147,6 +145,10 @@ int stepDelayUs = PULSE_MAX_US;
 bool stepDelayDirection = true; // To reset stepDelayUs when direction changes.
 unsigned long stepStartMs = 0;
 
+bool showAngle = false; // Whether to show 0-359 spindle angle on screen
+bool savedShowAngle = false; // showAngle value saved in EEPROM
+bool showAngleFlag = true;
+
 void updateDisplay() {
   #ifndef TEST
   display.clearDisplay();
@@ -176,14 +178,12 @@ void updateDisplay() {
   float posMm = pos * LEAD_SCREW_HMM / MOTOR_STEPS / 100;
   display.print(posMm, 2);
 
-  #ifdef SHOW_ANGLE
-  display.print(" ");
-  if (abs(posMm) < 100) {
+  if (showAngle && abs(posMm) < 100) {
+    display.print(" ");
     display.print(round(((spindlePos % (int) ENCODER_STEPS + (int) ENCODER_STEPS) % (int) ENCODER_STEPS) * 360 / ENCODER_STEPS));
+  } else {
+    display.print("mm");
   }
-  #else
-  display.print("mm");
-  #endif
 
   display.display();
   #endif
@@ -298,6 +298,7 @@ void setup() {
   savedRightStop = rightStop = loadLong(ADDR_RIGHT_STOP);
   savedSpindlePos = spindlePos = loadLong(ADDR_SPINDLE_POS);
   savedSpindlePosSync = spindlePosSync = loadInt(ADDR_OUT_OF_SYNC);
+  savedShowAngle = showAngle = EEPROM.read(ADDR_SHOW_ANGLE) == 1;
 
   attachInterrupt(digitalPinToInterrupt(ENC_A), spinEnc, FALLING);
 
@@ -347,6 +348,9 @@ void saveIfChanged() {
   }
   if (spindlePosSync != savedSpindlePosSync) {
     saveInt(ADDR_OUT_OF_SYNC, savedSpindlePosSync = spindlePosSync);
+  }
+  if (showAngle != savedShowAngle) {
+    EEPROM.write(ADDR_SHOW_ANGLE, savedShowAngle = showAngle);
   }
 }
 
@@ -409,6 +413,9 @@ void reset() {
 // Prevents stepper from rushing to a position far away by waiting for the right
 // spindle position and starting smoothly.
 void setOutOfSync() {
+  if (!isOn) {
+    return;
+  }
   spindlePosSync = ((spindlePos - spindleFromPos(pos)) % (int) ENCODER_STEPS + (int) ENCODER_STEPS) % (int) ENCODER_STEPS;
   #ifdef DEBUG
   Serial.print("spindlePosSync ");
@@ -422,7 +429,10 @@ void checkPlusMinusButtons() {
   int delta = abs(hmmprPrevious - hmmpr) >= 10 ? 10 : 1;
   bool left = DREAD(LEFT) == LOW;
   bool right = DREAD(RIGHT) == LOW;
-  if (left && checkAndMarkButtonTime()) {
+  if (left && right && showAngleFlag) {
+    showAngle = !showAngle;
+    showAngleFlag = false;
+  } else if (left && checkAndMarkButtonTime()) {
     if (hmmpr > -HMMPR_MAX) {
       setHmmpr(max(-HMMPR_MAX, hmmpr - delta));
     }
@@ -432,6 +442,7 @@ void checkPlusMinusButtons() {
     }
   } else if (!left && !right) {
     hmmprPrevious = hmmpr;
+    showAngleFlag = true;
   }
 }
 
