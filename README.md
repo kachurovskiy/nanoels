@@ -104,9 +104,11 @@ Using 6x6x13mm switches. 13mm is the optimal height for the provided case, if yo
 
 6x6 buttons can be too small for fingers to comfortably click, consider buying caps to put on them, keywords for AliExpress are "switch push button hat 6mm".
 
-### 24V power supply
+### 24V or 48V power supply
 
 [24V 5A power supply](https://www.ebay.com/itm/173522502114) worked well. Stepper driver allows picking the current, 2A current was so far sufficient for my small lathe so power supply is running in the light mode.
+
+48V power supply can be used on NEMA 23 for maximum power (check your driver max voltage).
 
 ### 5A power supply
 
