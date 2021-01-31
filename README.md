@@ -78,7 +78,7 @@ I used the following one but most Nema 23 or higher steppers should work.
 
 DM556Y is 118.5mm wide which fits the case 3D model. DM556 fits too. Other drivers might not fit.
 
-Cheap drivers like TB6600 are not recommended, they are very rough and noisy. DM556 is OK but requires reducing acceleration and max speed in the settings or it will lose steps during jogging (`PULSE_DELTA_US` from `7` to `2` and `PULSE_MAX_US` from `2000` to `1500`). Generally, paying for a better brand such as "Rtelligent" or "STEPPERONLINE" is worth the money.
+Cheap drivers like TB6600 are not recommended, they are very rough and noisy. DM556 is OK but requires reducing acceleration and max speed in the settings or it will lose steps during jogging (`PULSE_DELTA_US` from `7` to `2` and `PULSE_MAX_US` from `2000` to `1500`). Generally, paying for a better brand such as "Rtelligent" or "STEPPERONLINE" is worth the money as their drivers work noticeably better than brandless black boxes.
 
 Closed Loop stepper might be nice to have but not necessary for NanoEls to work on small lathes. For bigger lathes or heavy cuts, closed loop system might be better.
 
