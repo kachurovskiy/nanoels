@@ -76,15 +76,15 @@ I used the following one but most Nema 23 or higher steppers should work.
 - Nema 23 Stepper Motor Bipolar 1.8deg 3.0 Nm 4.2A 57x57x113mm 4 Wires Open Loop
 - DM556Y Driver 1.7-5.6A DC20V~50V
 
-DM556Y is 118.5mm wide which fits the case 3D model. Other drivers might not fit into it.
+DM556Y is 118.5mm wide which fits the case 3D model. DM556 fits too. Other drivers might not fit.
 
-Cheap drivers like TB6600 are not recommended, they are very rough and noisy.
+Cheap drivers like TB6600 are not recommended, they are very rough and noisy. DM556 is OK but requires reducing acceleration and max speed in the settings or it will lose steps during jogging (`PULSE_DELTA_US` from `7` to `2` and `PULSE_MAX_US` from `2000` to `1500`). Generally, paying for a better brand such as "Rtelligent" or "STEPPERONLINE" is worth the money.
 
 Closed Loop stepper might be nice to have but not necessary for NanoEls to work on small lathes. For bigger lathes or heavy cuts, closed loop system might be better.
 
 It's entirely reasonable to locate the driver in the electrical cabinet and not under the lathe as shown above - but make sure to get the stepper with a shielded cable in that case.
 
-It's suggested to run the stepper in the 200 steps mode, microstepping will reduce the torque and will make Arduino spend more time issuing steps, potentially lowering the maximum usable rpm.
+It's suggested to run the stepper in the 200 steps mode or 400 if your driver doesn't support full steps. Microstepping will reduce the torque and will make Arduino spend more time issuing steps, potentially lowering the maximum usable rpm.
 
 ### Encoder
 
