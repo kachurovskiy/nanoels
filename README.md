@@ -20,8 +20,9 @@
 
 # Limitations
 
-- Plastic gears and mounts shouldn't heat up or they will deform and disconnect. Stepper can heat up quite a bit during continuous operation. Depending on the stepper driver current, the limit seems to be ~50% duty cycle with 10min operation / 10min cooldown. For higher duty cycle something like metal HTD 5M gears, belt and a metal stepper mount would be required.
+- PLA plastic gears and mounts shouldn't heat up or they will deform and disconnect. Stepper can heat up quite a bit during continuous operation. Depending on the stepper driver current, the limit seems to be ~50% duty cycle with 10min operation / 10min cooldown. For higher duty cycle something like metal HTD 5M gears, belt and a metal stepper mount would be required. Another option is using PETG or ABS.
 - Nema 23 stepper usable maximum is ~600 RPM, here a 1:1 stepper to leadscrew ratio is used. In practice this means that cutting e.g. 2mm thread with a 2mm leadscrew spindle top speed should stay under 600 RPM.
+  - Cheap brand-less drivers are worse at handling high RPM
   - NanoEls would take the stepper at 1000 RPM and higher but it likely won't have much torque at that point
   - This can be mitigated to some extent by using e.g. 40 tooth gear on the leadscrew and 60 tooth gear on the motor at the expense of the maximum leadsrew torque
 - Lead screw position only equals the carriage position if the backlash was taken out before the measurement started. Changing the direction introduces the backlash again.
