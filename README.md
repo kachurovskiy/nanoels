@@ -161,7 +161,7 @@ Stepper should rest on e.g. a piece of rubber when attached to the lathe - provi
 
 A rock-solid but more expensive (35€) option is to order a 10mm steel laser cut out stepper mount: https://imgur.com/a/exO5Atl
 
-It's also possible to cut out the stepper mount manually from plywood: https://imgur.com/a/hajI9ln
+It's also possible to cut out the stepper mount manually from plywood: https://imgur.com/a/CSmeSm2
 
 #### Stepper to leadscrew
 
