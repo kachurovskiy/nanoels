@@ -159,6 +159,10 @@ Dimensions of the lead screw front bearing housing for the provided 3D-printed p
 
 Stepper should rest on e.g. a piece of rubber when attached to the lathe - provided 3D printed part is only held by friction and is not designed to hold the full weight of the stepper long term.
 
+A rock-solid but more expensive (35€) option is to order a 10mm steel laser cut out stepper mount: https://imgur.com/a/exO5Atl
+
+It's also possible to cut out the stepper mount manually from plywood: https://imgur.com/a/hajI9ln
+
 #### Stepper to leadscrew
 
 ##### Option 1: plastic gear
