@@ -141,6 +141,8 @@ Ideally, a 50 tooth metal gear (~8mm thick) from the original lathe gear set wou
 
 [STL file](https://github.com/kachurovskiy/nanoels/raw/main/h1/case/case-120mm-2m6-2m5-4m3.stl)
 
+**Warning: this case is no longer recommended due to poor driver access, it's tempting to constantly remove and re-attach the lathe facing plate with RPM meter, accidentally touching the lathe housing with RPM meter pins will result in main board destruction.**
+
 This case is designed for the 120mm wide lathe base with two holes for M5 bolts on the bottom plate.
 
 Stepper driver DM556Y is mounted onto the case with 2 M6 bolts, washers and nuts.
