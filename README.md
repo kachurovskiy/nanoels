@@ -31,8 +31,8 @@
 
 - 5 plastic 3D-printed parts (gears, mounts)
 - Uses readily available hardware
-  - 46€ Nema 23 stepper and driver
-  - 10€ 24V 5A power supply
+  - 46€ Nema 23 stepper and driver (50% more for closed loop)
+  - 16€ 48V 5A power supply
   - 9€ printed curcuit board (PCB)
   - 9€ rotary encoder
   - 3€ Arduino Nano
@@ -79,11 +79,11 @@ I used the following one but most Nema 23 or higher steppers should work.
 
 DM556Y is 118.5mm wide which fits the case 3D model. DM556 fits too. R60 should fit (didn't test). Other drivers might not fit.
 
-Cheap drivers like TB6600 are not recommended, they are very rough and noisy. DM556 is OK but requires reducing acceleration and max speed in the settings or it will lose steps during jogging (`PULSE_DELTA_US` from `7` to `2` and `PULSE_MAX_US` from `2000` to `1500`). Generally, paying for a better brand such as "Rtelligent" or "STEPPERONLINE" is worth the money as their drivers work noticeably better than brandless black boxes.
+**Some folks report problems with open lopp steppers losing steps. Closed loop stepper and driver are the ultimate solution for this, even though they are a bit more expensive than open loop.**
 
-Closed Loop stepper might be nice to have but not necessary for NanoEls to work on small lathes. For bigger lathes or heavy cuts, closed loop system might be better.
+Cheap drivers like TB6600 are not recommended, they are very rough and noisy. DM556 from AliExpress is not very good either, they require reducing acceleration and max speed in the settings or it will lose steps during jogging (`PULSE_DELTA_US` from `7` to `2` and `PULSE_MAX_US` from `2000` to `1500`). Generally, paying for a better brand such as "Rtelligent" or "STEPPERONLINE" is worth the money as their drivers work noticeably better than brandless black boxes.
 
-It's entirely reasonable to locate the driver in the electrical cabinet and not under the lathe as shown above - but make sure to get the stepper with a shielded cable in that case.
+It's might be best to locate the driver in the electrical cabinet with your power supply and not under the lathe as shown above.
 
 It's suggested to run the stepper in the 200 steps mode or 400 if your driver doesn't support full steps. Microstepping will reduce the torque and will make Arduino spend more time issuing steps, potentially lowering the maximum usable rpm.
 
@@ -105,11 +105,9 @@ Using 6x6x13mm switches. 13mm is the optimal height for the provided case, if yo
 
 6x6 buttons can be too small for fingers to comfortably click, consider buying caps to put on them, keywords for AliExpress are "switch push button hat 6mm".
 
-### 24V or 48V power supply
+### 48V power supply
 
-[24V 5A power supply](https://www.ebay.com/itm/173522502114) worked well. Stepper driver allows picking the current, 2A current was so far sufficient for my small lathe so power supply is running in the light mode.
-
-48V power supply can be used on NEMA 23 for maximum power (check your driver max voltage).
+48V power supply is used on NEMA 23 for maximum power (check your driver max voltage) but 24V might also work for light turning.
 
 ### 5A power supply
 
@@ -337,3 +335,15 @@ ELS remembers all the positions and ON/OFF status when powered off.
 # Example builds
 
 [![NanoEls demo video](https://img.youtube.com/vi/9uTdDk2EqG4/0.jpg)](https://www.youtube.com/watch?v=9uTdDk2EqG4?t=272)
+
+# Troubleshooting
+
+## My stepper is skipping steps
+
+1. Check that `ENCODER_STEPS`, `MOTOR_STEPS` and `LEAD_SCREW_HMM` parameters you used match your hardware. E.g. if you tell ELS that `MOTOR_STEPS` is 400 but your actual driver is set to 200, ELS will try to move the stepper too fast and it will stall.
+2. Check the mechanical connection between the stepper and the lead screw, try rotating the stepper by hand when lathe is OFF. It shouldn't be too hard to turn. If you're using gears, ensure they're turning freely, not jamming and have a tiny bit of backlash. If you're using a belt, make sure it's not overtightened.
+3. Try using higher voltage, within limits of your stepper and driver. For NEMA 23, best performance is achieved at 48V but the driver has to support it.
+4. Try increasing the current on your driver, within the limits of your stepper.
+5. If you have a cheap brand-less driver, consider getting a higher quality driver.
+6. For an immediate fix, lower the acceleration (line 23) PULSE_DELTA_US from `7` to `2`, PULSE_MAX_US (line 22) from `2000` to `1500` or lower.
+7. Consider using a sufficently strong closed-loop stepper instead. I didn't try them myself but there are some high-rated closed loop stepper-driver sets on AliExpress for 69€.
