@@ -239,6 +239,10 @@ Solder 5V/GND wires to the PCB.
 
 Solder encoder and stepper driver wires to the PCB according to the input/output labels on the PCB.
 
+![PCB wiring](https://github.com/kachurovskiy/nanoels/raw/main/h1/buildexamples/nanoels-pcb-h1.jpg)
+
+**Important: there can be a metal mesh under the insulation around your wires, it's shielding, don't just cut it off. Solder it to ground (GND), together with the black ground cable.**
+
 Optinally solder two 2kOhm pull-up resistors. They aren't strictly needed but will improve the stability of the optical encoder readings.
 
 ## Gears
