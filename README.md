@@ -20,8 +20,9 @@
 
 # Limitations
 
-- Plastic gears and mounts shouldn't heat up or they will deform and disconnect. Stepper can heat up quite a bit during continuous operation. Depending on the stepper driver current, the limit seems to be ~50% duty cycle with 10min operation / 10min cooldown. For higher duty cycle something like metal HTD 5M gears, belt and a metal stepper mount would be required.
+- PLA plastic gears and mounts shouldn't heat up or they will deform and disconnect. Stepper can heat up quite a bit during continuous operation. Depending on the stepper driver current, the limit seems to be ~50% duty cycle with 10min operation / 10min cooldown. For higher duty cycle something like metal HTD 5M gears, belt and a metal stepper mount would be required. Another option is using PETG or ABS.
 - Nema 23 stepper usable maximum is ~600 RPM, here a 1:1 stepper to leadscrew ratio is used. In practice this means that cutting e.g. 2mm thread with a 2mm leadscrew spindle top speed should stay under 600 RPM.
+  - Cheap brand-less drivers are worse at handling high RPM
   - NanoEls would take the stepper at 1000 RPM and higher but it likely won't have much torque at that point
   - This can be mitigated to some extent by using e.g. 40 tooth gear on the leadscrew and 60 tooth gear on the motor at the expense of the maximum leadsrew torque
 - Lead screw position only equals the carriage position if the backlash was taken out before the measurement started. Changing the direction introduces the backlash again.
@@ -76,15 +77,15 @@ I used the following one but most Nema 23 or higher steppers should work.
 - Nema 23 Stepper Motor Bipolar 1.8deg 3.0 Nm 4.2A 57x57x113mm 4 Wires Open Loop
 - DM556Y Driver 1.7-5.6A DC20V~50V
 
-DM556Y is 118.5mm wide which fits the case 3D model. Other drivers might not fit into it.
+DM556Y is 118.5mm wide which fits the case 3D model. DM556 fits too. R60 should fit (didn't test). Other drivers might not fit.
 
-Cheap drivers like TB6600 are not recommended, they are very rough and noisy.
+Cheap drivers like TB6600 are not recommended, they are very rough and noisy. DM556 is OK but requires reducing acceleration and max speed in the settings or it will lose steps during jogging (`PULSE_DELTA_US` from `7` to `2` and `PULSE_MAX_US` from `2000` to `1500`). Generally, paying for a better brand such as "Rtelligent" or "STEPPERONLINE" is worth the money as their drivers work noticeably better than brandless black boxes.
 
 Closed Loop stepper might be nice to have but not necessary for NanoEls to work on small lathes. For bigger lathes or heavy cuts, closed loop system might be better.
 
 It's entirely reasonable to locate the driver in the electrical cabinet and not under the lathe as shown above - but make sure to get the stepper with a shielded cable in that case.
 
-It's suggested to run the stepper in the 200 steps mode, microstepping will reduce the torque and will make Arduino spend more time issuing steps, potentially lowering the maximum usable rpm.
+It's suggested to run the stepper in the 200 steps mode or 400 if your driver doesn't support full steps. Microstepping will reduce the torque and will make Arduino spend more time issuing steps, potentially lowering the maximum usable rpm.
 
 ### Encoder
 
@@ -104,9 +105,11 @@ Using 6x6x13mm switches. 13mm is the optimal height for the provided case, if yo
 
 6x6 buttons can be too small for fingers to comfortably click, consider buying caps to put on them, keywords for AliExpress are "switch push button hat 6mm".
 
-### 24V power supply
+### 24V or 48V power supply
 
 [24V 5A power supply](https://www.ebay.com/itm/173522502114) worked well. Stepper driver allows picking the current, 2A current was so far sufficient for my small lathe so power supply is running in the light mode.
+
+48V power supply can be used on NEMA 23 for maximum power (check your driver max voltage).
 
 ### 5A power supply
 
@@ -138,6 +141,8 @@ Ideally, a 50 tooth metal gear (~8mm thick) from the original lathe gear set wou
 
 [STL file](https://github.com/kachurovskiy/nanoels/raw/main/h1/case/case-120mm-2m6-2m5-4m3.stl)
 
+**Warning: this case is no longer recommended due to poor driver access, it's tempting to constantly remove and re-attach the lathe facing plate with RPM meter, accidentally touching the lathe housing with RPM meter pins will result in main board destruction.**
+
 This case is designed for the 120mm wide lathe base with two holes for M5 bolts on the bottom plate.
 
 Stepper driver DM556Y is mounted onto the case with 2 M6 bolts, washers and nuts.
@@ -150,11 +155,15 @@ Case is covering the stepper from the metal chips.
 
 ![Stepper mount](https://github.com/kachurovskiy/nanoels/raw/main/h1/stepper/stepper-mount-nema23-28mm-hole.png)
 
-[STL file](https://github.com/kachurovskiy/nanoels/raw/main/h1/stepper/stepper-mount-nema23-28mm-hole.png)
+[STL file](https://github.com/kachurovskiy/nanoels/raw/main/h1/stepper/stepper-mount-nema23-28mm-hole.stl)
 
 Dimensions of the lead screw front bearing housing for the provided 3D-printed part to fit: 28mm outside diameter, 12mm wide.
 
 Stepper should rest on e.g. a piece of rubber when attached to the lathe - provided 3D printed part is only held by friction and is not designed to hold the full weight of the stepper long term.
+
+A rock-solid but more expensive (35€) option is to order a 10mm steel laser cut out stepper mount: https://imgur.com/a/exO5Atl
+
+It's also possible to cut out the stepper mount manually from plywood: https://imgur.com/a/CSmeSm2
 
 #### Stepper to leadscrew
 
@@ -162,7 +171,7 @@ Stepper should rest on e.g. a piece of rubber when attached to the lathe - provi
 
 ![Stepper gear](https://github.com/kachurovskiy/nanoels/raw/main/h1/stepper/stepper-gear-nema23-50t-10mm-10mm.png)
 
-[STL file](https://github.com/kachurovskiy/nanoels/raw/main/h1/stepper/stepper-gear-nema23-50t-10mm-10mm.png)
+[STL file](https://github.com/kachurovskiy/nanoels/raw/main/h1/stepper/stepper-gear-nema23-50t-10mm-10mm.stl)
 
 This gear is designed to fit the NEMA 23 shaft (10mm diameter / 9.5mm narrow dimension) without any set screws. Gear is 10mm wide, entire part is 20mm wide.
 
@@ -172,7 +181,7 @@ Using this gear can be very noisy on certain RPMs.
 
 ![Stepper gear adapter](https://github.com/kachurovskiy/nanoels/raw/main/h1/stepper/stepper-to-gear-adapter-12mm-10mm.png)
 
-[STL file](https://github.com/kachurovskiy/nanoels/raw/main/h1/stepper/stepper-to-gear-adapter-12mm-10mm.png)
+[STL file](https://github.com/kachurovskiy/nanoels/raw/main/h1/stepper/stepper-to-gear-adapter-12mm-10mm.stl)
 
 If you have 2 metal gears that add up to 100 tooth together (e.g. 2x50 tooth gears) that came with the lathe, it's possible to simply use one of them on the leadscrew and one on the stepper with the help of the adapter above. It can be somewhat noisy on certain RPMs but otherwise works well.
 
@@ -194,7 +203,7 @@ This is the quietest option that also doesn't need greasing. 2 pulleys and a bel
 
 ![Encoder base](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/encoder-base-38.5mm-hole-m4-screw.png)
 
-[STL file](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/encoder-base-38.5mm-hole-m4-screw.png)
+[STL file](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/encoder-base-38.5mm-hole-m4-screw.stl)
 
 To be glued to the lathe wall with the double-sided carpet sticky tape. Holds well if surfaces are properly cleaned with e.g. Acetone.
 
@@ -204,7 +213,7 @@ Using an M4 set screw is optional.
 
 ![Encoder gear](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/encoder-gear-60t-6.1mm-bore.png)
 
-[STL file](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/encoder-gear-60t-6.1mm-bore.png)
+[STL file](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/encoder-gear-60t-6.1mm-bore.stl)
 
 Check the distance between the spindle gear and the lathe housing: for the provided conical gear to fit, it has to be 23mm.
 
