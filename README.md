@@ -72,14 +72,14 @@ You might need to design your own mounts and gears if the ones we have don't fit
 
 ### Stepper and driver
 
+**Some folks report problems with open loop steppers losing steps. Closed loop stepper and driver are the ultimate solution for this, even though they are a bit more expensive than open loop.**
+
 I used the following one but most Nema 23 or higher steppers should work.
 
 - Nema 23 Stepper Motor Bipolar 1.8deg 3.0 Nm 4.2A 57x57x113mm 4 Wires Open Loop
 - DM556Y Driver 1.7-5.6A DC20V~50V
 
 DM556Y is 118.5mm wide which fits the case 3D model. DM556 fits too. R60 should fit (didn't test). Other drivers might not fit.
-
-**Some folks report problems with open loop steppers losing steps. Closed loop stepper and driver are the ultimate solution for this, even though they are a bit more expensive than open loop.**
 
 Cheap drivers like TB6600 are not recommended, they are very rough and noisy. DM556 from AliExpress is not very good either, they require reducing acceleration and max speed in the settings or it will lose steps during jogging (`PULSE_DELTA_US` from `7` to `2` and `PULSE_MAX_US` from `2000` to `1500`). Generally, paying for a better brand such as "Rtelligent" or "STEPPERONLINE" is worth the money as their drivers work noticeably better than brandless black boxes.
 
