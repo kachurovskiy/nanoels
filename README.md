@@ -211,11 +211,13 @@ Using an M4 set screw is optional.
 
 ![Encoder gear](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/encoder-gear-60t-6.1mm-bore.png)
 
-[STL file](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/encoder-gear-60t-6.1mm-bore.stl)
+[60 teeth gear STL file](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/encoder-gear-60t-6.1mm-bore.stl)
 
 Check the distance between the spindle gear and the lathe housing: for the provided conical gear to fit, it has to be 23mm.
 
 Encoder gear should fit loosely to the spindle allowing for it to move ~1 degree back and forth when the spindle is idle - it reduces the noise and forces applied to the encoder.
+
+For spindles with 56 teeth, try [56 teeth gear model by kingjamez](https://www.thingiverse.com/thing:4754021).
 
 ## Assembly
 
