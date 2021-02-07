@@ -345,5 +345,5 @@ ELS remembers all the positions and ON/OFF status when powered off.
 3. Try using higher voltage, within limits of your stepper and driver. For NEMA 23, best performance is achieved at 48V but the driver has to support it.
 4. Try increasing the current on your driver, within the limits of your stepper.
 5. If you have a cheap brand-less driver, consider getting a higher quality driver.
-6. For an immediate fix, lower the acceleration (line 23) PULSE_DELTA_US from `7` to `2`, PULSE_MAX_US (line 22) from `2000` to `1500` or lower.
+6. For an immediate fix, change the acceleration (line 23) PULSE_DELTA_US from `7` to `2`, PULSE_MIN_US (line 21) from `500` to e.g. `700`.
 7. Consider using a sufficently strong closed-loop stepper instead. I didn't try them myself but there are some high-rated closed loop stepper-driver sets on AliExpress for 69€.
