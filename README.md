@@ -54,9 +54,9 @@
 
 # Big display
 
-NanoEls also supports LCD2004 displays [such as this one (4€)](https://www.aliexpress.com/item/4001135515638.html). Those are 20-char, 4-line with 5mm tall letters comparing to 2.5mm tall letters on an OLED display). Full update takes 57ms on an LCD comparing to 46ms on OLED. The backlight could be a bit uncofortable for the eyes, see [a visual comparison](https://imgur.com/a/TbHg9Y3).
+NanoEls also supports LCD2004 displays [such as this one (4€)](https://www.aliexpress.com/item/4001135515638.html). Those are 20-char, 4-line with 5mm tall letters comparing to 2.5mm tall letters on an OLED display. Full update takes `57ms` on an LCD comparing to `46ms` on OLED. The backlight could be a bit uncofortable for the eyes, see [a visual comparison](https://imgur.com/a/TbHg9Y3).
 
-If you're using LCD2004, uncomment the line `#define LCD`, install the library `LiquidCrystal I2C` from Frank de Brabander via the Library Manager and re-upload the sketch.
+If you're using LCD2004, uncomment the line `#define LCD`, install the library `LiquidCrystal I2C` from [Frank de Brabander](https://github.com/fdebrabander) via the Library Manager and re-upload the sketch.
 
 # Supported lathe models
 
