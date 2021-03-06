@@ -242,6 +242,10 @@ test(setOutOfSync) {
   pos = 50;
   spindlePos = 400;
   setOutOfSync();
+  assertEqual(0, spindlePosSync);
+
+  isOn = true;
+  setOutOfSync();
   assertEqual(100, spindlePosSync);
 
   pos = 50;

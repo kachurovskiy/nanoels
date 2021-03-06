@@ -28,6 +28,9 @@
 #define F4_PITCH 100 // 1mm
 #define F5_PITCH 200 // 2mm
 
+// Uncomment if you're using a big LCD2004 display.
+// #define LCD
+
 /* Changing anything below shouldn't be needed for basic use. */
 
 #define LONG_MIN long(-2147483648)
@@ -102,10 +105,16 @@
 #endif
 
 #ifndef TEST
-#include <SPI.h>
-#include <Wire.h>
-#include <Adafruit_SSD1306.h>
-Adafruit_SSD1306 display(128, 64, &Wire, -1);
+  #include <SPI.h>
+  #include <Wire.h>
+  #ifdef LCD
+    #include <LiquidCrystal_I2C.h>
+    LiquidCrystal_I2C lcd(0x27, 20, 4);
+    long lcdHash = 0;
+  #else
+    #include <Adafruit_SSD1306.h>
+    Adafruit_SSD1306 display(128, 64, &Wire, -1);
+  #endif
 #endif
 
 #include <EEPROM.h>
@@ -151,41 +160,90 @@ bool showAngleFlag = true;
 
 void updateDisplay() {
   #ifndef TEST
-  display.clearDisplay();
-  display.setTextColor(WHITE);
-  display.setCursor(DISPLAY_LEFT, DISPLAY_TOP);
-  display.setTextSize(2);
-  display.print(isOn ? "ON" : "off");
-  if (leftStop != LONG_MAX && rightStop != LONG_MIN) {
-    display.print(" LR");
-  } else if (leftStop != LONG_MAX) {
-    display.print(" L");
-  } else if (rightStop != LONG_MIN) {
-    display.print(" R");
-  }
-  if (spindlePosSync) {
-    display.print(" SYN");
-  }
-  if (!spindlePosSync && resetOnStartup) {
-    display.print(" LTW");
-  }
-
-  display.setCursor(DISPLAY_LEFT, 20 + DISPLAY_TOP);
-  display.print(hmmpr * 1.0 / 100, 2);
-  display.print("mm");
-
-  display.setCursor(DISPLAY_LEFT, 40 + DISPLAY_TOP);
   float posMm = pos * LEAD_SCREW_HMM / MOTOR_STEPS / 100;
-  display.print(posMm, 2);
+  #ifdef LCD
+    // Avoid updating the LCD when nothing has changed, it flickers.
+    long newLcdHash = spindlePos + pos * 2 + hmmpr * 3 + isOn * 4 + leftStop / 5
+      + rightStop / 6 + spindlePosSync * 7 + resetOnStartup * 8 + showAngle * 9;
+    if (newLcdHash == lcdHash) {
+      return;
+    }
 
-  if (showAngle && abs(posMm) < 100) {
-    display.print(" ");
-    display.print(round(((spindlePos % (int) ENCODER_STEPS + (int) ENCODER_STEPS) % (int) ENCODER_STEPS) * 360 / ENCODER_STEPS));
-  } else {
+    lcdHash = newLcdHash;
+    lcd.clear();
+
+    // First row.
+    lcd.setCursor(0,0);
+    lcd.print(isOn ? "ON" : "off");
+    if (leftStop != LONG_MAX && rightStop != LONG_MIN) {
+      lcd.print(" LR");
+    } else if (leftStop != LONG_MAX) {
+      lcd.print(" L");
+    } else if (rightStop != LONG_MIN) {
+      lcd.print("  R");
+    }
+    if (spindlePosSync) {
+      lcd.print(" SYN");
+    }
+    if (resetOnStartup) {
+      lcd.print(" LTW");
+    }
+
+    // Second row.
+    lcd.setCursor(0,1);
+    lcd.print("Pitch: ");
+    lcd.print(hmmpr * 1.0 / 100, 2);
+    lcd.print("mm");
+
+    // Third row.
+    lcd.setCursor(0,2);
+    lcd.print("Position: ");
+    lcd.print(posMm, 2);
+    lcd.print("mm");
+
+    // Fourth row.
+    lcd.setCursor(0,3);
+    if (showAngle) {
+      lcd.print("Angle: ");
+      lcd.print(round(((spindlePos % (int) ENCODER_STEPS + (int) ENCODER_STEPS) % (int) ENCODER_STEPS) * 360 / ENCODER_STEPS));
+      lcd.print("deg");
+    }
+  #else
+    display.clearDisplay();
+    display.setTextColor(WHITE);
+    display.setCursor(DISPLAY_LEFT, DISPLAY_TOP);
+    display.setTextSize(2);
+    display.print(isOn ? "ON" : "off");
+    if (leftStop != LONG_MAX && rightStop != LONG_MIN) {
+      display.print(" LR");
+    } else if (leftStop != LONG_MAX) {
+      display.print(" L");
+    } else if (rightStop != LONG_MIN) {
+      display.print(" R");
+    }
+    if (spindlePosSync) {
+      display.print(" SYN");
+    }
+    if (!spindlePosSync && resetOnStartup) {
+      display.print(" LTW");
+    }
+
+    display.setCursor(DISPLAY_LEFT, 20 + DISPLAY_TOP);
+    display.print(hmmpr * 1.0 / 100, 2);
     display.print("mm");
-  }
 
-  display.display();
+    display.setCursor(DISPLAY_LEFT, 40 + DISPLAY_TOP);
+    display.print(posMm, 2);
+
+    if (showAngle && abs(posMm) < 100) {
+      display.print(" ");
+      display.print(round(((spindlePos % (int) ENCODER_STEPS + (int) ENCODER_STEPS) % (int) ENCODER_STEPS) * 360 / ENCODER_STEPS));
+    } else {
+      display.print("mm");
+    }
+
+    display.display();
+  #endif
   #endif
 }
 
@@ -302,7 +360,12 @@ void setup() {
 
   attachInterrupt(digitalPinToInterrupt(ENC_A), spinEnc, FALLING);
 
-  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  #ifdef LCD
+    lcd.init();
+    lcd.backlight();
+  #else
+    display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  #endif
   updateDisplay();
 
   Serial.begin(9600);
@@ -389,14 +452,23 @@ void setHmmpr(int value) {
 
 void splashScreen() {
   #ifndef TEST
-  display.clearDisplay();
-  display.setTextColor(WHITE);
-  display.setTextSize(2);
-  display.setCursor(DISPLAY_LEFT, 10 + DISPLAY_TOP);
-  display.println("NanoEls");
-  display.setCursor(DISPLAY_LEFT, 30 + DISPLAY_TOP);
-  display.println("H" + String(HARDWARE_VERSION) + " V" + String(SOFTWARE_VERSION));
-  display.display();
+  #ifdef LCD
+    lcd.clear();
+    lcd.setCursor(6, 1);
+    lcd.print("NanoEls");
+    lcd.setCursor(6, 2);
+    lcd.print("H" + String(HARDWARE_VERSION) + " V" + String(SOFTWARE_VERSION));
+    lcdHash = 0;
+  #else
+    display.clearDisplay();
+    display.setTextColor(WHITE);
+    display.setTextSize(2);
+    display.setCursor(DISPLAY_LEFT, 10 + DISPLAY_TOP);
+    display.println("NanoEls");
+    display.setCursor(DISPLAY_LEFT, 30 + DISPLAY_TOP);
+    display.println("H" + String(HARDWARE_VERSION) + " V" + String(SOFTWARE_VERSION));
+    display.display();
+  #endif
   delay(2000);
   #endif
 }
