@@ -52,7 +52,7 @@
 #define EEPROM_VERSION 2
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 8
+#define SOFTWARE_VERSION 9
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 1
