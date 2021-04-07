@@ -193,6 +193,8 @@ If you have 2 metal gears that add up to 100 tooth together (e.g. 2x50 tooth gea
 
 ![Stepper HTD 5M pulleys](https://github.com/kachurovskiy/nanoels/raw/main/h1/stepper/htd5m-assembly.jpg)
 
+[STL pulley 8mm bore](https://github.com/kachurovskiy/nanoels/raw/main/h1/stepper/htd5m-16t-8b.stl)
+
 [STL pulley 10mm bore](https://github.com/kachurovskiy/nanoels/raw/main/h1/stepper/htd5m-16t-10b.stl)
 
 [STL pulley 12mm bore](https://github.com/kachurovskiy/nanoels/raw/main/h1/stepper/htd5m-16t-12b.stl)
