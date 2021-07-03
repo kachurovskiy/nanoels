@@ -141,11 +141,11 @@ Ideally, a 50 tooth metal gear (~8mm thick) from the original lathe gear set wou
 
 #### Case
 
-![Case](https://github.com/kachurovskiy/nanoels/raw/main/h1/case/nanoels-box.png)
+![Case](https://github.com/kachurovskiy/nanoels/raw/main/h1/case/case.png)
 
 [STL part 1](https://github.com/kachurovskiy/nanoels/raw/main/h1/case/nanoels-box-part1.stl) and [part 2](https://github.com/kachurovskiy/nanoels/raw/main/h1/case/nanoels-box-part1.stl)
 
-PCB is mounted onto the case with 4 M3 bolts.
+Case size is 102x82x27mm. PCB is mounted onto the case with 4 M3 bolts.
 
 #### Old WM210 case
 
