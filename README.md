@@ -18,15 +18,6 @@
 - Lead screw position indication
 - Spindle angle indication
 
-# Limitations
-
-- PLA plastic gears and mounts shouldn't heat up or they will deform and disconnect. Stepper can heat up quite a bit during continuous operation. Depending on the stepper driver current, the limit seems to be ~50% duty cycle with 10min operation / 10min cooldown. For higher duty cycle something like metal HTD 5M gears, belt and a metal stepper mount would be required. Another option is using PETG or ABS.
-- Nema 23 stepper usable maximum is ~600 RPM, here a 1:1 stepper to leadscrew ratio is used. In practice this means that cutting e.g. 2mm thread with a 2mm leadscrew spindle top speed should stay under 600 RPM.
-  - Cheap brand-less drivers are worse at handling high RPM
-  - NanoEls would take the stepper at 1000 RPM and higher but it likely won't have much torque at that point
-  - This can be mitigated to some extent by using e.g. 40 tooth gear on the leadscrew and 60 tooth gear on the motor at the expense of the maximum leadsrew torque
-- Lead screw position only equals the carriage position if the backlash was taken out before the measurement started. Changing the direction introduces the backlash again.
-
 # Hardware overview
 
 - 5 plastic 3D-printed parts (gears, mounts)
@@ -51,6 +42,15 @@
 - Soft hammer or a woodworking clamp
 - 50T metal gear that your lathe came with
 - Grease for the gears
+
+# Limitations
+
+- PLA plastic gears and mounts shouldn't heat up or they will deform and disconnect. Stepper can heat up quite a bit during continuous operation. Depending on the stepper driver current, the limit seems to be ~50% duty cycle with 10min operation / 10min cooldown. For higher duty cycle something like metal HTD 5M gears, belt and a metal stepper mount would be required. Another option is using PETG or ABS.
+- Nema 23 stepper usable maximum is ~600 RPM, here a 1:1 stepper to leadscrew ratio is used. In practice this means that cutting e.g. 2mm thread with a 2mm leadscrew spindle top speed should stay under 600 RPM.
+  - Cheap brand-less drivers are worse at handling high RPM
+  - NanoEls would take the stepper at 1000 RPM and higher but it likely won't have much torque at that point
+  - This can be mitigated to some extent by using e.g. 40 tooth gear on the leadscrew and 60 tooth gear on the motor at the expense of the maximum leadsrew torque
+- Lead screw position only equals the carriage position if the backlash was taken out before the measurement started. Changing the direction introduces the backlash again.
 
 # Big display
 
@@ -140,6 +140,14 @@ Ideally, a 50 tooth metal gear (~8mm thick) from the original lathe gear set wou
 ### 3D-printed parts
 
 #### Case
+
+![Case](https://github.com/kachurovskiy/nanoels/raw/main/h1/case/nanoels-box.png)
+
+[STL part 1](https://github.com/kachurovskiy/nanoels/raw/main/h1/case/nanoels-box-part1.stl) and [part 2](https://github.com/kachurovskiy/nanoels/raw/main/h1/case/nanoels-box-part1.stl)
+
+PCB is mounted onto the case with 4 M3 bolts.
+
+#### Old WM210 case
 
 ![Case](https://github.com/kachurovskiy/nanoels/raw/main/h1/case/case-120mm-2m6-2m5-4m3.png)
 
