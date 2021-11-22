@@ -104,7 +104,7 @@ The code was tested using an Arduino Nano V3 clone.
 
 ### OLED display
 
-SSD1306 monochrome 4-pin I2C OLED 128x64 display.
+SSD1306 monochrome 4-pin I2C OLED 128x64 display. **Warning:** make sure that your OLED has legs in the following order to work on the PCB - GND VCC SCL SDA.
 
 ### Buttons
 
