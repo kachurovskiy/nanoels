@@ -353,6 +353,7 @@ ELS remembers all the positions and ON/OFF status when powered off.
 
 # Example builds
 
+- [Hedning003](https://github.com/kachurovskiy/nanoels/discussions/16)
 - [kachurovskiy](https://www.youtube.com/watch?v=9uTdDk2EqG4?t=272)
 - [wberggren](https://github.com/kachurovskiy/nanoels/discussions/13)
 - [zabu83](https://github.com/kachurovskiy/nanoels/discussions/11)
