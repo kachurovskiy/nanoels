@@ -178,6 +178,8 @@ A rock-solid but more expensive (35€) option is to order a 10mm steel laser cu
 
 It's also possible to cut out the stepper mount manually from plywood: https://imgur.com/a/CSmeSm2 ([PDF](https://github.com/kachurovskiy/nanoels/raw/main/h1/stepper/nema23-mount-plywood.pdf))
 
+Alternative stepper mount with a pinch bolt: https://www.thingiverse.com/thing:5156087
+
 #### Stepper to leadscrew
 
 ##### Option 1: plastic gear
@@ -223,6 +225,8 @@ This is the quietest option that also doesn't need greasing. 2 pulleys and a bel
 To be glued to the lathe wall with the double-sided carpet sticky tape. Holds well if surfaces are properly cleaned with e.g. Acetone.
 
 Using an M4 set screw is optional.
+
+Alternative encoder base allowing for a thicker cable: https://www.thingiverse.com/thing:5156081
 
 #### Encoder gear
 
