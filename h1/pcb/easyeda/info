@@ -4,7 +4,7 @@
   "name": "NanoEls",
   "content": "",
   "created_at": "2020-11-27 21:27:08",
-  "updated_at": "2020-12-27 00:38:01",
+  "updated_at": "2021-12-09 10:57:17",
   "stick": "",
   "documents": [
     {
@@ -15,12 +15,11 @@
       "master": "",
       "thumb": "/images/thumb-default.png",
       "components": {
-        "e01a736db6054489a77c89aab0dcbabf": 7,
+        "e01a736db6054489a77c89aab0dcbabf": 5,
         "381f111f37554261afd5e17148f0a871": 1,
         "adb0c9c5d7ba4fdcaf75c204261cdb7c": 1,
         "339fe2cd55e0c1cf9903870c08bcace8": 10,
-        "b0248eb51e084227889f2cb84eab79c4": 2,
-        "3ec77201bbcd4ecd8722658d581a4e60": 1
+        "b0248eb51e084227889f2cb84eab79c4": 2
       },
       "BOM": [
         [
@@ -31,24 +30,24 @@
           "CustomPara"
         ],
         [
-          "HDR-F-2.54_1x2",
-          1,
-          "HDR-F-2.54_1X2",
-          "AIN",
+          "XY350V-3.5-2P",
+          5,
+          "CONN-TH_XY350V-3.5-2P",
+          "5VGND,5VGNDEXT,AB,DIRSTEP,GND",
           {
-            "BOM_Supplier Part": "C49661",
             "BOM_Supplier": "LCSC",
-            "BOM_Manufacturer": "",
-            "BOM_Manufacturer Part": "",
-            "puuid": "36b1306a115341f4b4d9407fb34974e0",
-            "uuid": "3ec77201bbcd4ecd8722658d581a4e60"
+            "BOM_Supplier Part": "C784942",
+            "BOM_Manufacturer": "Ningbo Xinlaiya Elec.",
+            "BOM_Manufacturer Part": "XY350V-3.5-2P",
+            "puuid": "9337c5af4325432995eb7a68fc2c1d96",
+            "uuid": "e01a736db6054489a77c89aab0dcbabf"
           }
         ],
         [
           "button6*6*8",
           10,
           "KEY-TH_4P-L6.0-W6.0-P4.50-LS7.5",
-          "D5,D9,D8,D7,D6,LEFT,ONOFF,RIGHT,D12,D4",
+          "D4,D5,D6,D7,D8,D9,D12,LEFT,ONOFF,RIGHT",
           {
             "BOM_Supplier Part": "C59982",
             "BOM_Supplier": "LCSC",
@@ -56,17 +55,6 @@
             "BOM_Manufacturer Part": "button6*6*8",
             "puuid": "dce469acea214c44ac101e294d1c2ff5",
             "uuid": "339fe2cd55e0c1cf9903870c08bcace8"
-          }
-        ],
-        [
-          "ARDUINONANO",
-          1,
-          "ARDUINO_NANO1",
-          "U5",
-          {
-            "BOM_Manufacturer Part": "arduino_nano1",
-            "puuid": "3ac213cef77e49b9a9a55bcaf6b95846",
-            "uuid": "381f111f37554261afd5e17148f0a871"
           }
         ],
         [
@@ -84,7 +72,7 @@
           "2k",
           2,
           "RTH025W",
-          "R2,R1",
+          "R1,R2",
           {
             "BOM_Supplier Part": "",
             "BOM_Supplier": "",
@@ -94,25 +82,22 @@
           }
         ],
         [
-          "XY350V-3.5-2P",
-          7,
-          "CONN-TH_XY350V-3.5-2P",
-          "5VGNDEXT,5VGND,DIRSTEP1,GND2,DIRSTEP2,GND1,AB",
+          "ARDUINONANO",
+          1,
+          "ARDUINO_NANO1",
+          "U5",
           {
-            "BOM_Supplier": "LCSC",
-            "BOM_Supplier Part": "C784942",
-            "BOM_Manufacturer": "Ningbo Xinlaiya Elec.",
-            "BOM_Manufacturer Part": "XY350V-3.5-2P",
-            "puuid": "9337c5af4325432995eb7a68fc2c1d96",
-            "uuid": "e01a736db6054489a77c89aab0dcbabf"
+            "BOM_Manufacturer Part": "arduino_nano1",
+            "puuid": "3ac213cef77e49b9a9a55bcaf6b95846",
+            "uuid": "381f111f37554261afd5e17148f0a871"
           }
         ]
       ],
-      "updateTime": 1609025187,
+      "updateTime": 1639043837,
       "createTime": 1605475732,
       "histories": [],
       "created_at": "2020-11-15 22:28:52",
-      "updated_at": "2020-12-27 00:26:27"
+      "updated_at": "2021-12-09 10:57:17"
     },
     {
       "uuid": "aa91450dc59e79bd7a5bd23cad63d365",
@@ -123,24 +108,23 @@
       "master": "",
       "thumb": "/images/thumb-default.png",
       "components": {
-        "36b1306a115341f4b4d9407fb34974e0": 1,
-        "cb8201f67805495e80041846ebc6ff33": 2,
-        "9337c5af4325432995eb7a68fc2c1d96": 7,
+        "9337c5af4325432995eb7a68fc2c1d96": 5,
         "dce469acea214c44ac101e294d1c2ff5": 10,
+        "cb8201f67805495e80041846ebc6ff33": 2,
         "40553c196c714ffe9422296778f3cad3": 1,
         "3ac213cef77e49b9a9a55bcaf6b95846": 1
       },
       "BOM": [],
-      "updateTime": 1609025881,
+      "updateTime": 1638651045,
       "createTime": 1605477250,
       "histories": [],
       "created_at": "2020-11-15 22:54:10",
-      "updated_at": "2020-12-27 00:38:01"
+      "updated_at": "2021-12-04 21:50:45"
     }
   ],
   "sort": [],
   "title": "NanoEls",
   "foldername": "NanoEls",
   "schfilename": "NanoEls.json",
-  "schfilemtime": 1609025187282
+  "schfilemtime": 1639043837856
 }
