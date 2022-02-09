@@ -359,6 +359,7 @@ ELS remembers all the positions and ON/OFF status when powered off.
 
 - [Dididu12](https://github.com/kachurovskiy/nanoels/discussions/40#discussioncomment-2019521)
 - [Hedning003](https://github.com/kachurovskiy/nanoels/discussions/16)
+- [HW61](https://github.com/kachurovskiy/nanoels/discussions/43)
 - [kachurovskiy](https://www.youtube.com/watch?v=9uTdDk2EqG4?t=272)
 - [mockendon](https://github.com/kachurovskiy/nanoels/discussions/32)
 - [wberggren](https://github.com/kachurovskiy/nanoels/discussions/13)
