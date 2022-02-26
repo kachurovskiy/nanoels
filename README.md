@@ -264,7 +264,7 @@ Solder encoder and stepper driver wires to the PCB according to the input/output
 
 **Important: there can be a metal mesh under the insulation around your wires, it's shielding, don't just cut it off. Solder it to ground (GND), together with the black ground cable.**
 
-NOte: screw terminals are designed to be soldered on the bottom side of the PCB.
+Screw terminals are designed to be soldered on the bottom side of the PCB.
 
 Optinally solder two 2kOhm pull-up resistors. They aren't strictly needed but will improve the stability of the optical encoder readings.
 
