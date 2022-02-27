@@ -52,7 +52,7 @@
 #define EEPROM_VERSION 2
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 9
+#define SOFTWARE_VERSION 10
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 1
@@ -119,6 +119,15 @@
 
 #include <EEPROM.h>
 
+typedef enum {
+    LCD_STATIC_PITCH_POS,
+    LCD_VAL_ON_OFF,
+    LCD_VAL_PITCH,
+    LCD_VAL_POS,
+    LCD_STATIC_ANGLE,
+    LCD_VAL_ANGLE,
+} lcdstate_t;
+
 unsigned long buttonTime = 0;
 long loopCounter = 0;
 bool isOn = false;
@@ -153,60 +162,125 @@ int savedSpindlePosSync = 0;
 int stepDelayUs = PULSE_MAX_US;
 bool stepDelayDirection = true; // To reset stepDelayUs when direction changes.
 unsigned long stepStartMs = 0;
+lcdstate_t displayStep = LCD_STATIC_PITCH_POS;  // LCD update state machine
 
-bool showAngle = false; // Whether to show 0-359 spindle angle on screen
-bool savedShowAngle = false; // showAngle value saved in EEPROM
+bool showAngle = false;         // Whether to show 0-359 spindle angle on screen
+bool savedShowAngle = false;    // showAngle value saved in EEPROM
 bool showAngleFlag = true;
+bool dispShowAngle = false;     // Compared to showAngle to see if angle static data must be printed.
 
 void updateDisplay() {
   #ifndef TEST
-  float posMm = pos * LEAD_SCREW_HMM / MOTOR_STEPS / 100;
+  float posMm; // = pos * LEAD_SCREW_HMM / MOTOR_STEPS / 100;
+  
   #ifdef LCD
-    // Avoid updating the LCD when nothing has changed, it flickers.
-    long newLcdHash = spindlePos + pos * 2 + hmmpr * 3 + isOn * 4 + leftStop / 5
-      + rightStop / 6 + spindlePosSync * 7 + resetOnStartup * 8 + showAngle * 9;
-    if (newLcdHash == lcdHash) {
-      return;
-    }
+    char linebuff[15];
+    
+    switch (displayStep)
+    {
+      case LCD_STATIC_PITCH_POS:
+        // Second row parameter name
+        lcd.setCursor(0,1);
+        lcd.print("Pitch: ");
 
-    lcdHash = newLcdHash;
-    lcd.clear();
-
-    // First row.
-    lcd.setCursor(0,0);
-    lcd.print(isOn ? "ON" : "off");
-    if (leftStop != LONG_MAX && rightStop != LONG_MIN) {
-      lcd.print(" LR");
-    } else if (leftStop != LONG_MAX) {
-      lcd.print(" L");
-    } else if (rightStop != LONG_MIN) {
-      lcd.print("  R");
-    }
-    if (spindlePosSync) {
-      lcd.print(" SYN");
-    }
-    if (resetOnStartup) {
-      lcd.print(" LTW");
-    }
-
-    // Second row.
-    lcd.setCursor(0,1);
-    lcd.print("Pitch: ");
-    lcd.print(hmmpr * 1.0 / 100, 2);
-    lcd.print("mm");
-
-    // Third row.
-    lcd.setCursor(0,2);
-    lcd.print("Position: ");
-    lcd.print(posMm, 2);
-    lcd.print("mm");
-
-    // Fourth row.
-    lcd.setCursor(0,3);
-    if (showAngle) {
-      lcd.print("Angle: ");
-      lcd.print(round(((spindlePos % (int) ENCODER_STEPS + (int) ENCODER_STEPS) % (int) ENCODER_STEPS) * 360 / ENCODER_STEPS));
-      lcd.print("deg");
+        // Third row parameter name
+        lcd.setCursor(0,2);
+        lcd.print("Position: ");
+        displayStep = LCD_VAL_ON_OFF;
+        break;
+          
+      case LCD_VAL_ON_OFF:
+        // Fill buffer with spaces
+        memset(linebuff, ' ', sizeof(linebuff)-1);
+        // Add null terminator
+        linebuff[sizeof(linebuff)-1] = '\0';
+        
+        // Off/on 
+        if (isOn) {
+            memcpy(linebuff, "ON ", 3);
+        } else {    
+            memcpy(linebuff, "off", 3);
+        }
+        
+        // Left and right stops
+        if (leftStop != LONG_MAX) {
+            linebuff[4] = 'L';
+        }
+        
+        if (rightStop != LONG_MIN) {
+            linebuff[5] = 'R';
+        }
+        
+        // Spindle sync loss
+        if (spindlePosSync) {
+            memcpy(&linebuff[7], "SYN", 3);
+        }
+        
+        // Thread lost
+        if (resetOnStartup) {
+            memcpy(&linebuff[11], "LTW", 3);
+        }
+        
+        lcd.setCursor(0,0);
+        lcd.print(linebuff);
+        displayStep = LCD_VAL_PITCH;
+        break;
+          
+      case LCD_VAL_PITCH:
+        // Second row value
+        lcd.setCursor(7,1);
+        lcd.print(hmmpr * 1.0 / 100, 2);
+        lcd.print("mm   ");
+        displayStep = LCD_VAL_POS;
+        break;
+          
+      case LCD_VAL_POS:
+        // Third row value
+        posMm = pos * LEAD_SCREW_HMM / MOTOR_STEPS / 100;
+        lcd.setCursor(10,2);
+        lcd.print(posMm, 2);
+        lcd.print("mm   ");
+        
+        if (dispShowAngle != showAngle)
+        {
+            // showAngle has changed, print or delete the angle parameter name
+            dispShowAngle = showAngle;
+            displayStep = LCD_STATIC_ANGLE;
+        } else if (dispShowAngle == true) {
+            // Update the spindle angle
+            displayStep = LCD_VAL_ANGLE;
+        } else {
+            // No angle display printing needed
+            displayStep = LCD_VAL_ON_OFF;
+        }
+        break;
+          
+      case LCD_STATIC_ANGLE:
+        lcd.setCursor(0,3);
+        if (dispShowAngle) {
+            // Print parameter name
+            lcd.print("Angle: ");
+            displayStep = LCD_VAL_ANGLE;
+        } else {
+            // Clear the bottom line
+            lcd.print("                    ");
+            displayStep = LCD_VAL_ON_OFF;
+        }
+        break;
+              
+      case LCD_VAL_ANGLE:       
+         lcd.setCursor(7,3);
+         lcd.print(round(((spindlePos % (int) ENCODER_STEPS + (int) ENCODER_STEPS) % (int) ENCODER_STEPS) * 360 / ENCODER_STEPS));
+         lcd.print("deg ");
+         displayStep = LCD_VAL_ON_OFF;
+         break;
+          
+      default:
+          // Should never get here, make sure the full display is re-drawn
+          lcd.clear();
+          displayStep = LCD_STATIC_PITCH_POS;
+          dispShowAngle = !showAngle;
+          break;
     }
   #else
     display.clearDisplay();
@@ -231,7 +305,8 @@ void updateDisplay() {
     display.setCursor(DISPLAY_LEFT, 20 + DISPLAY_TOP);
     display.print(hmmpr * 1.0 / 100, 2);
     display.print("mm");
-
+    
+    posMm = pos * LEAD_SCREW_HMM / MOTOR_STEPS / 100;
     display.setCursor(DISPLAY_LEFT, 40 + DISPLAY_TOP);
     display.print(posMm, 2);
 
@@ -478,6 +553,7 @@ void reset() {
   leftStop = LONG_MAX;
   rightStop = LONG_MIN;
   setHmmpr(0);
+  displayStep = LCD_STATIC_PITCH_POS;
   splashScreen();
 }
 
@@ -669,7 +745,7 @@ void secondaryWork() {
 }
 
 // Moves the stepper.
-long step(bool dir, long steps) {
+void step(bool dir, long steps) {
   // Start slow if direction changed.
   if (stepDelayDirection != dir) {
     stepDelayUs = PULSE_MAX_US;
