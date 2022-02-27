@@ -271,7 +271,7 @@ void updateDisplay() {
       case LCD_VAL_ANGLE:       
          lcd.setCursor(7,3);
          lcd.print(round(((spindlePos % (int) ENCODER_STEPS + (int) ENCODER_STEPS) % (int) ENCODER_STEPS) * 360 / ENCODER_STEPS));
-         lcd.print("deg ");
+         lcd.print("deg  ");
          displayStep = LCD_VAL_ON_OFF;
          break;
           
