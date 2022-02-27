@@ -116,9 +116,9 @@ Using 6x6x13mm switches. 13mm is the optimal height for the provided case, if yo
 
 48V power supply is used on NEMA 23 for maximum power (check your driver max voltage) but 24V might also work for light turning.
 
-### 5A power supply
+### 5V power supply
 
-Arduino Nano doesn't draw much current so a 0.5A phone charger would work.
+Arduino Nano doesn't draw much current so a 5V 0.5A phone charger would work.
 
 ### PCB
 
