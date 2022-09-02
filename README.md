@@ -9,6 +9,10 @@
 
 ![NanoEls explosion diagram](https://github.com/kachurovskiy/nanoels/raw/main/h1/buildexamples/h1-exploded-view.png)
 
+## ⚡ Looking for resellers and manufacturers 💲
+
+If you're willing to manufacture this device and/or sell it as a kit, we'd be happy to link to your page for free - especially if it makes the build cheaper than buying all the components separately.
+
 # Features
 
 - Positive and negative screw pitches
