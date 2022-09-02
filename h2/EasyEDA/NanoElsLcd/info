@@ -1,0 +1,347 @@
+{
+  "uuid": "b2af15fe6207c8775dc403e497a917df",
+  "path": "Offline/NanoElsLcd",
+  "name": "NanoElsLcd",
+  "content": "",
+  "created_at": "2021-12-10 23:48:08",
+  "updated_at": "2022-08-30 21:01:18",
+  "stick": "",
+  "documents": [
+    {
+      "uuid": "e300fa30dd7a52b0a70c3dbb1077036a",
+      "title": "NanoElsLcd Schematics",
+      "description": "",
+      "docType": "1",
+      "master": "",
+      "thumb": "/images/thumb-default.png",
+      "components": {
+        "b0248eb51e084227889f2cb84eab79c4": 9,
+        "c4ee9d81f5434f76805d2fd140196f48": 1,
+        "33e630b28feb4a94926982d904b5b019": 3,
+        "3099c27523e748f6a1422a8cc23fab88": 1,
+        "e782025cb36f4df1a932fe706303a26a": 1,
+        "67fb8f5e45c04efabaa3e09877373020": 12,
+        "0f1e51f787c64e5b94be278e7c1f25a2": 1
+      },
+      "BOM": [
+        [
+          "Value",
+          "Quantity",
+          "Package",
+          "Components",
+          "CustomPara"
+        ],
+        [
+          "RV09",
+          1,
+          "RV09",
+          "BRIGHT1",
+          {
+            "BOM_Manufacturer": "",
+            "BOM_Manufacturer Part": "RV09",
+            "BOM_Supplier Part": "",
+            "BOM_Supplier": "",
+            "puuid": "4f52decd8a8d4c00bb408ec5ad43fc0c",
+            "uuid": "c4ee9d81f5434f76805d2fd140196f48"
+          }
+        ],
+        [
+          "KF2EDGR-3.5-4P",
+          3,
+          "CONN-TH_4P-P3.50_KF2EDGR-3.5-4P",
+          "ENCODER,POWER,STEPPER",
+          {
+            "BOM_Supplier": "LCSC",
+            "BOM_Supplier Part": "C441173",
+            "BOM_Manufacturer": "Cixi Kefa Elec",
+            "BOM_Manufacturer Part": "KF2EDGR-3.5-4P",
+            "BOM_JLCPCB Part Class": "Extended Part",
+            "puuid": "2d06024cda604ca2b62baa260c97a39a",
+            "uuid": "33e630b28feb4a94926982d904b5b019"
+          }
+        ],
+        [
+          "KEY1",
+          1,
+          "TACTILE SWITCH 6*6 TH",
+          "KEY1",
+          {
+            "BOM_Manufacturer": "HYP (Hongyuan Precision)",
+            "BOM_Manufacturer Part": "1TS005A-2700-5001",
+            "BOM_Supplier": "LCSC",
+            "BOM_Supplier Part": "C319408",
+            "puuid": "3e7b1ed315c84fbfb7af365ef7ff6b68",
+            "uuid": "67fb8f5e45c04efabaa3e09877373020"
+          }
+        ],
+        [
+          "KEY2",
+          1,
+          "TACTILE SWITCH 6*6 TH",
+          "KEY2",
+          {
+            "BOM_Manufacturer": "HYP (Hongyuan Precision)",
+            "BOM_Manufacturer Part": "1TS005A-2700-5001",
+            "BOM_Supplier": "LCSC",
+            "BOM_Supplier Part": "C319408",
+            "puuid": "3e7b1ed315c84fbfb7af365ef7ff6b68",
+            "uuid": "67fb8f5e45c04efabaa3e09877373020"
+          }
+        ],
+        [
+          "KEY3",
+          1,
+          "TACTILE SWITCH 6*6 TH",
+          "KEY3",
+          {
+            "BOM_Manufacturer": "HYP (Hongyuan Precision)",
+            "BOM_Manufacturer Part": "1TS005A-2700-5001",
+            "BOM_Supplier": "LCSC",
+            "BOM_Supplier Part": "C319408",
+            "puuid": "3e7b1ed315c84fbfb7af365ef7ff6b68",
+            "uuid": "67fb8f5e45c04efabaa3e09877373020"
+          }
+        ],
+        [
+          "KEY4",
+          1,
+          "TACTILE SWITCH 6*6 TH",
+          "KEY4",
+          {
+            "BOM_Manufacturer": "HYP (Hongyuan Precision)",
+            "BOM_Manufacturer Part": "1TS005A-2700-5001",
+            "BOM_Supplier": "LCSC",
+            "BOM_Supplier Part": "C319408",
+            "puuid": "3e7b1ed315c84fbfb7af365ef7ff6b68",
+            "uuid": "67fb8f5e45c04efabaa3e09877373020"
+          }
+        ],
+        [
+          "KEY5",
+          1,
+          "TACTILE SWITCH 6*6 TH",
+          "KEY5",
+          {
+            "BOM_Manufacturer": "HYP (Hongyuan Precision)",
+            "BOM_Manufacturer Part": "1TS005A-2700-5001",
+            "BOM_Supplier": "LCSC",
+            "BOM_Supplier Part": "C319408",
+            "puuid": "3e7b1ed315c84fbfb7af365ef7ff6b68",
+            "uuid": "67fb8f5e45c04efabaa3e09877373020"
+          }
+        ],
+        [
+          "LCD2004",
+          1,
+          "LCD2004",
+          "LCD",
+          {
+            "BOM_Manufacturer": "",
+            "BOM_Manufacturer Part": "",
+            "BOM_Supplier Part": "",
+            "BOM_Supplier": "",
+            "puuid": "d09bbb70188b4f619daaf6ebc1476d71",
+            "uuid": "3099c27523e748f6a1422a8cc23fab88"
+          }
+        ],
+        [
+          "LEFT",
+          1,
+          "TACTILE SWITCH 6*6 TH",
+          "LEFT",
+          {
+            "BOM_Manufacturer": "HYP (Hongyuan Precision)",
+            "BOM_Manufacturer Part": "1TS005A-2700-5001",
+            "BOM_Supplier": "LCSC",
+            "BOM_Supplier Part": "C319408",
+            "puuid": "3e7b1ed315c84fbfb7af365ef7ff6b68",
+            "uuid": "67fb8f5e45c04efabaa3e09877373020"
+          }
+        ],
+        [
+          "MINUS",
+          1,
+          "TACTILE SWITCH 6*6 TH",
+          "MINUS",
+          {
+            "BOM_Manufacturer": "HYP (Hongyuan Precision)",
+            "BOM_Manufacturer Part": "1TS005A-2700-5001",
+            "BOM_Supplier": "LCSC",
+            "BOM_Supplier Part": "C319408",
+            "puuid": "3e7b1ed315c84fbfb7af365ef7ff6b68",
+            "uuid": "67fb8f5e45c04efabaa3e09877373020"
+          }
+        ],
+        [
+          "ONOFF",
+          1,
+          "TACTILE SWITCH 6*6 TH",
+          "ONOFF",
+          {
+            "BOM_Manufacturer": "HYP (Hongyuan Precision)",
+            "BOM_Manufacturer Part": "1TS005A-2700-5001",
+            "BOM_Supplier": "LCSC",
+            "BOM_Supplier Part": "C319408",
+            "puuid": "3e7b1ed315c84fbfb7af365ef7ff6b68",
+            "uuid": "67fb8f5e45c04efabaa3e09877373020"
+          }
+        ],
+        [
+          "PLUS",
+          1,
+          "TACTILE SWITCH 6*6 TH",
+          "PLUS",
+          {
+            "BOM_Manufacturer": "HYP (Hongyuan Precision)",
+            "BOM_Manufacturer Part": "1TS005A-2700-5001",
+            "BOM_Supplier": "LCSC",
+            "BOM_Supplier Part": "C319408",
+            "puuid": "3e7b1ed315c84fbfb7af365ef7ff6b68",
+            "uuid": "67fb8f5e45c04efabaa3e09877373020"
+          }
+        ],
+        [
+          "2k",
+          2,
+          "RTH025W",
+          "R1,R2",
+          {
+            "BOM_Supplier Part": "",
+            "BOM_Supplier": "",
+            "BOM_Manufacturer Part": "",
+            "puuid": "cb8201f67805495e80041846ebc6ff33",
+            "uuid": "b0248eb51e084227889f2cb84eab79c4"
+          }
+        ],
+        [
+          "1k",
+          6,
+          "RTH025W",
+          "R3,R4,R5,R6,R7,R8",
+          {
+            "BOM_Supplier Part": "",
+            "BOM_Supplier": "",
+            "BOM_Manufacturer Part": "",
+            "puuid": "cb8201f67805495e80041846ebc6ff33",
+            "uuid": "b0248eb51e084227889f2cb84eab79c4"
+          }
+        ],
+        [
+          "1M",
+          1,
+          "RTH025W",
+          "R9",
+          {
+            "BOM_Supplier Part": "",
+            "BOM_Supplier": "",
+            "BOM_Manufacturer Part": "",
+            "puuid": "cb8201f67805495e80041846ebc6ff33",
+            "uuid": "b0248eb51e084227889f2cb84eab79c4"
+          }
+        ],
+        [
+          "RIGHT",
+          1,
+          "TACTILE SWITCH 6*6 TH",
+          "RIGHT",
+          {
+            "BOM_Manufacturer": "HYP (Hongyuan Precision)",
+            "BOM_Manufacturer Part": "1TS005A-2700-5001",
+            "BOM_Supplier": "LCSC",
+            "BOM_Supplier Part": "C319408",
+            "puuid": "3e7b1ed315c84fbfb7af365ef7ff6b68",
+            "uuid": "67fb8f5e45c04efabaa3e09877373020"
+          }
+        ],
+        [
+          "STOPL",
+          1,
+          "TACTILE SWITCH 6*6 TH",
+          "STOPL",
+          {
+            "BOM_Manufacturer": "HYP (Hongyuan Precision)",
+            "BOM_Manufacturer Part": "1TS005A-2700-5001",
+            "BOM_Supplier": "LCSC",
+            "BOM_Supplier Part": "C319408",
+            "puuid": "3e7b1ed315c84fbfb7af365ef7ff6b68",
+            "uuid": "67fb8f5e45c04efabaa3e09877373020"
+          }
+        ],
+        [
+          "STOPR",
+          1,
+          "TACTILE SWITCH 6*6 TH",
+          "STOPR",
+          {
+            "BOM_Manufacturer": "HYP (Hongyuan Precision)",
+            "BOM_Manufacturer Part": "1TS005A-2700-5001",
+            "BOM_Supplier": "LCSC",
+            "BOM_Supplier Part": "C319408",
+            "puuid": "3e7b1ed315c84fbfb7af365ef7ff6b68",
+            "uuid": "67fb8f5e45c04efabaa3e09877373020"
+          }
+        ],
+        [
+          "MTS-102",
+          1,
+          "MTS-102",
+          "SW1",
+          {
+            "BOM_Manufacturer Part": "",
+            "puuid": "de8c14883c0546328b221393050f335a",
+            "uuid": "e782025cb36f4df1a932fe706303a26a"
+          }
+        ],
+        [
+          "Arduino Nano",
+          1,
+          "ARDUINO-NANO",
+          "U1",
+          {
+            "BOM_Manufacturer": "",
+            "BOM_Manufacturer Part": "",
+            "BOM_Supplier Part": "",
+            "BOM_Supplier": "",
+            "puuid": "914fb3061f4e4f9a8810e2805958629f",
+            "uuid": "0f1e51f787c64e5b94be278e7c1f25a2"
+          }
+        ]
+      ],
+      "updateTime": 1660550798,
+      "createTime": 1605475732,
+      "histories": [],
+      "created_at": "2020-11-15 22:28:52",
+      "updated_at": "2022-08-15 10:06:38"
+    },
+    {
+      "uuid": "13dc5dd1cc02678063f4176d3f0bccb9",
+      "puuid": "b2af15fe6207c8775dc403e497a917df",
+      "title": "PCB_NanoElsLcd",
+      "filename": "PCB_NanoElsLcd.json",
+      "description": "",
+      "docType": "3",
+      "master": "",
+      "thumb": "/images/thumb-default.png",
+      "components": {
+        "de8c14883c0546328b221393050f335a": 1,
+        "4f52decd8a8d4c00bb408ec5ad43fc0c": 1,
+        "d09bbb70188b4f619daaf6ebc1476d71": 1,
+        "3e7b1ed315c84fbfb7af365ef7ff6b68": 12,
+        "cb8201f67805495e80041846ebc6ff33": 9,
+        "914fb3061f4e4f9a8810e2805958629f": 1,
+        "2d06024cda604ca2b62baa260c97a39a": 3
+      },
+      "BOM": [],
+      "updateTime": 1661886078,
+      "createTime": 1639344859,
+      "histories": [],
+      "created_at": "2021-12-12 22:34:19",
+      "updated_at": "2022-08-30 21:01:18"
+    }
+  ],
+  "sort": [],
+  "title": "NanoElsLcd",
+  "foldername": "NanoElsLcd",
+  "schfilename": "NanoElsLcd.json",
+  "schfilemtime": 1660550798269
+}
