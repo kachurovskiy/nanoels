@@ -16,7 +16,7 @@
 #define PULSE_MIN_US round(500 * (200.0 / MOTOR_STEPS)) // Microseconds to wait after high pulse, min.
 #define PULSE_MAX_US round(2000 * (200.0 / MOTOR_STEPS)) // Microseconds to wait after high pulse, max. Slow start.
 #define PULSE_DELTA_US 7 // Microseconds remove from waiting time on every step. Acceleration.
-#define INVERT_STEPPER true // false for 1:1 geared connection, true for 1:1 belt connection
+#define INVERT_STEPPER false // change (true/false) if the carriage moves e.g. "left" when you press "right".
 
 // Pitch shortcut buttons, set to your most used values that should be available within 1 click.
 #define F3_PITCH 10 // 0.1mm
@@ -65,6 +65,7 @@
 
 #define DIR 11
 #define STEP 12
+#define ENA 13
 
 #define B0 4
 #define B1 5
@@ -168,6 +169,7 @@ int savedSpindlePosSync = 0;
 int stepDelayUs = PULSE_MAX_US;
 bool stepDelayDirection = true; // To reset stepDelayUs when direction changes.
 unsigned long stepStartMs = 0;
+int stepperEnableCounter = 0;
 
 bool showAngle = false; // Whether to show 0-359 spindle angle on screen
 bool showTacho = false; // Whether to show spindle RPM on screen
@@ -200,10 +202,10 @@ void updateDisplay() {
   } else if (rightStop != LONG_MIN) {
     lcd.print("  R");
   }
-  if (!isOn && moveStep != MOVE_STEP_1) {
-    lcd.print(" ");
+  if (moveStep != MOVE_STEP_1) {
+    lcd.print(" step ");
     lcd.print(moveStep * 1.0 / 100, 2);
-    lcd.print("mm step");
+    lcd.print("mm");
   }
   if (spindlePosSync) {
     lcd.print(" SYN");
@@ -327,6 +329,7 @@ void setup() {
 
   pinMode(DIR, OUTPUT);
   pinMode(STEP, OUTPUT);
+  digitalWrite(STEP, HIGH);
 
   // Wipe EEPROM if this is the first start after uploading a new build.
   if (EEPROM.read(ADDR_EEPROM_VERSION) != EEPROM_VERSION) {
@@ -349,6 +352,8 @@ void setup() {
   savedShowAngle = showAngle = EEPROM.read(ADDR_SHOW_ANGLE) == 1;
   savedShowTacho = showTacho = EEPROM.read(ADDR_SHOW_TACHO) == 1;
   savedMoveStep = moveStep = loadInt(ADDR_MOVE_STEP);
+
+  stepperEnable(isOn);
 
   attachInterrupt(digitalPinToInterrupt(ENC_A), spinEnc, FALLING);
 
@@ -503,6 +508,7 @@ void checkOnOffButton() {
     if (resetMillis == 0) {
       resetMillis = millis();
       isOn = !isOn;
+      stepperEnable(isOn);
       EEPROM.write(ADDR_ONOFF, isOn ? 1 : 0);
 #ifdef DEBUG
       Serial.print("isOn ");
@@ -576,6 +582,7 @@ void checkMoveButtons() {
     return;
   }
   int sign = left ? 1 : -1;
+  stepperEnable(true);
   if (isOn && hmmpr != 0) {
     int posDiff = 0;
     do {
@@ -616,6 +623,7 @@ void checkMoveButtons() {
       markAsZero();
     }
   }
+  stepperEnable(false);
 }
 
 void checkDisplayButton(int button) {
@@ -720,9 +728,9 @@ long step(bool dir, long steps) {
     }
     stepStartMs = t;
 
-    digitalWrite(STEP, HIGH);
-    // digitalWrite() is slow enough that we don't need to wait in the HIGH position.
     digitalWrite(STEP, LOW);
+    // digitalWrite() is slow enough that we don't need to wait.
+    digitalWrite(STEP, HIGH);
     // Don't wait during the last step, it will pass by itself before we get back to stepping again.
     // This condition is the reason moving left-right is limited to 600rpm but with ELS On and spindle
     // gradually speeding up, stepper can go to ~1200rpm.
@@ -752,6 +760,15 @@ long posFromSpindle(long s, bool respectStops) {
 // Calculates spindle position from stepper position.
 long spindleFromPos(long p) {
   return p * STEPPER_TO_ENCODER_STEP_RATIO / hmmpr;
+}
+
+void stepperEnable(bool value) {
+  if (value) {
+    stepperEnableCounter++;
+  } else {
+    stepperEnableCounter--;
+  }
+  digitalWrite(ENA, stepperEnableCounter > 0 ? HIGH : LOW);
 }
 
 // What is called in the loop() function in when not in test mode.
