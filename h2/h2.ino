@@ -4,7 +4,7 @@
 
 // Define your hardware parameters here. Don't remove the ".0" at the end.
 #define ENCODER_STEPS 600.0 // 600 step spindle optical rotary encoder
-#define MOTOR_STEPS 200.0 // 200 step stepper motor, no microstepping
+#define MOTOR_STEPS 400.0
 #define LEAD_SCREW_HMM 200.0 // 2mm lead screw
 
 // Spindle rotary encoder pins. Nano only supports interrupts on D2 and D3.
@@ -13,9 +13,10 @@
 #define ENC_B 2 // D2
 
 // Stepper pulse and acceleration constants.
-#define PULSE_MIN_US round(500 * (200.0 / MOTOR_STEPS)) // Microseconds to wait after high pulse, min.
-#define PULSE_MAX_US round(2000 * (200.0 / MOTOR_STEPS)) // Microseconds to wait after high pulse, max. Slow start.
-#define PULSE_DELTA_US 7 // Microseconds remove from waiting time on every step. Acceleration.
+#define PULSE_MIN_US round(500.0 * 200.0 / MOTOR_STEPS) // Microseconds to wait after high pulse, min.
+#define PULSE_MAX_US round(2000.0 * 200.0 / MOTOR_STEPS) // Microseconds to wait after high pulse, max. Slow start.
+// Microseconds remove from waiting time on every step. Acceleration. Use higher value (e.g. 7) if you have lower MOTOR_STEPS.
+#define PULSE_DELTA_US round(max(1, 1600.0 / MOTOR_STEPS))
 #define INVERT_STEPPER false // change (true/false) if the carriage moves e.g. "left" when you press "right".
 
 // Pitch shortcut buttons, set to your most used values that should be available within 1 click.
@@ -175,6 +176,7 @@ int savedSpindlePosSync = 0;
 
 int stepDelayUs = PULSE_MAX_US;
 bool stepDelayDirection = true; // To reset stepDelayUs when direction changes.
+bool stepDirectionInitialized = false;
 unsigned long stepStartMs = 0;
 int stepperEnableCounter = 0;
 
@@ -601,10 +603,6 @@ void checkMoveButtons() {
   if (!left && !right) {
     return;
   }
-  if (isOn && micros() - spindleEncTime < 100000) {
-    // Spindle is still moving.
-    return;
-  }
   if (spindlePosSync) {
     // Edge case.
     return;
@@ -709,9 +707,6 @@ int getAnalogButton() {
 // Should take as little time as possible since it's possible that
 // lead screw is ON and stepper has to run in a few milliseconds.
 void secondaryWork() {
-  checkLeftStopButton();
-  checkRightStopButton();
-  checkMoveButtons();
   int button = getAnalogButton();
   checkDisplayButton(button);
   checkMoveStepButton(button);
@@ -731,9 +726,10 @@ void secondaryWork() {
 // Moves the stepper.
 long step(bool dir, long steps) {
   // Start slow if direction changed.
-  if (stepDelayDirection != dir) {
+  if (stepDelayDirection != dir || !stepDirectionInitialized) {
     stepDelayUs = PULSE_MAX_US;
     stepDelayDirection = dir;
+    stepDirectionInitialized = true;
     digitalWrite(DIR, dir ^ INVERT_STEPPER ? HIGH : LOW);
 #ifdef DEBUG
     Serial.print("Direction change");
@@ -752,7 +748,7 @@ long step(bool dir, long steps) {
     if (tDiffMs < 0 || tDiffMs > PULSE_MAX_US) {
       stepDelayUs = PULSE_MAX_US;
     } else {
-      stepDelayUs = min(PULSE_MAX_US, max(PULSE_MIN_US, stepDelayUs - PULSE_DELTA_US + tDiffMs));
+      stepDelayUs = min(PULSE_MAX_US, max(PULSE_MIN_US, stepDelayUs - PULSE_DELTA_US));
     }
     stepStartMs = t;
 
@@ -793,17 +789,26 @@ long spindleFromPos(long p) {
 void stepperEnable(bool value) {
   if (value) {
     stepperEnableCounter++;
+    if (value == 1) {
+      digitalWrite(ENA, HIGH);
+      // Stepper driver needs some time before it will react to pulses.
+      delay(100);
+    }
   } else if (stepperEnableCounter > 0) {
     stepperEnableCounter--;
+    if (stepperEnableCounter == 0) {
+      digitalWrite(ENA, LOW);
+    }
   }
-  digitalWrite(ENA, stepperEnableCounter > 0 ? HIGH : LOW);
 }
 
 // What is called in the loop() function in when not in test mode.
 void nonTestLoop() {
-  // Has to be called before reading the spindle value because it can zero it.
   checkOnOffButton();
   checkPlusMinusButtons();
+  checkLeftStopButton();
+  checkRightStopButton();
+  checkMoveButtons();
 
   noInterrupts();
   long spindlePosCopy = spindlePos;
