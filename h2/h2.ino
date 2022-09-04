@@ -793,7 +793,7 @@ long spindleFromPos(long p) {
 void stepperEnable(bool value) {
   if (value) {
     stepperEnableCounter++;
-  } else {
+  } else if (stepperEnableCounter > 0) {
     stepperEnableCounter--;
   }
   digitalWrite(ENA, stepperEnableCounter > 0 ? HIGH : LOW);
