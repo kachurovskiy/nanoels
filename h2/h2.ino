@@ -104,6 +104,9 @@
 #define MOVE_STEP_2 10
 #define MOVE_STEP_3 1
 
+#define RPM_UPDATE_THRESHOLD 2
+#define RPM_BULK ENCODER_STEPS
+
 // Uncomment to print out debug info in Serial.
 // #define DEBUG
 
@@ -156,7 +159,11 @@ long rightStop = 0; // right stop value of pos
 long savedRightStop = 0; // value saved in EEPROM
 bool rightStopFlag = true; // prevent toggling the stop while button is pressed.
 
-volatile unsigned long spindleDeltaTime = 0; // micros() of the previous spindle update
+volatile unsigned long spindleEncTime = 0; // micros() of the previous spindle update
+volatile unsigned long spindleEncTimeDiff = 0; // micros() since the previous spindle update
+volatile unsigned long spindleEncTimeDiffBulk = 0; // micros() between RPM_BULK spindle updates
+volatile unsigned long spindleEncTimeAtIndex0 = 0; // micros() when spindleEncTimeIndex was 0
+volatile int spindleEncTimeIndex = 0; // counter going between 0 and RPM_BULK - 1
 volatile int spindleDeltaPrev = 0; // Previously detected spindle direction
 volatile long spindlePos = 0; // Spindle position
 long savedSpindlePos = 0; // spindlePos value saved in EEPROM
@@ -175,16 +182,30 @@ bool showAngle = false; // Whether to show 0-359 spindle angle on screen
 bool showTacho = false; // Whether to show spindle RPM on screen
 bool savedShowAngle = false; // showAngle value saved in EEPROM
 bool savedShowTacho = false; // showTacho value saved in EEPROM
+int shownRpm = 0;
 
 int moveStep = 0; // hundredth of a mm
 int savedMoveStep = 0; // moveStep saved in EEPROM
 
+int getApproxRpm() {
+  int rpm = 0;
+  int diff = spindleEncTimeDiffBulk / RPM_BULK;
+  if (diff > 0 && showTacho && (micros() - spindleEncTime < 100000)) {
+    rpm = round(60000000.0 / (diff * ENCODER_STEPS));
+    if (abs(rpm - shownRpm) < RPM_UPDATE_THRESHOLD) {
+      rpm = shownRpm;
+    }
+  }
+  return rpm;
+}
+
 void updateDisplay() {
 #ifndef TEST
   // Avoid updating the LCD when nothing has changed, it flickers.
-  long newLcdHash = spindlePos + pos * 2 + hmmpr * 3 + isOn * 4 + leftStop / 5
+  int rpm = getApproxRpm();
+  long newLcdHash = (showAngle ? spindlePos : 0) + pos * 2 + hmmpr * 3 + isOn * 4 + leftStop / 5
                     + rightStop / 6 + spindlePosSync * 7 + resetOnStartup * 8 + showAngle * 9
-                    + showTacho * 10 + moveStep * 11;
+                    + showTacho * 10 + moveStep * 11 + rpm * 12;
   if (newLcdHash == lcdHash) {
     return;
   }
@@ -235,8 +256,8 @@ void updateDisplay() {
     lcd.print("deg");
   } else if (showTacho) {
     lcd.print("Tacho: ");
-    int rpm = spindleDeltaTime > 0 ? round(60 * 1000000 / (spindleDeltaTime * ENCODER_STEPS)) : 0;
-    lcd.print(rpm >= 30 ? rpm : 0);
+    lcd.print(rpm);
+    shownRpm = rpm;
     lcd.print("rpm");
   }
 #endif
@@ -287,9 +308,16 @@ long loadLong(int i) {
 // Called on a FALLING interrupt for the spindle rotary encoder pin.
 // Keeps track of the spindle position.
 void spinEnc() {
+  unsigned long microsNow = micros();
+  if (spindleEncTimeIndex == 0) {
+    spindleEncTimeDiffBulk = microsNow - spindleEncTimeAtIndex0;
+    spindleEncTimeAtIndex0 = microsNow;
+  }
+  spindleEncTimeIndex = (spindleEncTimeIndex + 1) % int(RPM_BULK);
+
   int delta;
-  unsigned long timeDiff = micros() - spindleDeltaTime;
-  if (timeDiff > DIR_CHANGE_DIFF_MICROS) {
+  spindleEncTimeDiff = microsNow - spindleEncTime;
+  if (spindleEncTimeDiff > DIR_CHANGE_DIFF_MICROS) {
     delta = DREAD(ENC_B) ? -1 : 1;
     spindleDeltaPrev = delta;
   } else {
@@ -297,7 +325,7 @@ void spinEnc() {
     delta = spindleDeltaPrev;
   }
   spindlePos += delta;
-  spindleDeltaTime += timeDiff;
+  spindleEncTime += spindleEncTimeDiff;
 
   if (spindlePosSync != 0) {
     spindlePosSync += delta;
@@ -573,7 +601,7 @@ void checkMoveButtons() {
   if (!left && !right) {
     return;
   }
-  if (isOn && micros() - spindleDeltaTime < 100000) {
+  if (isOn && micros() - spindleEncTime < 100000) {
     // Spindle is still moving.
     return;
   }

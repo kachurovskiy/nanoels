@@ -52,7 +52,7 @@ void setupEach() {
 
   // Wait a bit so that time-sensitive spindle turning logic resets too.
   delay(10);
-  spindleDeltaTime = 0;
+  spindleEncTime = 0;
 }
 
 test(saveLoadInt) {
