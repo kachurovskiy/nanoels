@@ -3,6 +3,8 @@
 [🇷🇺 перевод на русский](https://translate.google.com/translate?hl=en&sl=en&tl=ru&u=https%3A%2F%2Fgithub.com%2Fkachurovskiy%2Fnanoels%2Fblob%2Fmain%2FREADME.md)
 [🇩🇪 Deutsche Übersetzung](https://translate.google.com/translate?hl=en&sl=en&tl=de&u=https%3A%2F%2Fgithub.com%2Fkachurovskiy%2Fnanoels%2Fblob%2Fmain%2FREADME.md)
 
+**2022-09-06: there's a new and improved version of this controller available [in the h2/ folder](https://github.com/kachurovskiy/nanoels/tree/main/h2).**
+
 # NanoEls
 
 90€ DIY Electronic Lead Screw (ELS) based on Arduino Nano for metal lathes.
