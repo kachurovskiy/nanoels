@@ -1,3 +1,5 @@
+**This software and instructions are provided as is, without warranty of any kind. This is a hobby project. Using this might damage your equipment, cause injury or death. Use at your own risk.**
+
 # NanoEls H2
 
 This is the second hardware version (hence H2) of NanoEls electronic lead screw controller. It still uses Arduino Nano
