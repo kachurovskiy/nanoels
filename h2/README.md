@@ -8,6 +8,19 @@ can print cheaply on jlcpcb.com and a few widely available components allowing y
 
 ![image](https://user-images.githubusercontent.com/517919/188740458-17936e54-3a53-435a-9475-1c2a5db8f14e.png)
 
+This is still somewhat a work in progress but already much better than the original NanoEls:
+
+- Big screen
+- Nice terminals
+- Convenient buttons
+- Disabling stepper when it's not used (less buzzing)
+- Controlling left/right movement step - 1mm, 0.1mm, 0.01mm
+- Moving left/right while ON
+- On/off switch
+- Tachometer
+
+It's still isn't fully tested so use caution and report any problems.
+
 ## Components
 
 - Arduino Nano (mini USB style)
