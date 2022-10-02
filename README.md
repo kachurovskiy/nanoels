@@ -24,7 +24,7 @@ There are 2 hardware versions of NanoEls, [H1](https://github.com/kachurovskiy/n
 | Pluggable terminals |   | Yes |
 | On/off switch |  | Yes |
 | Disabling stepper when not in use |   | Yes |
-| Example builds | [Dididu12](https://github.com/kachurovskiy/nanoels/discussions/40#discussioncomment-2019521), [Hedning003](https://github.com/kachurovskiy/nanoels/discussions/16), [HW61](https://github.com/kachurovskiy/nanoels/discussions/43), [kachurovskiy](https://www.youtube.com/watch?v=9uTdDk2EqG4?t=272), [mockendon](https://github.com/kachurovskiy/nanoels/discussions/32), [Sonny Madlangbayan](https://www.youtube.com/watch?v=qiPQUa50Uog), [wberggren](https://github.com/kachurovskiy/nanoels/discussions/13), [WillieJilesen](https://github.com/kachurovskiy/nanoels/discussions/39), [zabu83](https://github.com/kachurovskiy/nanoels/discussions/11) | [kachurovskiy](https://youtu.be/jR4tBBHSl3c?t=62) |
+| Example builds | [Dididu12](https://github.com/kachurovskiy/nanoels/discussions/40#discussioncomment-2019521)<br>[Hedning003](https://github.com/kachurovskiy/nanoels/discussions/16)<br>[HW61](https://github.com/kachurovskiy/nanoels/discussions/43)<br>[kachurovskiy](https://www.youtube.com/watch?v=9uTdDk2EqG4?t=272)<br>[mockendon](https://github.com/kachurovskiy/nanoels/discussions/32)<br>[Sonny Madlangbayan](https://www.youtube.com/watch?v=qiPQUa50Uog)<br>[wberggren](https://github.com/kachurovskiy/nanoels/discussions/13)<br>[WillieJilesen](https://github.com/kachurovskiy/nanoels/discussions/39)<br>[zabu83](https://github.com/kachurovskiy/nanoels/discussions/11) | [kachurovskiy](https://youtu.be/jR4tBBHSl3c?t=62) |
 
 # Contributing to the project
 
