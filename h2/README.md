@@ -62,3 +62,7 @@ All of this can easily be found on AliExpress, eBay or Amazon.
 ![image](https://user-images.githubusercontent.com/517919/188741755-bee83e05-6a87-45e7-9aa7-31f791054ae7.png)
 
 [Gerber ZIP](https://github.com/kachurovskiy/nanoels/blob/main/h2/Gerber_PCB_NanoElsLcd_20220815.zip)
+
+## Manual
+
+![image](https://user-images.githubusercontent.com/517919/194548173-f6db1c1a-631f-43d5-b4b1-39ef6f6f3ef9.png)
