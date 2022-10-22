@@ -66,7 +66,7 @@ All of this can easily be found on AliExpress, eBay or Amazon.
 ## Programming the Arduino
 
 - Download the Arduino IDE
-- Install `Adafruit_SSD1306` and `FastGPIO` libraries via the Library Manager in the Arduino IDE
+- Install `LiquidCrystal` and `FastGPIO` libraries via the Library Manager in the Arduino IDE
 - Download and open [NanoEls.ino](https://github.com/kachurovskiy/nanoels/raw/main/h1/NanoEls.ino)
 - Check the top constants (e.g. encoder steps, motor steps, display offset) and adjust if needed
 - Upload the sketch to your Arduino Nano
