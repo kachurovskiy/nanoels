@@ -14,7 +14,8 @@ This is still somewhat a work in progress but already much better than the origi
 - Nice terminals
 - Convenient buttons
 - Disabling stepper when it's not used (less buzzing)
-- Controlling left/right movement step - 1mm, 0.1mm, 0.01mm
+- Controlling left/right movement step - 1mm, 0.1mm, 0.01mm and 0.001mm
+- Higher precision when turning imperial pitches
 - Moving left/right while ON
 - On/off switch
 - Tachometer
