@@ -12,7 +12,7 @@ There are 2 hardware versions of NanoEls, [H1](https://github.com/kachurovskiy/n
 |  | [NanoEls H1](https://github.com/kachurovskiy/nanoels/blob/main/h1/) | [NanoEls H2](https://github.com/kachurovskiy/nanoels/blob/main/h2/) |
 | --- | --- | --- |
 |  | ![h1](https://user-images.githubusercontent.com/517919/192354717-12b16d0e-4f9f-4f10-a7f7-c1daaba6f542.png) | ![h2](https://user-images.githubusercontent.com/517919/192354510-d96355d4-31e2-4ce4-a190-048795a8c274.png) |
-| Metric pitches (+/-) | Yes, -10mm to 10mm, resolution 0.01mm | Yes, -10mm to 10mm, resolution 0.01mm |
+| Metric pitches (+/-) | Yes, -10mm to 10mm, resolution 0.01mm | Yes, -10mm to 10mm, resolution 0.001mm |
 | Imperial pitches | Yes (specify in mm) | Yes (specify in mm) |
 | Position indication | Yes | Yes |
 | Angle indication | Yes | Yes |
@@ -25,6 +25,12 @@ There are 2 hardware versions of NanoEls, [H1](https://github.com/kachurovskiy/n
 | On/off switch |  | Yes |
 | Disabling stepper when not in use |   | Yes |
 | Example builds | [Dididu12](https://github.com/kachurovskiy/nanoels/discussions/40#discussioncomment-2019521)<br>[Hedning003](https://github.com/kachurovskiy/nanoels/discussions/16)<br>[HW61](https://github.com/kachurovskiy/nanoels/discussions/43)<br>[kachurovskiy](https://www.youtube.com/watch?v=9uTdDk2EqG4?t=272)<br>[mockendon](https://github.com/kachurovskiy/nanoels/discussions/32)<br>[Sonny Madlangbayan](https://www.youtube.com/watch?v=qiPQUa50Uog)<br>[wberggren](https://github.com/kachurovskiy/nanoels/discussions/13)<br>[WillieJilesen](https://github.com/kachurovskiy/nanoels/discussions/39)<br>[zabu83](https://github.com/kachurovskiy/nanoels/discussions/11) | [kachurovskiy](https://youtu.be/jR4tBBHSl3c?t=62) |
+
+# Alternative UI versions
+
+![nanoels-imperial](https://user-images.githubusercontent.com/517919/197325760-6dda7e82-3949-4972-9ff2-933450d30f55.png)
+
+For H2, there's an imperial version of the software for users who mostly work with inches / TPIs at https://github.com/gstwrt/nanoels-imperial.
 
 # Contributing to the project
 
