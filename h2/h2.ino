@@ -4,7 +4,7 @@
 
 // Define your hardware parameters here. Don't remove the ".0" at the end.
 #define ENCODER_STEPS 600.0 // 600 step spindle optical rotary encoder
-#define MOTOR_STEPS 400.0
+#define MOTOR_STEPS 200.0
 #define LEAD_SCREW_HMM 200.0 // 2mm lead screw
 
 // Spindle rotary encoder pins. Nano only supports interrupts on D2 and D3.
