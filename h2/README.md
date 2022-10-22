@@ -63,6 +63,87 @@ All of this can easily be found on AliExpress, eBay or Amazon.
 
 [Gerber ZIP](https://github.com/kachurovskiy/nanoels/blob/main/h2/Gerber_PCB_NanoElsLcd_20220815.zip)
 
-## Manual
+## Programming the Arduino
 
-![image](https://user-images.githubusercontent.com/517919/194548173-f6db1c1a-631f-43d5-b4b1-39ef6f6f3ef9.png)
+- Download the Arduino IDE
+- Install `Adafruit_SSD1306` and `FastGPIO` libraries via the Library Manager in the Arduino IDE
+- Download and open [NanoEls.ino](https://github.com/kachurovskiy/nanoels/raw/main/h1/NanoEls.ino)
+- Check the top constants (e.g. encoder steps, motor steps, display offset) and adjust if needed
+- Upload the sketch to your Arduino Nano
+- Swap D2 and D3 pins in the code if carriage direction is inverted, re-upload
+
+# Operating the ELS
+
+![image](https://user-images.githubusercontent.com/517919/197326097-cf824f31-d50e-4964-8bbc-1632c92ff40b.png)
+
+## Safety
+
+- Make sure that stepper motor is turned off using lathe emergency power off switch
+- Test the automatic stop and other ELS functionality before relying on it
+- **In case of unexpected movements, disengage the half-nut or use the emergency power off switch**
+
+## Setting pitch
+
+Pitch is the distance that carriage will move when the spindle makes the full turn. For example, M14 thread uses 2mm pitch.
+
+Select the desired pitch using `-` and `+` buttons or `0.10mm`, `1mm` and `2mm` shortcut buttons in the top row. If you keep the buttons pressed, the pitch starts changing faster after a few seconds.
+
+Some inch threads require setting the micron part (3rd precision point) of the pitch, to do that click the `Step` button until you're in the `0.001mm` mode. Now clicking `-` or `+` buttons will change the pitch by a micron.
+
+## Turning
+
+- Set desired pitch using `-` and `+` buttons
+- Turn on the lead screw using the `ON` button
+- Start the lathe spindle
+- Stop the lathe spindle when done
+- Turn off the lead screw using the `ON` button
+
+## Automatic stops
+
+- Move the carriage with the help of ELS to the desired stop position
+- Set the stop using e.g. `L STOP` button
+- Hold `RIGHT` to move to another stop position and press `R STOP`
+
+Now you can:
+
+- Use lathe forward/reverse spindle movements to move the carriage between the stops
+- Use `LEFT` and `RIGHT` buttons to move the carriage within the stops
+
+Setting only one stop is also supported. Stops aren't lost when `ON` button is clicked or pitch is changed.
+
+## Moving the carriage
+
+Use `LEFT` and `RIGHT` buttons to move the carriage. If stops are set, they will be respected during the movement.
+
+When the ELS is off, carriage will move by the distance set using `Step` button (1mm if not shown on screen) but at least 1 stepper motor step.
+
+When the ELS is ON, carriage will move in pitch increments (stay in the thread) and travel at least the distance set by `Step` button (1mm if not shown on screen).
+
+## Losing the thread
+
+The spindle and stepper positions are reset to 0 every time one of the following happens:
+
+- `ON` button is pressed (including long press for reset)
+- Pitch is changed e.g. by pressing `-` or `+`
+- Stepper is not in the desired position when ELS is powered up
+  - Results in `LTW` lost thread warning
+  - Might happen if ELS was abruptly shutdown
+
+Thread is **not** lost when ELS is simply powered off.
+
+## Out-of-sync situations
+
+It's possible for the lead screw to go out of sync with the spindle by removing the `L STOP` or `R STOP` while the carriage is standing on it. It's indicated by the `SYN` word on the display.
+
+This situation should resolve itself once the spindle makes a full turn.
+
+## Resetting ELS and viewing the software version
+
+ELS remembers all the positions and ON/OFF status when powered off.
+
+- Hold `ON` button for 6 seconds
+  - Reset stepper and spindle positions to 0
+  - Resets pitch to 0
+  - Removes stops
+  - Removes out-of-sync state
+  - Shows NanoEls version
