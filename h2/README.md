@@ -67,7 +67,7 @@ All of this can easily be found on AliExpress, eBay or Amazon.
 
 - Download the Arduino IDE
 - Install `LiquidCrystal` and `FastGPIO` libraries via the Library Manager in the Arduino IDE
-- Download and open [NanoEls.ino](https://github.com/kachurovskiy/nanoels/raw/main/h1/NanoEls.ino)
+- Download [this repository](https://github.com/kachurovskiy/nanoels/archive/refs/heads/main.zip), unzip, go to `h2` directory and open `h2.ino` file in Arduino IDE
 - Check the top constants (e.g. encoder steps, motor steps, display offset) and adjust if needed
 - Upload the sketch to your Arduino Nano
 - Swap D2 and D3 pins in the code if carriage direction is inverted, re-upload
