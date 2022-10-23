@@ -106,8 +106,8 @@
 #define MOVE_STEP_3 10
 #define MOVE_STEP_4 1
 
-#define RPM_UPDATE_THRESHOLD 2
-#define RPM_BULK ENCODER_STEPS
+#define RPM_BULK ENCODER_STEPS // Measure RPM averaged over this number of encoder pulses
+#define RPM_UPDATE_INTERVAL_MICROS 1000000 // Don't redraw RPM more often than once per second
 
 // Uncomment to print out debug info in Serial.
 // #define DEBUG
@@ -186,16 +186,29 @@ bool showTacho = false; // Whether to show spindle RPM on screen
 bool savedShowAngle = false; // showAngle value saved in EEPROM
 bool savedShowTacho = false; // showTacho value saved in EEPROM
 int shownRpm = 0;
+unsigned long shownRpmTime = 0; // micros() when shownRpm was set
 
 int moveStep = 0; // thousandth of a mm
 int savedMoveStep = 0; // moveStep saved in EEPROM
 
 int getApproxRpm() {
+  if (!showTacho) {
+    return 0;
+  }
+  unsigned long t = micros();
+  if (t > spindleEncTime + 100000) {
+    // RPM less than 10.
+    return 0;
+  }
+  if (t < shownRpmTime + RPM_UPDATE_INTERVAL_MICROS) {
+    // Don't update RPM too often to avoid flickering.
+    return shownRpm;
+  }
   int rpm = 0;
-  int diff = spindleEncTimeDiffBulk / RPM_BULK;
-  if (diff > 0 && showTacho && (micros() - spindleEncTime < 100000)) {
-    rpm = round(60000000.0 / (diff * ENCODER_STEPS));
-    if (abs(rpm - shownRpm) < RPM_UPDATE_THRESHOLD) {
+  if (spindleEncTimeDiffBulk > 0) {
+    rpm = 60000000 / spindleEncTimeDiffBulk;
+    if (abs(rpm - shownRpm) < (rpm < 1000 ? 2 : 5)) {
+      // Don't update RPM with insignificant differences.
       rpm = shownRpm;
     }
   }
@@ -208,7 +221,7 @@ void updateDisplay() {
   int rpm = getApproxRpm();
   long newLcdHash = (showAngle ? spindlePos : 0) + pos * 2 + tmmpr * 3 + isOn * 4 + leftStop / 5
                     + rightStop / 6 + spindlePosSync * 7 + resetOnStartup * 8 + showAngle * 9
-                    + showTacho * 10 + moveStep * 11 + rpm * 12;
+                    + (showTacho ? rpm : -1) * 10 + moveStep * 11;
   if (newLcdHash == lcdHash) {
     return;
   }
@@ -260,7 +273,10 @@ void updateDisplay() {
   } else if (showTacho) {
     lcd.print("Tacho: ");
     lcd.print(rpm);
-    shownRpm = rpm;
+    if (shownRpm != rpm) {
+      shownRpm = rpm;
+      shownRpmTime = micros();
+    }
     lcd.print("rpm");
   }
 #endif
@@ -328,7 +344,7 @@ void spinEnc() {
     delta = spindleDeltaPrev;
   }
   spindlePos += delta;
-  spindleEncTime += spindleEncTimeDiff;
+  spindleEncTime = microsNow;
 
   if (spindlePosSync != 0) {
     spindlePosSync += delta;
