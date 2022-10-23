@@ -219,9 +219,13 @@ void updateDisplay() {
 #ifndef TEST
   // Avoid updating the LCD when nothing has changed, it flickers.
   int rpm = getApproxRpm();
-  long newLcdHash = (showAngle ? spindlePos : 0) + pos * 2 + tmmpr * 3 + isOn * 4 + leftStop / 5
+  long newLcdHash = pos * 2 + tmmpr * 3 + isOn * 4 + leftStop / 5
                     + rightStop / 6 + spindlePosSync * 7 + resetOnStartup * 8 + showAngle * 9
                     + (showTacho ? rpm : -1) * 10 + moveStep * 11;
+  bool spindleStopped = micros() > spindleEncTime + 100000;
+  if (showAngle && spindleStopped) {
+    newLcdHash += spindlePos;
+  }
   if (newLcdHash == lcdHash) {
     return;
   }
@@ -268,8 +272,10 @@ void updateDisplay() {
   lcd.setCursor(0, 3);
   if (showAngle) {
     lcd.print("Angle: ");
-    lcd.print(((spindlePos % (int) ENCODER_STEPS + (int) ENCODER_STEPS) % (int) ENCODER_STEPS) * 360 / ENCODER_STEPS, 2);
-    lcd.print(char(223));
+    if (spindleStopped) {
+      lcd.print(((spindlePos % (int) ENCODER_STEPS + (int) ENCODER_STEPS) % (int) ENCODER_STEPS) * 360 / ENCODER_STEPS, 2);
+      lcd.print(char(223));
+    }
   } else if (showTacho) {
     lcd.print("Tacho: ");
     lcd.print(rpm);
