@@ -15,8 +15,7 @@
 // Stepper pulse and acceleration constants.
 #define PULSE_MIN_US round(500.0 * 200.0 / MOTOR_STEPS) // Microseconds to wait after high pulse, min.
 #define PULSE_MAX_US round(2000.0 * 200.0 / MOTOR_STEPS) // Microseconds to wait after high pulse, max. Slow start.
-// Microseconds remove from waiting time on every step. Acceleration. Use higher value (e.g. 7) if you have lower MOTOR_STEPS.
-#define PULSE_DELTA_US round(max(1, 1600.0 / MOTOR_STEPS))
+#define ACCELERATION 20
 #define INVERT_STEPPER false // change (true/false) if the carriage moves e.g. "left" when you press "right".
 
 // Pitch shortcut buttons, set to your most used values that should be available within 1 click.
@@ -59,7 +58,7 @@
 #define EEPROM_VERSION 2
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 2
+#define SOFTWARE_VERSION 3
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 2
@@ -142,6 +141,7 @@ long lcdHash = 0;
 
 unsigned long buttonTime = 0;
 long loopCounter = 0;
+int buttonLoopCounter = 0;
 bool isOn = false;
 unsigned long resetMillis = 0;
 bool resetOnStartup = false;
@@ -178,7 +178,7 @@ int savedSpindlePosSync = 0;
 int stepDelayUs = PULSE_MAX_US;
 bool stepDelayDirection = true; // To reset stepDelayUs when direction changes.
 bool stepDirectionInitialized = false;
-unsigned long stepStartMs = 0;
+unsigned long stepStartMicros = 0;
 int stepperEnableCounter = 0;
 
 bool showAngle = false; // Whether to show 0-359 spindle angle on screen
@@ -215,17 +215,31 @@ int getApproxRpm() {
   return rpm;
 }
 
-void updateDisplay() {
+bool stepperIsRunning() {
+  return micros() - stepStartMicros < 10000;
+}
+
+void updateDisplay(bool beforeRunning) {
 #ifndef TEST
-  // Avoid updating the LCD when nothing has changed, it flickers.
   int rpm = getApproxRpm();
-  long newLcdHash = pos * 2 + tmmpr * 3 + isOn * 4 + leftStop / 5
-                    + rightStop / 6 + spindlePosSync * 7 + resetOnStartup * 8 + showAngle * 9
-                    + (showTacho ? rpm : -1) * 10 + moveStep * 11;
+  // Hide rows 3 and 4 if ON and about to or is already moving.
+  // Not hiding when off since it results in flickering of rows 3 and 4 during short manual moves.
+  bool running = isOn && (beforeRunning || stepperIsRunning());
+  // Sum of values affecting rows 1 and 2 of the LCD.
+  long hashRows12 = tmmpr + isOn * 2 + leftStop / 3
+                    + rightStop / 4 + spindlePosSync * 5 + resetOnStartup * 6
+                    + moveStep * 7 + running * 8;
+  // Sum of values affecting rows 3 and 4 of the LCD.
+  long hashRows34 = pos * 9 + showAngle * 10 + (showTacho ? rpm : -1) * 11;
+  // Ignore changes in hashRows34 when stepper is running since they aren't shown.
+  long newLcdHash = hashRows12 + (running ? 0 : hashRows34);
+  // Don't show angle if stepper is running or spindle is turning.
   bool spindleStopped = micros() > spindleEncTime + 100000;
-  if (showAngle && spindleStopped) {
+  if (!running && showAngle && spindleStopped) {
     newLcdHash += spindlePos;
   }
+
+  // Don't spend 40ms and flicker the screen if nothing changed.
   if (newLcdHash == lcdHash) {
     return;
   }
@@ -260,6 +274,12 @@ void updateDisplay() {
   lcd.print("Pitch: ");
   lcd.print(tmmpr * 1.0 / 1000, 3);
   lcd.print("mm");
+
+  if (running) {
+    // Stepper is running, updateDisplay() will no longer be called soon,
+    // don't draw position, RPM and angle that won't be accurate shortly.
+    return;
+  }
 
   // Third row.
   lcd.setCursor(0, 2);
@@ -411,7 +431,7 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(ENC_A), spinEnc, FALLING);
 
   lcd.begin(20, 4);
-  updateDisplay();
+  updateDisplay(false /*beforeRunning*/);
 
   Serial.begin(9600);
   Serial.print("NanoEls H");
@@ -498,7 +518,10 @@ void markAsZero() {
 void setTmmpr(int value) {
   tmmpr = value;
   markAsZero();
-  updateDisplay();
+  // Printing new pitch can stall the motor due to time spent on it. Don't have time to even clear the LCD.
+  if (!stepperIsRunning()) {
+    updateDisplay(false /*beforeRunning*/);
+  }
 }
 
 void splashScreen() {
@@ -568,7 +591,7 @@ void checkOnOffButton() {
       Serial.println(isOn);
 #endif
       markAsZero();
-      updateDisplay();
+      updateDisplay(false /*beforeRunning*/);
     } else if (resetMillis > 0 && millis() - resetMillis > 6000) {
       resetMillis = 0;
       reset();
@@ -631,21 +654,42 @@ void checkMoveButtons() {
     return;
   }
   int sign = left ? 1 : -1;
+  bool stepperOn = true;
   stepperEnable(true);
   if (isOn && tmmpr != 0) {
-    int posDiff = 0;
+    // Move by moveStep in the desired direction but stay in the thread by possibly traveling a little more.
+    int diff = ceil(MOTOR_STEPS * moveStep * 1.0 / LEAD_SCREW_TMM * STEPPER_TO_ENCODER_STEP_RATIO / ENCODER_STEPS / abs(tmmpr))
+                  * ENCODER_STEPS
+                  * sign
+                  * (tmmpr > 0 ? 1 : -1);
+    long prevPos = spindlePos;
+    bool resting = false;
     do {
       noInterrupts();
-      // Move by moveStep in the desired direction but stay in the thread by possibly traveling a little more.
-      spindlePos += ceil(MOTOR_STEPS * moveStep * 1.0 / LEAD_SCREW_TMM * STEPPER_TO_ENCODER_STEP_RATIO / ENCODER_STEPS / abs(tmmpr))
-                    * ENCODER_STEPS
-                    * sign
-                    * (tmmpr > 0 ? 1 : -1);
-      long newPos = posFromSpindle(spindlePos, true);
+      if (!resting) {
+        spindlePos += diff;
+      }
+      while (diff > 0 ? (spindlePos < prevPos) : (spindlePos > prevPos)) {
+        spindlePos += diff;
+      };
+      prevPos = spindlePos;
       interrupts();
-      posDiff = abs(newPos - pos);
-      step(newPos > pos, posDiff);
-    } while (posDiff != 0 && (left ? DREAD(B_LEFT) : DREAD(B_RIGHT)) == LOW);
+
+      long newPos = posFromSpindle(prevPos, true);
+      int posDiff = abs(newPos - pos);
+      if (posDiff > 0) {
+        step(newPos > pos, posDiff);
+      } else {
+        // We're standing on a stop with the L/R move button pressed.
+        resting = true;
+        if (stepperOn) {
+          stepperEnable(false);
+          stepperOn = false;
+        }
+        updateDisplay(false /*beforeRunning*/);
+        delay(200);
+      }
+    } while ((left ? DREAD(B_LEFT) : DREAD(B_RIGHT)) == LOW);
   } else {
     int delta = 0;
     do {
@@ -665,7 +709,7 @@ void checkMoveButtons() {
       if (moveStep != MOVE_STEP_1) {
         // Allow some time for the button to be released to
         // make it possible to do single steps at 0.1, 0.01mm and 0.001mm.
-        updateDisplay();
+        updateDisplay(false /*beforeRunning*/);
         delay(500);
       }
     } while (delta != 0 && (left ? DREAD(B_LEFT) : DREAD(B_RIGHT)) == LOW);
@@ -674,7 +718,9 @@ void checkMoveButtons() {
       markAsZero();
     }
   }
-  stepperEnable(false);
+  if (stepperOn) {
+    stepperEnable(false);
+  }
 }
 
 void checkDisplayButton(int button) {
@@ -730,25 +776,8 @@ int getAnalogButton() {
   return 0;
 }
 
-// Called when loop() is not busy running the stepper.
-// Should take as little time as possible since it's possible that
-// lead screw is ON and stepper has to run in a few milliseconds.
-void secondaryWork() {
-  int button = getAnalogButton();
-  checkDisplayButton(button);
-  checkMoveStepButton(button);
-  checkPitchShortcutButton(button, B_F3, F3_PITCH);
-  checkPitchShortcutButton(button, B_F4, F4_PITCH);
-  checkPitchShortcutButton(button, B_F5, F5_PITCH);
-
-  if (loopCounter % 8 == 0) {
-    // This takes a really long time.
-    updateDisplay();
-  }
-  if (loopCounter % 137 == 0) {
-    saveIfChanged();
-  }
-}
+unsigned long stepStart = 0;
+unsigned long stepToStep = PULSE_MIN_US;
 
 // Moves the stepper.
 long step(bool dir, long steps) {
@@ -764,21 +793,23 @@ long step(bool dir, long steps) {
   }
 
   // Stepper basically has no speed if it was standing for 10ms.
-  if (millis() - stepStartMs > 10) {
+  if (!stepperIsRunning()) {
     stepDelayUs = PULSE_MAX_US;
   }
 
-  for (int i = 0; i < steps; i++) {
-    unsigned long t = millis();
-    int tDiffMs = stepStartMs == 0 ? 0 : t - stepStartMs;
-    // long to int can overflow
-    if (tDiffMs < 0 || tDiffMs > PULSE_MAX_US) {
-      stepDelayUs = PULSE_MAX_US;
-    } else {
-      stepDelayUs = min(PULSE_MAX_US, max(PULSE_MIN_US, stepDelayUs - PULSE_DELTA_US));
-    }
-    stepStartMs = t;
+  if (stepDelayUs == PULSE_MAX_US) {
+    // Hide 2 bottom rows in anticipation of stepper move as that info
+    // will go stale and display won't be updated anymore.
+    updateDisplay(true /*beforeRunning*/);
+  }
 
+  long minDelay = steps == 1 ? 1 : PULSE_MIN_US;
+  for (int i = 0; i < steps; i++) {
+    long constAccelDelay = 1000000 / (1000000 / stepDelayUs + ACCELERATION * stepDelayUs / 1000);
+    stepDelayUs = min(PULSE_MAX_US, max(minDelay, constAccelDelay));
+    unsigned long t = micros();
+    stepToStep = min(stepToStep, t - stepStartMicros);
+    stepStartMicros = t;
     digitalWrite(STEP, LOW);
     // digitalWrite() is slow enough that we don't need to wait.
     digitalWrite(STEP, HIGH);
@@ -787,6 +818,8 @@ long step(bool dir, long steps) {
     // gradually speeding up, stepper can go to ~1200rpm.
     if (i < steps - 1) {
       delayMicroseconds(stepDelayUs);
+    } else if (stepDelayUs > stepToStep) {
+      delayMicroseconds(stepDelayUs - stepToStep);
     }
   }
   pos += (dir ? 1 : -1) * steps;
@@ -831,11 +864,25 @@ void stepperEnable(bool value) {
 
 // What is called in the loop() function in when not in test mode.
 void nonTestLoop() {
-  checkOnOffButton();
-  checkPlusMinusButtons();
-  checkLeftStopButton();
-  checkRightStopButton();
-  checkMoveButtons();
+  buttonLoopCounter = (buttonLoopCounter + 1) % 10;
+  // Spread button checking in time to give move time to stepper logic.
+  // It takes 200ms for a human to press a button so this shouldn't be noticeable.
+  switch (buttonLoopCounter) {
+    case 1: checkOnOffButton(); break;
+    case 2: checkPlusMinusButtons(); break;
+    case 3: checkLeftStopButton(); break;
+    case 4: checkRightStopButton(); break;
+    case 5: checkMoveButtons(); break;
+    default:
+      int button = getAnalogButton();
+      switch (buttonLoopCounter) {
+        case 6: checkDisplayButton(button); break;
+        case 7: checkMoveStepButton(button); break;
+        case 8: checkPitchShortcutButton(button, B_F3, F3_PITCH); break;
+        case 9: checkPitchShortcutButton(button, B_F4, F4_PITCH); break;
+        case 0: checkPitchShortcutButton(button, B_F5, F5_PITCH); break;
+      }
+  }
 
   noInterrupts();
   long spindlePosCopy = spindlePos;
@@ -846,7 +893,7 @@ void nonTestLoop() {
   long newPos = posFromSpindle(spindlePosCopy, true);
   if (isOn && !spindlePosSyncCopy && newPos != pos) {
     // Move the stepper to the right position.
-    step(newPos > pos, abs(newPos - pos));
+    step(newPos > pos, 1);
     if (loopCounter > 0) {
       loopCounter = 0;
     }
@@ -912,7 +959,13 @@ void nonTestLoop() {
     // Only check buttons when stepper is surely not running.
     // It might have to run any millisecond though e.g. when leaving the stop
     // so it still should complete within milliseconds.
-    secondaryWork();
+    if (loopCounter % 8 == 0) {
+      // This takes a really long time.
+      updateDisplay(false /*beforeRunning*/);
+    }
+    if (loopCounter % 137 == 0) {
+      saveIfChanged();
+    }
 
     // Drop the lost thread warning after some time.
     if (resetOnStartup && loopCounter > 2 * LOOP_COUNTER_MAX) {
