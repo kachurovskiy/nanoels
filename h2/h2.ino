@@ -19,8 +19,7 @@
 #define INVERT_STEPPER false // change (true/false) if the carriage moves e.g. "left" when you press "right".
 
 // Pitch shortcut buttons, set to your most used values that should be available within 1 click.
-#define F3_PITCH 100 // 0.1mm
-#define F4_PITCH 1000 // 1mm
+#define F4_PITCH 200 // 0.2mm
 #define F5_PITCH 2000 // 2mm
 
 // Voltage on A6 when F1-F5 buttons are pressed.
@@ -44,6 +43,8 @@
 
 #define LOOP_COUNTER_MAX 1500 // 1500 loops without stepper move to start reading buttons
 #define TMMPR_MAX 10000 // 10mm
+#define STARTS_MAX 124 // No more than 124-start thread
+#define STARTS_RESET_DELAY_MS 2000 // Milliseconds to hold the F3 button to reset starts to 1
 
 // Ratios between spindle and stepper.
 #define ENCODER_TO_STEPPER_STEP_RATIO MOTOR_STEPS / (LEAD_SCREW_TMM * ENCODER_STEPS)
@@ -58,7 +59,7 @@
 #define EEPROM_VERSION 2
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 3
+#define SOFTWARE_VERSION 4
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 2
@@ -99,6 +100,7 @@
 #define ADDR_SHOW_ANGLE 22 // takes 1 byte
 #define ADDR_SHOW_TACHO 23 // takes 1 byte
 #define ADDR_MOVE_STEP 24 // takes 2 bytes
+#define ADDR_STARTS 26 // takes 2 bytes
 
 #define MOVE_STEP_1 1000
 #define MOVE_STEP_2 100
@@ -144,11 +146,15 @@ long loopCounter = 0;
 int buttonLoopCounter = 0;
 bool isOn = false;
 unsigned long resetMillis = 0;
+unsigned long resetStartsMillis = 0;
 bool resetOnStartup = false;
 
 int tmmpr = 0; // thousandth of a mm per rotation
 int savedTmmpr = 0; // tmmpr saved in EEPROM
 int tmmprPrevious = 0;
+
+int starts = 1; // number of starts in a multi-start thread
+int savedStarts = 0; // starts saved in EEPROM
 
 long pos = 0; // relative position of the stepper motor, in steps
 long savedPos = 0; // value saved in EEPROM
@@ -228,7 +234,7 @@ void updateDisplay(bool beforeRunning) {
   // Sum of values affecting rows 1 and 2 of the LCD.
   long hashRows12 = tmmpr + isOn * 2 + leftStop / 3
                     + rightStop / 4 + spindlePosSync * 5 + resetOnStartup * 6
-                    + moveStep * 7 + running * 8;
+                    + moveStep * 7 + running * 8 + starts * 12;
   // Sum of values affecting rows 3 and 4 of the LCD.
   long hashRows34 = pos * 9 + showAngle * 10 + (showTacho ? rpm : -1) * 11;
   // Ignore changes in hashRows34 when stepper is running since they aren't shown.
@@ -274,6 +280,10 @@ void updateDisplay(bool beforeRunning) {
   lcd.print("Pitch: ");
   lcd.print(tmmpr * 1.0 / 1000, 3);
   lcd.print("mm");
+  if (starts != 1) {
+    lcd.print(" x");
+    lcd.print(starts);
+  }
 
   if (running) {
     // Stepper is running, updateDisplay() will no longer be called soon,
@@ -417,6 +427,7 @@ void setup() {
 
   isOn = EEPROM.read(ADDR_ONOFF) == 1;
   savedTmmpr = tmmpr = loadInt(ADDR_TMMPR);
+  savedStarts = starts = min(STARTS_MAX, max(1, loadInt(ADDR_STARTS)));
   savedPos = pos = loadLong(ADDR_POS);
   savedLeftStop = leftStop = loadLong(ADDR_LEFT_STOP);
   savedRightStop = rightStop = loadLong(ADDR_RIGHT_STOP);
@@ -461,6 +472,9 @@ void preventMoveOnStart() {
 void saveIfChanged() {
   if (tmmpr != savedTmmpr) {
     saveInt(ADDR_TMMPR, savedTmmpr = tmmpr);
+  }
+  if (starts != savedStarts) {
+    saveInt(ADDR_STARTS, savedStarts = starts);
   }
   if (pos != savedPos) {
     saveLong(ADDR_POS, savedPos = pos);
@@ -524,6 +538,15 @@ void setTmmpr(int value) {
   }
 }
 
+void setStarts(int value) {
+  starts = value;
+  markAsZero();
+  // Printing new pitch can stall the motor due to time spent on it. Don't have time to even clear the LCD.
+  if (!stepperIsRunning()) {
+    updateDisplay(false /*beforeRunning*/);
+  }
+}
+
 void splashScreen() {
 #ifndef TEST
   lcd.clear();
@@ -541,6 +564,7 @@ void reset() {
   leftStop = LONG_MAX;
   rightStop = LONG_MIN;
   setTmmpr(0);
+  setStarts(1);
   moveStep = MOVE_STEP_1;
   splashScreen();
 }
@@ -643,6 +667,26 @@ void checkRightStopButton() {
   }
 }
 
+bool allowMultiStartAdvance = false;
+
+void nextStart() {
+  noInterrupts();
+  spindlePos += round(1.0 * ENCODER_STEPS / starts) * (tmmpr > 0 ? -1 : 1);
+  interrupts();
+}
+
+void checkIfNextStart() {
+  if (starts <= 1 || tmmpr == 0 || rightStop == LONG_MIN || leftStop == LONG_MAX) {
+    return;
+  }
+  if (allowMultiStartAdvance && pos == (tmmpr > 0 ? rightStop : leftStop)) {
+    nextStart();
+    allowMultiStartAdvance = false;
+  } else if (pos == (tmmpr > 0 ? leftStop : rightStop)) {
+    allowMultiStartAdvance = true;
+  }
+}
+
 void checkMoveButtons() {
   bool left = DREAD(B_LEFT) == LOW;
   bool right = DREAD(B_RIGHT) == LOW;
@@ -658,7 +702,7 @@ void checkMoveButtons() {
   stepperEnable(true);
   if (isOn && tmmpr != 0) {
     // Move by moveStep in the desired direction but stay in the thread by possibly traveling a little more.
-    int diff = ceil(MOTOR_STEPS * moveStep * 1.0 / LEAD_SCREW_TMM * STEPPER_TO_ENCODER_STEP_RATIO / ENCODER_STEPS / abs(tmmpr))
+    int diff = ceil(MOTOR_STEPS * moveStep * 1.0 / LEAD_SCREW_TMM * STEPPER_TO_ENCODER_STEP_RATIO / ENCODER_STEPS / abs(tmmpr * starts))
                   * ENCODER_STEPS
                   * sign
                   * (tmmpr > 0 ? 1 : -1);
@@ -682,6 +726,7 @@ void checkMoveButtons() {
       } else {
         // We're standing on a stop with the L/R move button pressed.
         resting = true;
+        checkIfNextStart();
         if (stepperOn) {
           stepperEnable(false);
           stepperOn = false;
@@ -749,6 +794,21 @@ void checkMoveStepButton(int button) {
     } else {
       moveStep = MOVE_STEP_1;
     }
+  }
+}
+
+void checkMultiStartButton(int button) {
+  if (button == B_F3) {
+    if (resetStartsMillis == 0) {
+      resetStartsMillis = millis();
+      if (starts < STARTS_MAX) {
+        setStarts(starts + 1);
+      }
+    } else if (resetStartsMillis > 0 && millis() > resetStartsMillis + STARTS_RESET_DELAY_MS) {
+      setStarts(1);
+    }
+  } else {
+    resetStartsMillis = 0;
   }
 }
 
@@ -827,7 +887,7 @@ long step(bool dir, long steps) {
 
 // Calculates stepper position from spindle position.
 long posFromSpindle(long s, bool respectStops) {
-  long newPos = s * ENCODER_TO_STEPPER_STEP_RATIO * tmmpr;
+  long newPos = s * ENCODER_TO_STEPPER_STEP_RATIO * tmmpr * starts;
 
   // Respect left/right stops.
   if (respectStops) {
@@ -843,7 +903,7 @@ long posFromSpindle(long s, bool respectStops) {
 
 // Calculates spindle position from stepper position.
 long spindleFromPos(long p) {
-  return p * STEPPER_TO_ENCODER_STEP_RATIO / tmmpr;
+  return p * STEPPER_TO_ENCODER_STEP_RATIO / (tmmpr * starts);
 }
 
 void stepperEnable(bool value) {
@@ -878,7 +938,7 @@ void nonTestLoop() {
       switch (buttonLoopCounter) {
         case 6: checkDisplayButton(button); break;
         case 7: checkMoveStepButton(button); break;
-        case 8: checkPitchShortcutButton(button, B_F3, F3_PITCH); break;
+        case 8: checkMultiStartButton(button); break;
         case 9: checkPitchShortcutButton(button, B_F4, F4_PITCH); break;
         case 0: checkPitchShortcutButton(button, B_F5, F5_PITCH); break;
       }
@@ -935,6 +995,7 @@ void nonTestLoop() {
       }
     }
     interrupts();
+    checkIfNextStart();
   }
 
   loopCounter++;
@@ -945,6 +1006,8 @@ void nonTestLoop() {
       Serial.print(pos);
       Serial.print(" tmmpr ");
       Serial.print(tmmpr);
+      Serial.print(" starts ");
+      Serial.print(starts);
       Serial.print(" leftStop ");
       Serial.print(leftStop == LONG_MAX ? "-" : String(leftStop));
       Serial.print(" rightStop ");
