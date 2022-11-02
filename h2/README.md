@@ -19,6 +19,7 @@ This is still somewhat a work in progress but already much better than the origi
 - Moving left/right while ON
 - On/off switch
 - Tachometer
+- Multi-start threads
 
 It's still isn't fully tested so use caution and report any problems.
 
@@ -119,6 +120,15 @@ Use `LEFT` and `RIGHT` buttons to move the carriage. If stops are set, they will
 When the ELS is off, carriage will move by the distance set using `Step` button (1mm if not shown on screen) but at least 1 stepper motor step.
 
 When the ELS is ON, carriage will move in pitch increments (stay in the thread) and travel at least the distance set by `Step` button (1mm if not shown on screen).
+
+## Multi-start threads
+
+Use middle button in the right-side vertical row of buttons to:
+
+- Single-click: increase number of thread starts by 1
+- Long-click: set number of thread starts back to 1
+
+Set left and right limits. Cut thread normally. NanoEls will automatically move to the next line when you reach the respective limit.
 
 ## Losing the thread
 
