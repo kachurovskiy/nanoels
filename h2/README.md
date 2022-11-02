@@ -76,7 +76,7 @@ All of this can easily be found on AliExpress, eBay or Amazon.
 
 # Operating the ELS
 
-![image](https://user-images.githubusercontent.com/517919/197326097-cf824f31-d50e-4964-8bbc-1632c92ff40b.png)
+![image](https://user-images.githubusercontent.com/517919/199586328-7a30599f-1679-4690-b212-760edf371cee.png)
 
 ## Safety
 
