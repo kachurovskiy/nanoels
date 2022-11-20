@@ -57,6 +57,8 @@ All of this can easily be found on AliExpress, eBay or Amazon.
 
 ## Schematics
 
+**WARNING:** trying to build this on a breadboard will result in [interference problems](https://github.com/kachurovskiy/nanoels/discussions/89) and will likely make the device unusable. Please use the PCB instead.
+
 ![image](https://user-images.githubusercontent.com/517919/188740119-b6828cdd-18e2-4a48-bcff-6731e3227fa5.png)
 
 ## PCB
