@@ -4,7 +4,7 @@
 
 // Define your hardware parameters here. Don't remove the ".0" at the end.
 #define ENCODER_STEPS 600.0 // 600 step spindle optical rotary encoder
-#define MOTOR_STEPS 200.0
+#define MOTOR_STEPS 800.0
 #define LEAD_SCREW_TMM 2000.0 // 2mm lead screw
 
 // Spindle rotary encoder pins. Nano only supports interrupts on D2 and D3.
@@ -17,6 +17,7 @@
 #define PULSE_MAX_US round(2000.0 * 200.0 / MOTOR_STEPS) // Microseconds to wait after high pulse, max. Slow start.
 #define ACCELERATION 20
 #define INVERT_STEPPER false // change (true/false) if the carriage moves e.g. "left" when you press "right".
+#define DISABLE_STEPPER_WHEN_RESTING false
 
 // Pitch shortcut buttons, set to your most used values that should be available within 1 click.
 #define F4_PITCH 200 // 0.2mm
@@ -437,7 +438,11 @@ void setup() {
   savedShowTacho = showTacho = EEPROM.read(ADDR_SHOW_TACHO) == 1;
   savedMoveStep = moveStep = loadInt(ADDR_MOVE_STEP);
 
-  stepperEnable(isOn);
+  if (DISABLE_STEPPER_WHEN_RESTING) {
+    stepperEnable(isOn);
+  } else {
+    digitalWrite(ENA, HIGH);
+  }
 
   attachInterrupt(digitalPinToInterrupt(ENC_A), spinEnc, FALLING);
 
@@ -907,6 +912,10 @@ long spindleFromPos(long p) {
 }
 
 void stepperEnable(bool value) {
+  if (!DISABLE_STEPPER_WHEN_RESTING) {
+    return;
+  }
+
   if (value) {
     stepperEnableCounter++;
     if (value == 1) {
