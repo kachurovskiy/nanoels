@@ -46,7 +46,7 @@ I used the following one but most Nema 23 or higher steppers should work.
 
 Cheap drivers like TB6600 are not recommended, they are very rough and noisy.
 DM556 from AliExpress is not very good either, they require reducing acceleration and max speed in the settings or it will lose steps during jogging (`PULSE_DELTA_US` from `7` to `2` and `PULSE_MAX_US` from `2000` to `1500`).
-Generally, paying for a better brand such as "Rtelligent" or "STEPPERONLINE" is worth the money as their drivers work noticeably better than brandless black boxes.
+Generally, paying for a better brand such as "Rtelligent" for open-loop or "STEPPERONLINE" for both open- and closed-loop is worth the money as their drivers work much better than brandless black boxes (smoother and quieter operation).
 
 It's suggested to run the stepper in the 200 steps mode or 400 if your driver doesn't support full steps.
 Microstepping will lower maximum usable rpm 2x for each microstep increase.

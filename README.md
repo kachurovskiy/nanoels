@@ -27,6 +27,10 @@ There are 2 hardware versions of NanoEls, [H1](https://github.com/kachurovskiy/n
 | Multi-start threads |   | Yes |
 | Example builds | [Dididu12](https://github.com/kachurovskiy/nanoels/discussions/40#discussioncomment-2019521)<br>[Hedning003](https://github.com/kachurovskiy/nanoels/discussions/16)<br>[HW61](https://github.com/kachurovskiy/nanoels/discussions/43)<br>[kachurovskiy](https://www.youtube.com/watch?v=9uTdDk2EqG4?t=272)<br>[mockendon](https://github.com/kachurovskiy/nanoels/discussions/32)<br>[Sonny Madlangbayan](https://www.youtube.com/watch?v=qiPQUa50Uog)<br>[wberggren](https://github.com/kachurovskiy/nanoels/discussions/13)<br>[WillieJilesen](https://github.com/kachurovskiy/nanoels/discussions/39)<br>[zabu83](https://github.com/kachurovskiy/nanoels/discussions/11) | [EdFleta](https://github.com/kachurovskiy/nanoels/discussions/87)<br>[kachurovskiy](https://youtu.be/jR4tBBHSl3c?t=62) |
 
+## Hardware
+
+Any ELS requires mounting a motor and encoder first. Overall I recommend using STEPPERONLINE CL57T closed-loop driver with NEMA 23 3NM motor or stronger. If you use some other driver, make sure it has 200 steps per resolution mode, most start from 800. See [hardware.md](hardware.md) for more info.
+
 # Alternative UI versions
 
 ![nanoels-imperial](https://user-images.githubusercontent.com/517919/197325760-6dda7e82-3949-4972-9ff2-933450d30f55.png)
