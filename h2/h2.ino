@@ -4,7 +4,7 @@
 
 // Define your hardware parameters here. Don't remove the ".0" at the end.
 #define ENCODER_STEPS 600.0 // 600 step spindle optical rotary encoder
-#define MOTOR_STEPS 800.0
+#define MOTOR_STEPS 200.0
 #define LEAD_SCREW_TMM 2000.0 // 2mm lead screw
 
 // Spindle rotary encoder pins. Nano only supports interrupts on D2 and D3.
@@ -69,14 +69,6 @@
 #define STEP 12
 #define ENA 13
 
-#define B0 4
-#define B1 5
-#define B2 6
-#define B3 7
-#define B4 8
-#define B5 9
-#define B6 10
-
 #define B_LEFT  4
 #define B_RIGHT 5
 #define B_MINUS 6
@@ -84,11 +76,11 @@
 #define B_ONOFF 8
 #define B_STOPL 9
 #define B_STOPR 10
-#define B_F1 0b1010111
-#define B_F2 0b1011011
-#define B_F3 0b1011101
-#define B_F4 0b1011110
-#define B_F5 0b1100111
+#define B_F1 11
+#define B_F2 12
+#define B_F3 13
+#define B_F4 14
+#define B_F5 15
 
 #define ADDR_EEPROM_VERSION 0 // takes 1 byte
 #define ADDR_ONOFF 1 // takes 1 byte
@@ -130,6 +122,8 @@ int mockDigitalRead(int x) {
 #else
 #include <FastGPIO.h>
 #define DREAD(x) FastGPIO::Pin<x>::isInputHigh()
+#define DHIGH(x) FastGPIO::Pin<x>::setOutputHigh()
+#define DLOW(x) FastGPIO::Pin<x>::setOutputLow()
 #endif
 
 #ifndef TEST
@@ -400,13 +394,13 @@ void setup() {
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
 
-  pinMode(B0, INPUT_PULLUP);
-  pinMode(B1, INPUT_PULLUP);
-  pinMode(B2, INPUT_PULLUP);
-  pinMode(B3, INPUT_PULLUP);
-  pinMode(B4, INPUT_PULLUP);
-  pinMode(B5, INPUT_PULLUP);
-  pinMode(B6, INPUT_PULLUP);
+  pinMode(B_LEFT, INPUT_PULLUP);
+  pinMode(B_RIGHT, INPUT_PULLUP);
+  pinMode(B_MINUS, INPUT_PULLUP);
+  pinMode(B_PLUS, INPUT_PULLUP);
+  pinMode(B_ONOFF, INPUT_PULLUP);
+  pinMode(B_STOPL, INPUT_PULLUP);
+  pinMode(B_STOPR, INPUT_PULLUP);
 
   pinMode(ENC_A, INPUT_PULLUP);
   pinMode(ENC_B, INPUT_PULLUP);
@@ -870,14 +864,13 @@ long step(bool dir, long steps) {
 
   long minDelay = steps == 1 ? 1 : PULSE_MIN_US;
   for (int i = 0; i < steps; i++) {
+    DLOW(STEP);
     long constAccelDelay = 1000000 / (1000000 / stepDelayUs + ACCELERATION * stepDelayUs / 1000);
     stepDelayUs = min(PULSE_MAX_US, max(minDelay, constAccelDelay));
     unsigned long t = micros();
     stepToStep = min(stepToStep, t - stepStartMicros);
     stepStartMicros = t;
-    digitalWrite(STEP, LOW);
-    // digitalWrite() is slow enough that we don't need to wait.
-    digitalWrite(STEP, HIGH);
+    DHIGH(STEP);
     // Don't wait during the last step, it will pass by itself before we get back to stepping again.
     // This condition is the reason moving left-right is limited to 600rpm but with ELS On and spindle
     // gradually speeding up, stepper can go to ~1200rpm.
