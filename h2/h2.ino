@@ -454,8 +454,6 @@ void setup() {
     digitalWrite(ENA, HIGH);
   }
 
-  attachInterrupt(digitalPinToInterrupt(ENC_A), spinEnc, FALLING);
-
   lcd.begin(20, 4);
   updateDisplay(false /*beforeRunning*/);
 
@@ -466,6 +464,8 @@ void setup() {
   Serial.println(SOFTWARE_VERSION);
 
   preventMoveOnStart();
+
+  attachInterrupt(digitalPinToInterrupt(ENC_A), spinEnc, FALLING);
 }
 #endif
 
@@ -786,7 +786,7 @@ void checkIfNextStart() {
 }
 
 long getAsyncMovePos(int sign) {
-  long posDiff = sign * MOTOR_STEPS * tmmpr / LEAD_SCREW_TMM / 5;
+  long posDiff = sign * MOTOR_STEPS * abs(tmmpr) / LEAD_SCREW_TMM / 5;
   if (posDiff > 0 && leftStop != LONG_MAX && (pos + posDiff) > leftStop) {
     return leftStop;
   } else if (posDiff < 0 && rightStop != LONG_MIN && (pos + posDiff) < rightStop) {
