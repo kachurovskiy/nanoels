@@ -45,7 +45,7 @@
 #define LOOP_COUNTER_MAX 1500 // 1500 loops without stepper move to start reading buttons
 #define TMMPR_MAX 10000 // 10mm
 #define STARTS_MAX 124 // No more than 124-start thread
-#define STARTS_RESET_DELAY_MS 2000 // Milliseconds to hold the F3 button to reset starts to 1
+#define STARTS_RESET_DELAY_MS 1000 // Milliseconds to hold the F3 button to reset starts to 1
 
 // Ratios between spindle and stepper.
 #define ENCODER_TO_STEPPER_STEP_RATIO MOTOR_STEPS / (LEAD_SCREW_TMM * ENCODER_STEPS)
@@ -60,7 +60,7 @@
 #define EEPROM_VERSION 2
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 4
+#define SOFTWARE_VERSION 5
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 2
@@ -94,11 +94,16 @@
 #define ADDR_SHOW_TACHO 23 // takes 1 byte
 #define ADDR_MOVE_STEP 24 // takes 2 bytes
 #define ADDR_STARTS 26 // takes 2 bytes
+#define ADDR_MODE 28 // takes 2 bytes
 
 #define MOVE_STEP_1 1000
 #define MOVE_STEP_2 100
 #define MOVE_STEP_3 10
 #define MOVE_STEP_4 1
+
+#define MODE_NORMAL 0
+#define MODE_MULTISTART 1
+#define MODE_ASYNC 2
 
 #define RPM_BULK ENCODER_STEPS // Measure RPM averaged over this number of encoder pulses
 #define RPM_UPDATE_INTERVAL_MICROS 1000000 // Don't redraw RPM more often than once per second
@@ -137,28 +142,27 @@ long lcdHash = 0;
 #include <EEPROM.h>
 
 unsigned long buttonTime = 0;
-long loopCounter = 0;
+volatile long loopCounter = 0;
 int buttonLoopCounter = 0;
 bool isOn = false;
 unsigned long resetMillis = 0;
-unsigned long resetStartsMillis = 0;
 bool resetOnStartup = false;
 
-int tmmpr = 0; // thousandth of a mm per rotation
+volatile int tmmpr = 0; // thousandth of a mm per rotation
 int savedTmmpr = 0; // tmmpr saved in EEPROM
 int tmmprPrevious = 0;
 
 int starts = 1; // number of starts in a multi-start thread
 int savedStarts = 0; // starts saved in EEPROM
 
-long pos = 0; // relative position of the stepper motor, in steps
+volatile long pos = 0; // relative position of the stepper motor, in steps
 long savedPos = 0; // value saved in EEPROM
 
-long leftStop = 0; // left stop value of pos
+volatile long leftStop = 0; // left stop value of pos
 long savedLeftStop = 0; // value saved in EEPROM
 bool leftStopFlag = true; // prevent toggling the stop while button is pressed.
 
-long rightStop = 0; // right stop value of pos
+volatile long rightStop = 0; // right stop value of pos
 long savedRightStop = 0; // value saved in EEPROM
 bool rightStopFlag = true; // prevent toggling the stop while button is pressed.
 
@@ -176,10 +180,10 @@ long spindleRightStop = 0;
 volatile int spindlePosSync = 0;
 int savedSpindlePosSync = 0;
 
-int stepDelayUs = PULSE_MAX_US;
-bool stepDelayDirection = true; // To reset stepDelayUs when direction changes.
-bool stepDirectionInitialized = false;
-unsigned long stepStartMicros = 0;
+volatile int stepDelayUs = PULSE_MAX_US;
+volatile bool stepDelayDirection = true; // To reset stepDelayUs when direction changes.
+volatile bool stepDirectionInitialized = false;
+volatile unsigned long stepStartMicros = 0;
 int stepperEnableCounter = 0;
 
 bool showAngle = false; // Whether to show 0-359 spindle angle on screen
@@ -191,6 +195,10 @@ unsigned long shownRpmTime = 0; // micros() when shownRpm was set
 
 int moveStep = 0; // thousandth of a mm
 int savedMoveStep = 0; // moveStep saved in EEPROM
+volatile bool movingManually = false; // whether stepper is being moved by left/right buttons
+
+volatile int mode = -1; // mode of operation (ELS, multi-start ELS, asynchronous)
+int savedMode = -1; // mode saved in EEPROM
 
 int getApproxRpm() {
   if (!showTacho) {
@@ -229,7 +237,7 @@ void updateDisplay(bool beforeRunning) {
   // Sum of values affecting rows 1 and 2 of the LCD.
   long hashRows12 = tmmpr + isOn * 2 + leftStop / 3
                     + rightStop / 4 + spindlePosSync * 5 + resetOnStartup * 6
-                    + moveStep * 7 + running * 8 + starts * 12;
+                    + moveStep * 7 + running * 8 + starts * 12 + mode * 13;
   // Sum of values affecting rows 3 and 4 of the LCD.
   long hashRows34 = pos * 9 + showAngle * 10 + (showTacho ? rpm : -1) * 11;
   // Ignore changes in hashRows34 when stepper is running since they aren't shown.
@@ -250,6 +258,11 @@ void updateDisplay(bool beforeRunning) {
 
   // First row.
   lcd.setCursor(0, 0);
+  if (mode == MODE_MULTISTART) {
+    lcd.print("MUL ");
+  } else if (mode == MODE_ASYNC) {
+    lcd.print("ASY ");
+  }
   lcd.print(isOn ? "ON" : "off");
   if (leftStop != LONG_MAX && rightStop != LONG_MIN) {
     lcd.print(" LR");
@@ -431,6 +444,9 @@ void setup() {
   savedShowAngle = showAngle = EEPROM.read(ADDR_SHOW_ANGLE) == 1;
   savedShowTacho = showTacho = EEPROM.read(ADDR_SHOW_TACHO) == 1;
   savedMoveStep = moveStep = loadInt(ADDR_MOVE_STEP);
+  savedMode = loadInt(ADDR_MODE);
+  // Don't move on power-on.
+  setMode((isOn && savedMode == MODE_ASYNC) ? MODE_NORMAL : savedMode);
 
   if (DISABLE_STEPPER_WHEN_RESTING) {
     stepperEnable(isOn);
@@ -499,6 +515,9 @@ void saveIfChanged() {
   if (moveStep != savedMoveStep) {
     saveInt(ADDR_MOVE_STEP, savedMoveStep = moveStep);
   }
+  if (mode != savedMode) {
+    saveInt(ADDR_MODE, savedMode = mode);
+  }
 }
 
 // Checks if some button was recently pressed. Returns true if not.
@@ -538,6 +557,9 @@ void setTmmpr(int value) {
 }
 
 void setStarts(int value) {
+  if (starts == value) {
+    return;
+  }
   starts = value;
   markAsZero();
   // Printing new pitch can stall the motor due to time spent on it. Don't have time to even clear the LCD.
@@ -558,6 +580,74 @@ void splashScreen() {
 #endif
 }
 
+void setMode(int value) {
+  if (mode == value) {
+    return;
+  }
+  if (mode == MODE_MULTISTART) {
+    setStarts(1);
+  } else if (mode == MODE_ASYNC) {
+    TIMSK1 &= ~(1 << OCIE1A); // disable timer
+  }
+  mode = value;
+  markAsZero();
+  if (mode == MODE_ASYNC) {
+    if (isOn) {
+      updateDisplay(true /*beforeRunning*/);
+    }
+
+    // See pages 108 - 112 of ATmega328P_Datasheet.pdf
+    // CS11 means prescaler = 8. WGM12 means issuing
+    // interrupt when TCNT1 == OCR1A and set TCNT1 to 0.
+    TCCR1B = (1 << WGM12) + (1 << CS11);
+    TCCR1A = 0;
+    TCNT1 = 0;
+    OCR1A = getOcr1a();
+    TIMSK1 |= (1 << OCIE1A); // enable timer
+
+    // Pretent that stepper is already running to prevent a screen update during the
+    // async movement initialization.
+    stepStartMicros = micros();
+  } else if (mode == MODE_MULTISTART) {
+    if (starts < 2) {
+      setStarts(2);
+    }
+  }
+}
+
+unsigned int getOcr1a() {
+  if (tmmpr == 0) {
+    return 65535;
+  }
+  return min(65535, 2000000 / (MOTOR_STEPS * abs(tmmpr) / LEAD_SCREW_TMM) - 1); // 2000000/Hz - 1
+}
+
+// Only used for async movement.
+// Every 8 clock ticks, processor increments TCNT1.
+// When TCNT1 == OCR1A, this method is called and TCNT1 is reset to 0.
+// Keep code in this method to absolute minimum to achieve high stepper speeds.
+ISR(TIMER1_COMPA_vect) {
+  if (!isOn || movingManually) {
+    return;
+  } else if (tmmpr > 0 && (leftStop == LONG_MAX || pos < leftStop)) {
+    pos++;
+  } else if (tmmpr < 0 && (rightStop == LONG_MIN || pos > rightStop)) {
+    pos--;
+  } else {
+    return;
+  }
+
+  // tmmpr and therefore direction can change while we're in async mode.
+  setDir(tmmpr > 0);
+
+  DLOW(STEP);
+  // tmmpr can change while we're in async mode, keep updating timer frequency.
+  OCR1A = getOcr1a();
+  stepStartMicros = micros();
+  loopCounter = 0;
+  DHIGH(STEP);
+}
+
 void reset() {
   resetOnStartup = false;
   leftStop = LONG_MAX;
@@ -565,6 +655,7 @@ void reset() {
   setTmmpr(0);
   setStarts(1);
   moveStep = MOVE_STEP_1;
+  setMode(MODE_NORMAL);
   splashScreen();
 }
 
@@ -572,7 +663,7 @@ void reset() {
 // Prevents stepper from rushing to a position far away by waiting for the right
 // spindle position and starting smoothly.
 void setOutOfSync() {
-  if (!isOn) {
+  if (!isOn || mode == MODE_ASYNC) {
     return;
   }
   spindlePosSync = ((spindlePos - spindleFromPos(pos)) % (int) ENCODER_STEPS + (int) ENCODER_STEPS) % (int) ENCODER_STEPS;
@@ -588,16 +679,24 @@ void checkPlusMinusButtons() {
   int delta = moveStep == 1 ? 1 : abs(tmmprPrevious - tmmpr) >= 100 ? 100 : 10;
   bool minus = DREAD(B_MINUS) == LOW;
   bool plus = DREAD(B_PLUS) == LOW;
-  if (minus && checkAndMarkButtonTime()) {
-    if (tmmpr > -TMMPR_MAX) {
-      setTmmpr(max(-TMMPR_MAX, tmmpr - delta));
+  if (mode == MODE_MULTISTART) {
+    if (minus && starts > 2 && checkAndMarkButtonTime()) {
+      setStarts(starts - 1);
+    } else if (plus && starts < STARTS_MAX && checkAndMarkButtonTime()) {
+      setStarts(starts + 1);
     }
-  } else if (plus && checkAndMarkButtonTime()) {
-    if (tmmpr < TMMPR_MAX) {
-      setTmmpr(min(TMMPR_MAX, tmmpr + delta));
+  } else {
+    if (minus && checkAndMarkButtonTime()) {
+      if (tmmpr > -TMMPR_MAX) {
+        setTmmpr(max(-TMMPR_MAX, tmmpr - delta));
+      }
+    } else if (plus && checkAndMarkButtonTime()) {
+      if (tmmpr < TMMPR_MAX) {
+        setTmmpr(min(TMMPR_MAX, tmmpr + delta));
+      }
+    } else if (!minus && !plus) {
+      tmmprPrevious = tmmpr;
     }
-  } else if (!minus && !plus) {
-    tmmprPrevious = tmmpr;
   }
 }
 
@@ -686,6 +785,16 @@ void checkIfNextStart() {
   }
 }
 
+long getAsyncMovePos(int sign) {
+  long posDiff = sign * MOTOR_STEPS * tmmpr / LEAD_SCREW_TMM / 5;
+  if (posDiff > 0 && leftStop != LONG_MAX && (pos + posDiff) > leftStop) {
+    return leftStop;
+  } else if (posDiff < 0 && rightStop != LONG_MIN && (pos + posDiff) < rightStop) {
+    return rightStop;
+  }
+  return pos + posDiff;
+}
+
 void checkMoveButtons() {
   bool left = DREAD(B_LEFT) == LOW;
   bool right = DREAD(B_RIGHT) == LOW;
@@ -705,24 +814,28 @@ void checkMoveButtons() {
                   * ENCODER_STEPS
                   * sign
                   * (tmmpr > 0 ? 1 : -1);
-    long prevPos = spindlePos;
+    long prevSpindlePos = spindlePos;
     bool resting = false;
+    movingManually = true;
     do {
-      noInterrupts();
-      if (!resting) {
-        spindlePos += diff;
+      if (mode != MODE_ASYNC) {
+        noInterrupts();
+        if (!resting) {
+          spindlePos += diff;
+        }
+        // If spindle is moving, it will be changing spindlePos at the same time. Account for it.
+        while (diff > 0 ? (spindlePos < prevSpindlePos) : (spindlePos > prevSpindlePos)) {
+          spindlePos += diff;
+        };
+        prevSpindlePos = spindlePos;
+        interrupts();
       }
-      while (diff > 0 ? (spindlePos < prevPos) : (spindlePos > prevPos)) {
-        spindlePos += diff;
-      };
-      prevPos = spindlePos;
-      interrupts();
 
-      long newPos = posFromSpindle(prevPos, true);
+      long newPos = mode == MODE_ASYNC ? getAsyncMovePos(sign) : posFromSpindle(prevSpindlePos, true);
       int posDiff = abs(newPos - pos);
       if (posDiff > 0) {
         step(newPos > pos, posDiff);
-      } else {
+      } else if (pos == (left ? leftStop : rightStop)) {
         // We're standing on a stop with the L/R move button pressed.
         resting = true;
         checkIfNextStart();
@@ -734,6 +847,7 @@ void checkMoveButtons() {
         delay(200);
       }
     } while ((left ? DREAD(B_LEFT) : DREAD(B_RIGHT)) == LOW);
+    movingManually = false;
   } else {
     int delta = 0;
     do {
@@ -796,18 +910,25 @@ void checkMoveStepButton(int button) {
   }
 }
 
-void checkMultiStartButton(int button) {
-  if (button == B_F3) {
-    if (resetStartsMillis == 0) {
-      resetStartsMillis = millis();
-      if (starts < STARTS_MAX) {
-        setStarts(starts + 1);
-      }
-    } else if (resetStartsMillis > 0 && millis() > resetStartsMillis + STARTS_RESET_DELAY_MS) {
-      setStarts(1);
+void setDir(bool dir) {
+  // Start slow if direction changed.
+  if (stepDelayDirection != dir || !stepDirectionInitialized) {
+    stepDelayUs = PULSE_MAX_US;
+    stepDelayDirection = dir;
+    stepDirectionInitialized = true;
+    digitalWrite(DIR, dir ^ INVERT_STEPPER ? HIGH : LOW);
+  }
+}
+
+void checkModeButton(int button) {
+  if (button == B_F3 && checkAndMarkButtonTime()) {
+    if (mode == MODE_NORMAL) {
+      setMode(MODE_MULTISTART);
+    } else if (mode == MODE_MULTISTART) {
+      setMode(MODE_ASYNC);
+    } else {
+      setMode(MODE_NORMAL);
     }
-  } else {
-    resetStartsMillis = 0;
   }
 }
 
@@ -840,16 +961,7 @@ unsigned long stepToStep = PULSE_MIN_US;
 
 // Moves the stepper.
 long step(bool dir, long steps) {
-  // Start slow if direction changed.
-  if (stepDelayDirection != dir || !stepDirectionInitialized) {
-    stepDelayUs = PULSE_MAX_US;
-    stepDelayDirection = dir;
-    stepDirectionInitialized = true;
-    digitalWrite(DIR, dir ^ INVERT_STEPPER ? HIGH : LOW);
-#ifdef DEBUG
-    Serial.print("Direction change");
-#endif
-  }
+  setDir(dir);
 
   // Stepper basically has no speed if it was standing for 10ms.
   if (!stepperIsRunning()) {
@@ -940,7 +1052,7 @@ void nonTestLoop() {
       switch (buttonLoopCounter) {
         case 6: checkDisplayButton(button); break;
         case 7: checkMoveStepButton(button); break;
-        case 8: checkMultiStartButton(button); break;
+        case 8: checkModeButton(button); break;
         case 9: checkPitchShortcutButton(button, B_F4, F4_PITCH); break;
         case 0: checkPitchShortcutButton(button, B_F5, F5_PITCH); break;
       }
@@ -952,16 +1064,18 @@ void nonTestLoop() {
   interrupts();
 
   // Move the stepper if needed.
-  long newPos = posFromSpindle(spindlePosCopy, true);
-  if (isOn && !spindlePosSyncCopy && newPos != pos) {
-    // Move the stepper to the right position.
-    step(newPos > pos, 1);
-    if (loopCounter > 0) {
-      loopCounter = 0;
-    }
+  if (isOn && mode != MODE_ASYNC && spindlePosSyncCopy == 0) {
+    long newPos = posFromSpindle(spindlePosCopy, true);
+    if (newPos != pos) {
+      // Move the stepper to the right position.
+      step(newPos > pos, 1);
+      if (loopCounter > 0) {
+        loopCounter = 0;
+      }
 
-    // No long calls on this path or stepper will move unevenly.
-    return;
+      // No long calls on this path or stepper will move unevenly.
+      return;
+    }
   }
 
   // Perform auxiliary logic but don't take more than a few milliseconds since
