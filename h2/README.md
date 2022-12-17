@@ -8,7 +8,7 @@ can print cheaply on jlcpcb.com and a few widely available components allowing y
 
 ![image](https://user-images.githubusercontent.com/517919/188740458-17936e54-3a53-435a-9475-1c2a5db8f14e.png)
 
-This is still somewhat a work in progress but already much better than the original NanoEls:
+Features:
 
 - Big screen
 - Nice terminals
@@ -20,8 +20,7 @@ This is still somewhat a work in progress but already much better than the origi
 - On/off switch
 - Tachometer
 - Multi-start threads
-
-It's still isn't fully tested so use caution and report any problems.
+- Asynchronous mode
 
 ## Components
 
@@ -74,11 +73,12 @@ All of this can easily be found on AliExpress, eBay or Amazon.
 - Download [this repository](https://github.com/kachurovskiy/nanoels/archive/refs/heads/main.zip), unzip, go to `h2` directory and open `h2.ino` file in Arduino IDE
 - Check the top constants (e.g. encoder steps, motor steps, display offset) and adjust if needed
 - Upload the sketch to your Arduino Nano
-- Swap D2 and D3 pins in the code if carriage direction is inverted, re-upload
+- Spindle direction: show angle on screen using top-right button. Rotate the chuck forward manually - angle should increment. If it decrements, swap `ENC_A` and `ENC_B` values in the code, re-upload the sketch
+- Motor direction: try `LEFT` and `RIGHT` buttons - if motor is moving in the wrong direction, change the value of `INVERT_STEPPER` in the code, re-upload the sketch
 
 # Operating the ELS
 
-![image](https://user-images.githubusercontent.com/517919/199586328-7a30599f-1679-4690-b212-760edf371cee.png)
+![image](https://user-images.githubusercontent.com/517919/208245626-29afec29-7973-44c8-a76d-c0517106448a.png)
 
 ## Safety
 
@@ -125,12 +125,13 @@ When the ELS is ON, carriage will move in pitch increments (stay in the thread) 
 
 ## Multi-start threads
 
-Use middle button in the right-side vertical row of buttons to:
+Use middle button in the right-side vertical row of buttons (`Mode` button) and switch into the `MUL` mode. Use `+` and `-` buttons to increase/decrease the number of starts in your multi-start thread.
 
-- Single-click: increase number of thread starts by 1
-- Long-click: set number of thread starts back to 1
+Set left and right limits. Cut thread normally and use `LEFT` or `RIGHT` buttons to move the carriage between cuts (no need to turn off the spindle). NanoEls will automatically move to the next line when you reach the respective limit.
 
-Set left and right limits. Cut thread normally. NanoEls will automatically move to the next line when you reach the respective limit.
+## Asynchronous mode
+
+Click `Mode` button until you enter the `ASY` mode. In this mode the spindle rotation is ignored and motor moves with a constant speed when ELS is `ON` and pitch is non-zero. Limits and manual movement works normally.
 
 ## Losing the thread
 
