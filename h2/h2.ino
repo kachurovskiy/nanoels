@@ -271,16 +271,21 @@ void updateDisplay(bool beforeRunning) {
   } else if (rightStop != LONG_MIN) {
     lcd.print("  R");
   }
-  if (moveStep != MOVE_STEP_1) {
-    lcd.print(" step ");
-    lcd.print(moveStep * 1.0 / 1000, 3);
-    lcd.print("mm");
-  }
+
   if (spindlePosSync) {
     lcd.print(" SYN");
   }
   if (resetOnStartup) {
     lcd.print(" LTW");
+  }
+  if (moveStep != MOVE_STEP_1) {
+    if (mode == MODE_NORMAL && !resetOnStartup && !spindlePosSync) {
+      lcd.print(" step ");
+    } else {
+      lcd.print(" ");
+    }
+    lcd.print(moveStep * 1.0 / 1000, 3);
+    lcd.print("mm");
   }
 
   // Second row.
