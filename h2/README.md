@@ -92,6 +92,8 @@ Pitch is the distance that carriage will move when the spindle makes the full tu
 
 Select the desired pitch using `-` and `+` buttons or `0.10mm`, `1mm` and `2mm` shortcut buttons in the top row. If you keep the buttons pressed, the pitch starts changing faster after a few seconds.
 
+Use negative pitch values e.g. `-2mm` to cut left-to-right threads. Do do that, hold the `-` button until the pitch drops below 0 to the required value.
+
 Some inch threads require setting the micron part (3rd precision point) of the pitch, to do that click the `Step` button until you're in the `0.001mm` mode. Now clicking `-` or `+` buttons will change the pitch by a micron.
 
 ## Turning
