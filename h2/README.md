@@ -41,7 +41,7 @@ All of this can easily be found on AliExpress, eBay or Amazon.
 
 3D models ready for printing: [main case](https://github.com/kachurovskiy/nanoels/blob/main/h2/nanoels-lcd-case.stl),
 [lid](https://github.com/kachurovskiy/nanoels/blob/main/h2/nanoels-lcd-lid.stl),
-[button](https://github.com/kachurovskiy/nanoels/blob/main/h2/nanoels-lcd-button.stl).
+[button](https://github.com/kachurovskiy/nanoels/blob/main/h2/nanoels-lcd-button.stl). You can print it at home or e.g. at [JLCPCB](https://cart.jlcpcb.com/quote).
 
 ## Assembly
 
