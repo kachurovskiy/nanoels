@@ -228,6 +228,23 @@ bool stepperIsRunning() {
   return micros() - stepStartMicros < 10000;
 }
 
+void printMicrons(long value) {
+  if (value == 0) {
+    lcd.print("0");
+    return;
+  }
+  int points = 0;
+  if ((value % 10) != 0) {
+    points = 3;
+  } else if ((value % 100) != 0) {
+    points = 2;
+  } else if ((value % 1000) != 0) {
+    points = 1;
+  }
+  lcd.print(value / 1000.0, points);
+  lcd.print("mm");
+}
+
 void updateDisplay(bool beforeRunning) {
 #ifndef TEST
   int rpm = getApproxRpm();
@@ -284,15 +301,13 @@ void updateDisplay(bool beforeRunning) {
     } else {
       lcd.print(" ");
     }
-    lcd.print(moveStep * 1.0 / 1000, 3);
-    lcd.print("mm");
+    printMicrons(moveStep);
   }
 
   // Second row.
   lcd.setCursor(0, 1);
   lcd.print("Pitch: ");
-  lcd.print(tmmpr * 1.0 / 1000, 3);
-  lcd.print("mm");
+  printMicrons(tmmpr);
   if (starts != 1) {
     lcd.print(" x");
     lcd.print(starts);
@@ -307,9 +322,7 @@ void updateDisplay(bool beforeRunning) {
   // Third row.
   lcd.setCursor(0, 2);
   lcd.print("Position: ");
-  float posMm = pos * LEAD_SCREW_TMM / MOTOR_STEPS / 1000;
-  lcd.print(posMm, 3);
-  lcd.print("mm");
+  printMicrons(round(pos * LEAD_SCREW_TMM / MOTOR_STEPS));
 
   // Fourth row.
   lcd.setCursor(0, 3);
