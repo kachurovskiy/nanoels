@@ -20,7 +20,6 @@
 #define DISABLE_STEPPER_WHEN_RESTING false
 
 // Pitch shortcut buttons, set to your most used values that should be available within 1 click.
-#define F4_PITCH 200 // 0.2mm
 #define F5_PITCH 2000 // 2mm
 
 // Voltage on A6 when F1-F5 buttons are pressed.
@@ -60,7 +59,7 @@
 #define EEPROM_VERSION 2
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 5
+#define SOFTWARE_VERSION 6
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 2
@@ -95,11 +94,25 @@
 #define ADDR_MOVE_STEP 24 // takes 2 bytes
 #define ADDR_STARTS 26 // takes 2 bytes
 #define ADDR_MODE 28 // takes 2 bytes
+#define ADDR_IMPERIAL 30 // takes 1 byte
 
 #define MOVE_STEP_1 1000
 #define MOVE_STEP_2 100
 #define MOVE_STEP_3 10
 #define MOVE_STEP_4 1
+#define MOVE_STEP_IMP_1 2540 // 1/10"
+#define MOVE_STEP_IMP_2 254 // 1/100"
+#define MOVE_STEP_IMP_3 25 // 1/1000"
+
+// In imperial mode, pitch is adjusted in 2 ways - anything at or below MAX_FEED_IMP is considered
+// a "feed" pitch and show in as e.g. 0.01", pitch above MAX_FEED_IMP is shown in TPI e.g. 80tpi.
+// It's not possible to control pitch using only thousands of an inch since it's impossible to hit
+// exact tpi values - it requires micron precision.
+#define MAX_FEED_IMP 254 // 10 thou
+
+// In imperial mode, round TPI to the nearest integer if it's within this range of it.
+// E.g. 80.05tpi would be shown as 80tpi but 80.16tpi would be shown as-is.
+#define TPI_ROUND_EPSILON 0.15
 
 #define MODE_NORMAL 0
 #define MODE_MULTISTART 1
@@ -200,6 +213,9 @@ volatile bool movingManually = false; // whether stepper is being moved by left/
 volatile int mode = -1; // mode of operation (ELS, multi-start ELS, asynchronous)
 int savedMode = -1; // mode saved in EEPROM
 
+bool imperial = false; // Whether to show distances in inches
+bool savedImperial = false; // imperial value saved in EEPROM
+
 int getApproxRpm() {
   if (!showTacho) {
     return 0;
@@ -233,16 +249,19 @@ void printMicrons(long value) {
     lcd.print("0");
     return;
   }
+  long v = imperial ? round(value / 25.4) : value;
   int points = 0;
-  if ((value % 10) != 0) {
+  if ((v % 10) != 0) {
     points = 3;
-  } else if ((value % 100) != 0) {
+  } else if ((v % 100) != 0) {
     points = 2;
-  } else if ((value % 1000) != 0) {
+  } else if ((v % 1000) != 0) {
     points = 1;
+  } else if (imperial && v == 0) {
+    points = 5;
   }
-  lcd.print(value / 1000.0, points);
-  lcd.print("mm");
+  lcd.print(value / 1000.0 / (imperial ? 25.4 : 1.0), points);
+  lcd.print(imperial ? "\"" : "mm");
 }
 
 void updateDisplay(bool beforeRunning) {
@@ -254,9 +273,9 @@ void updateDisplay(bool beforeRunning) {
   // Sum of values affecting rows 1 and 2 of the LCD.
   long hashRows12 = tmmpr + isOn * 2 + leftStop / 3
                     + rightStop / 4 + spindlePosSync * 5 + resetOnStartup * 6
-                    + moveStep * 7 + running * 8 + starts * 12 + mode * 13;
+                    + moveStep * 7 + running * 8 + starts * 12 + mode * 13 + imperial * 14;
   // Sum of values affecting rows 3 and 4 of the LCD.
-  long hashRows34 = pos * 9 + showAngle * 10 + (showTacho ? rpm : -1) * 11;
+  long hashRows34 = pos * 9 + showAngle * 10 + (showTacho ? rpm : -1) * 11 + imperial * 14;
   // Ignore changes in hashRows34 when stepper is running since they aren't shown.
   long newLcdHash = hashRows12 + (running ? 0 : hashRows34);
   // Don't show angle if stepper is running or spindle is turning.
@@ -295,19 +314,34 @@ void updateDisplay(bool beforeRunning) {
   if (resetOnStartup) {
     lcd.print(" LTW");
   }
-  if (moveStep != MOVE_STEP_1) {
-    if (mode == MODE_NORMAL && !resetOnStartup && !spindlePosSync) {
-      lcd.print(" step ");
-    } else {
-      lcd.print(" ");
-    }
-    printMicrons(moveStep);
+  if (mode == MODE_NORMAL && !resetOnStartup && !spindlePosSync) {
+    lcd.print(" step ");
+  } else {
+    lcd.print(" ");
   }
+  printMicrons(moveStep);
 
   // Second row.
   lcd.setCursor(0, 1);
-  lcd.print("Pitch: ");
-  printMicrons(tmmpr);
+  lcd.print("Pitch ");
+  if (!imperial || abs(tmmpr) <= MAX_FEED_IMP) {
+    printMicrons(tmmpr);
+  } else { // imperial and non-feed tmmpr
+    float tpi = 25400.0 / tmmpr;
+    if (abs(tpi - round(tpi)) < TPI_ROUND_EPSILON) {
+      lcd.print(round(tpi));
+    } else {
+      int tpi100 = round(tpi * 100);
+      int points = 0;
+      if ((tpi100 % 10) != 0) {
+        points = 2;
+      } else if ((tpi100 % 100) != 0) {
+        points = 1;
+      }
+      lcd.print(tpi, points);
+    }
+    lcd.print("tpi");
+  }
   if (starts != 1) {
     lcd.print(" x");
     lcd.print(starts);
@@ -321,19 +355,19 @@ void updateDisplay(bool beforeRunning) {
 
   // Third row.
   lcd.setCursor(0, 2);
-  lcd.print("Position: ");
+  lcd.print("Position ");
   printMicrons(round(pos * LEAD_SCREW_TMM / MOTOR_STEPS));
 
   // Fourth row.
   lcd.setCursor(0, 3);
   if (showAngle) {
-    lcd.print("Angle: ");
+    lcd.print("Angle ");
     if (spindleStopped) {
       lcd.print(((spindlePos % (int) ENCODER_STEPS + (int) ENCODER_STEPS) % (int) ENCODER_STEPS) * 360 / ENCODER_STEPS, 2);
       lcd.print(char(223));
     }
   } else if (showTacho) {
-    lcd.print("Tacho: ");
+    lcd.print("Tacho ");
     lcd.print(rpm);
     if (shownRpm != rpm) {
       shownRpm = rpm;
@@ -463,6 +497,7 @@ void setup() {
   savedShowTacho = showTacho = EEPROM.read(ADDR_SHOW_TACHO) == 1;
   savedMoveStep = moveStep = loadInt(ADDR_MOVE_STEP);
   savedMode = loadInt(ADDR_MODE);
+  savedImperial = imperial = EEPROM.read(ADDR_IMPERIAL) == 1;
   // Don't move on power-on.
   setMode((isOn && savedMode == MODE_ASYNC) ? MODE_NORMAL : savedMode);
 
@@ -536,6 +571,9 @@ void saveIfChanged() {
   if (mode != savedMode) {
     saveInt(ADDR_MODE, savedMode = mode);
   }
+  if (imperial != savedImperial) {
+    EEPROM.write(ADDR_IMPERIAL, savedImperial = imperial);
+  }
 }
 
 // Checks if some button was recently pressed. Returns true if not.
@@ -584,6 +622,14 @@ void setStarts(int value) {
   if (!stepperIsRunning()) {
     updateDisplay(false /*beforeRunning*/);
   }
+}
+
+void setImperial(bool value) {
+  if (imperial == value) {
+    return;
+  }
+  imperial = value;
+  moveStep = imperial ? MOVE_STEP_IMP_1 : MOVE_STEP_1;
 }
 
 void splashScreen() {
@@ -674,6 +720,7 @@ void reset() {
   setStarts(1);
   moveStep = MOVE_STEP_1;
   setMode(MODE_NORMAL);
+  imperial = false;
   splashScreen();
 }
 
@@ -693,17 +740,45 @@ void setOutOfSync() {
 
 // Check if the - or + buttons are pressed.
 void checkPlusMinusButtons() {
-  // Speed up scrolling when needed, use microns only when step=0.001mm.
-  int delta = moveStep == 1 ? 1 : abs(tmmprPrevious - tmmpr) >= 100 ? 100 : 10;
   bool minus = DREAD(B_MINUS) == LOW;
   bool plus = DREAD(B_PLUS) == LOW;
+  if (!minus && !plus) {
+    tmmprPrevious = tmmpr;
+    return;
+  }
   if (mode == MODE_MULTISTART) {
     if (minus && starts > 2 && checkAndMarkButtonTime()) {
       setStarts(starts - 1);
     } else if (plus && starts < STARTS_MAX && checkAndMarkButtonTime()) {
       setStarts(starts + 1);
     }
+  } else if (imperial) {
+    int newTmmpr = tmmpr;
+    if ((abs(tmmpr) < MAX_FEED_IMP) || (tmmpr == MAX_FEED_IMP && minus) || (tmmpr == -MAX_FEED_IMP && plus)) {
+      newTmmpr += (plus ? 1 : -1) * MOVE_STEP_IMP_3;
+      if (abs(newTmmpr) < MOVE_STEP_IMP_3) {
+        newTmmpr = 0;
+      }
+    } else {
+      int tpi = round(25400.0 / tmmpr) + (plus ? -1 : 1);
+      newTmmpr = round(25400.0 / tpi);
+    }
+    if (newTmmpr != tmmpr && newTmmpr < TMMPR_MAX && newTmmpr > -TMMPR_MAX && checkAndMarkButtonTime()) {
+      Serial.print("checkPlusMinusButtons ");
+      Serial.print(newTmmpr);
+      Serial.print(" ");
+      Serial.println(tmmpr);
+      setTmmpr(newTmmpr);
+    }
   } else {
+    int delta = MOVE_STEP_3;
+    if (moveStep == MOVE_STEP_4) {
+      // Don't speed up scrolling when on smallest step.
+      delta = MOVE_STEP_4;
+    } else if (abs(tmmprPrevious - tmmpr) >= MOVE_STEP_2) {
+      // Speed up scrolling when needed.
+      delta = MOVE_STEP_2;
+    }
     if (minus && checkAndMarkButtonTime()) {
       if (tmmpr > -TMMPR_MAX) {
         setTmmpr(max(-TMMPR_MAX, tmmpr - delta));
@@ -712,8 +787,6 @@ void checkPlusMinusButtons() {
       if (tmmpr < TMMPR_MAX) {
         setTmmpr(min(TMMPR_MAX, tmmpr + delta));
       }
-    } else if (!minus && !plus) {
-      tmmprPrevious = tmmpr;
     }
   }
 }
@@ -882,7 +955,7 @@ void checkMoveButtons() {
 
       step(left, abs(delta));
 
-      if (moveStep != MOVE_STEP_1) {
+      if (moveStep != (imperial ? MOVE_STEP_IMP_1 : MOVE_STEP_1)) {
         // Allow some time for the button to be released to
         // make it possible to do single steps at 0.1, 0.01mm and 0.001mm.
         updateDisplay(false /*beforeRunning*/);
@@ -914,16 +987,24 @@ void checkDisplayButton(int button) {
 
 void checkMoveStepButton(int button) {
   if (button == B_F2 && checkAndMarkButtonTime()) {
-    if (moveStep == 0) {
-      moveStep = MOVE_STEP_1;
-    } else if (moveStep == MOVE_STEP_1) {
-      moveStep = MOVE_STEP_2;
-    } else if (moveStep == MOVE_STEP_2) {
-      moveStep = MOVE_STEP_3;
-    } else if (moveStep == MOVE_STEP_3) {
-      moveStep = MOVE_STEP_4;
+    if (imperial) {
+      if (moveStep == MOVE_STEP_IMP_1) {
+        moveStep = MOVE_STEP_IMP_2;
+      } else if (moveStep == MOVE_STEP_IMP_2) {
+        moveStep = MOVE_STEP_IMP_3;
+      } else {
+        moveStep = MOVE_STEP_IMP_1;
+      }
     } else {
-      moveStep = MOVE_STEP_1;
+      if (moveStep == MOVE_STEP_1) {
+        moveStep = MOVE_STEP_2;
+      } else if (moveStep == MOVE_STEP_2) {
+        moveStep = MOVE_STEP_3;
+      } else if (moveStep == MOVE_STEP_3) {
+        moveStep = MOVE_STEP_4;
+      } else {
+        moveStep = MOVE_STEP_1;
+      }
     }
   }
 }
@@ -947,6 +1028,12 @@ void checkModeButton(int button) {
     } else {
       setMode(MODE_NORMAL);
     }
+  }
+}
+
+void checkImperialButton(int button) {
+  if (button == B_F4 && checkAndMarkButtonTime()) {
+    setImperial(!imperial);
   }
 }
 
@@ -1071,7 +1158,7 @@ void nonTestLoop() {
         case 6: checkDisplayButton(button); break;
         case 7: checkMoveStepButton(button); break;
         case 8: checkModeButton(button); break;
-        case 9: checkPitchShortcutButton(button, B_F4, F4_PITCH); break;
+        case 9: checkImperialButton(button); break;
         case 0: checkPitchShortcutButton(button, B_F5, F5_PITCH); break;
       }
   }
