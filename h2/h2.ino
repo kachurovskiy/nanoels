@@ -5,7 +5,7 @@
 // Define your hardware parameters here. Don't remove the ".0" at the end.
 #define ENCODER_STEPS 600.0 // 600 step spindle optical rotary encoder
 #define MOTOR_STEPS 200.0
-#define LEAD_SCREW_TMM 2000.0 // 2mm lead screw
+#define LEAD_SCREW_DU 20000.0 // 2mm lead screw in deci-microns (10^-7) of a meter
 
 // Spindle rotary encoder pins. Nano only supports interrupts on D2 and D3.
 // Swap values if the rotation direction is wrong.
@@ -42,13 +42,13 @@
 #define LONG_MAX long(2147483647)
 
 #define LOOP_COUNTER_MAX 1500 // 1500 loops without stepper move to start reading buttons
-#define TMMPR_MAX 10000 // 10mm
+#define DUPR_MAX 100000 // 10mm
 #define STARTS_MAX 124 // No more than 124-start thread
 #define STARTS_RESET_DELAY_MS 1000 // Milliseconds to hold the F3 button to reset starts to 1
 
 // Ratios between spindle and stepper.
-#define ENCODER_TO_STEPPER_STEP_RATIO MOTOR_STEPS / (LEAD_SCREW_TMM * ENCODER_STEPS)
-#define STEPPER_TO_ENCODER_STEP_RATIO LEAD_SCREW_TMM * ENCODER_STEPS / MOTOR_STEPS
+#define ENCODER_TO_STEPPER_STEP_RATIO MOTOR_STEPS / (LEAD_SCREW_DU * ENCODER_STEPS)
+#define STEPPER_TO_ENCODER_STEP_RATIO LEAD_SCREW_DU * ENCODER_STEPS / MOTOR_STEPS
 
 // If time between encoder ticks is less than this, direction change is not allowed.
 // Effectively this limits direction change to the time when spindle is <20rpm.
@@ -56,7 +56,7 @@
 
 // Version of the EEPROM storage format, should be changed when non-backward-compatible
 // changes are made to the storage logic, resulting in EEPROM wipe on first start.
-#define EEPROM_VERSION 2
+#define EEPROM_VERSION 3
 
 // To be incremented whenever a measurable improvement is made.
 #define SOFTWARE_VERSION 6
@@ -83,40 +83,38 @@
 
 #define ADDR_EEPROM_VERSION 0 // takes 1 byte
 #define ADDR_ONOFF 1 // takes 1 byte
-#define ADDR_TMMPR 2 // takes 2 bytes
-#define ADDR_POS 4 // takes 4 bytes
-#define ADDR_LEFT_STOP 8 // takes 4 bytes
-#define ADDR_RIGHT_STOP 12 // takes 4 bytes
-#define ADDR_SPINDLE_POS 16 // takes 4 bytes
-#define ADDR_OUT_OF_SYNC 20 // takes 2 bytes
-#define ADDR_SHOW_ANGLE 22 // takes 1 byte
-#define ADDR_SHOW_TACHO 23 // takes 1 byte
-#define ADDR_MOVE_STEP 24 // takes 2 bytes
-#define ADDR_STARTS 26 // takes 2 bytes
-#define ADDR_MODE 28 // takes 2 bytes
-#define ADDR_IMPERIAL 30 // takes 1 byte
+#define ADDR_DUPR 2 // takes 4 bytes
+#define ADDR_POS 6 // takes 4 bytes
+#define ADDR_LEFT_STOP 10 // takes 4 bytes
+#define ADDR_RIGHT_STOP 14 // takes 4 bytes
+#define ADDR_SPINDLE_POS 18 // takes 4 bytes
+#define ADDR_OUT_OF_SYNC 22 // takes 2 bytes
+#define ADDR_SHOW_ANGLE 24 // takes 1 byte
+#define ADDR_SHOW_TACHO 25 // takes 1 byte
+#define ADDR_MOVE_STEP 26 // takes 2 bytes
+#define ADDR_STARTS 28 // takes 2 bytes
+#define ADDR_MODE 30 // takes 2 bytes
+#define ADDR_MEASURE 32 // takes 2 bytes
 
-#define MOVE_STEP_1 1000
-#define MOVE_STEP_2 100
-#define MOVE_STEP_3 10
-#define MOVE_STEP_4 1
-#define MOVE_STEP_IMP_1 2540 // 1/10"
-#define MOVE_STEP_IMP_2 254 // 1/100"
-#define MOVE_STEP_IMP_3 25 // 1/1000"
-
-// In imperial mode, pitch is adjusted in 2 ways - anything at or below MAX_FEED_IMP is considered
-// a "feed" pitch and show in as e.g. 0.01", pitch above MAX_FEED_IMP is shown in TPI e.g. 80tpi.
-// It's not possible to control pitch using only thousands of an inch since it's impossible to hit
-// exact tpi values - it requires micron precision.
-#define MAX_FEED_IMP 254 // 10 thou
-
-// In imperial mode, round TPI to the nearest integer if it's within this range of it.
-// E.g. 80.05tpi would be shown as 80tpi but 80.16tpi would be shown as-is.
-#define TPI_ROUND_EPSILON 0.15
+#define MOVE_STEP_1 10000 // 1mm
+#define MOVE_STEP_2 1000 // 0.1mm
+#define MOVE_STEP_3 100 // 0.01mm
+#define MOVE_STEP_4 10 // 1 micron
+#define MOVE_STEP_IMP_1 25400 // 1/10"
+#define MOVE_STEP_IMP_2 2540 // 1/100"
+#define MOVE_STEP_IMP_3 254 // 1/1000" also known as 1 thou
 
 #define MODE_NORMAL 0
 #define MODE_MULTISTART 1
 #define MODE_ASYNC 2
+
+#define MEASURE_METRIC 0
+#define MEASURE_INCH 1
+#define MEASURE_TPI 2
+
+// For MEASURE_TPI, round TPI to the nearest integer if it's within this range of it.
+// E.g. 80.02tpi would be shown as 80tpi but 80.04tpi would be shown as-is.
+#define TPI_ROUND_EPSILON 0.03
 
 #define RPM_BULK ENCODER_STEPS // Measure RPM averaged over this number of encoder pulses
 #define RPM_UPDATE_INTERVAL_MICROS 1000000 // Don't redraw RPM more often than once per second
@@ -161,9 +159,9 @@ bool isOn = false;
 unsigned long resetMillis = 0;
 bool resetOnStartup = false;
 
-volatile int tmmpr = 0; // thousandth of a mm per rotation
-int savedTmmpr = 0; // tmmpr saved in EEPROM
-int tmmprPrevious = 0;
+volatile long dupr = 0; // pitch, tenth of a micron per rotation
+long savedDupr = 0; // dupr saved in EEPROM
+long duprPrevious = 0;
 
 int starts = 1; // number of starts in a multi-start thread
 int savedStarts = 0; // starts saved in EEPROM
@@ -213,8 +211,8 @@ volatile bool movingManually = false; // whether stepper is being moved by left/
 volatile int mode = -1; // mode of operation (ELS, multi-start ELS, asynchronous)
 int savedMode = -1; // mode saved in EEPROM
 
-bool imperial = false; // Whether to show distances in inches
-bool savedImperial = false; // imperial value saved in EEPROM
+int measure = MEASURE_METRIC; // Whether to show distances in inches
+int savedMeasure = MEASURE_METRIC; // measure value saved in EEPROM
 
 int getApproxRpm() {
   if (!showTacho) {
@@ -244,23 +242,26 @@ bool stepperIsRunning() {
   return micros() - stepStartMicros < 10000;
 }
 
-void printMicrons(long value) {
-  if (value == 0) {
+void printMicrons(long deciMicrons) {
+  if (deciMicrons == 0) {
     lcd.print("0");
     return;
   }
-  long v = imperial ? round(value / 25.4) : value;
+  bool imperial = measure != MEASURE_METRIC;
+  long v = imperial ? round(deciMicrons / 25.4) : deciMicrons;
   int points = 0;
-  if ((v % 10) != 0) {
-    points = 3;
-  } else if ((v % 100) != 0) {
-    points = 2;
-  } else if ((v % 1000) != 0) {
-    points = 1;
-  } else if (imperial && v == 0) {
+  if (v == 0) {
     points = 5;
+  } else if ((v % 10) != 0) {
+    points = 4;
+  } else if ((v % 100) != 0) {
+    points = 3;
+  } else if ((v % 1000) != 0) {
+    points = 2;
+  } else if ((v % 10000) != 0) {
+    points = 1;
   }
-  lcd.print(value / 1000.0 / (imperial ? 25.4 : 1.0), points);
+  lcd.print(deciMicrons / (imperial ? 254000.0 : 10000.0), points);
   lcd.print(imperial ? "\"" : "mm");
 }
 
@@ -271,11 +272,11 @@ void updateDisplay(bool beforeRunning) {
   // Not hiding when off since it results in flickering of rows 3 and 4 during short manual moves.
   bool running = isOn && (beforeRunning || stepperIsRunning());
   // Sum of values affecting rows 1 and 2 of the LCD.
-  long hashRows12 = tmmpr + isOn * 2 + leftStop / 3
+  long hashRows12 = dupr + isOn * 2 + leftStop / 3
                     + rightStop / 4 + spindlePosSync * 5 + resetOnStartup * 6
-                    + moveStep * 7 + running * 8 + starts * 12 + mode * 13 + imperial * 14;
+                    + moveStep * 7 + running * 8 + starts * 12 + mode * 13 + measure * 14;
   // Sum of values affecting rows 3 and 4 of the LCD.
-  long hashRows34 = pos * 9 + showAngle * 10 + (showTacho ? rpm : -1) * 11 + imperial * 14;
+  long hashRows34 = pos * 9 + showAngle * 10 + (showTacho ? rpm : -1) * 11 + measure * 14;
   // Ignore changes in hashRows34 when stepper is running since they aren't shown.
   long newLcdHash = hashRows12 + (running ? 0 : hashRows34);
   // Don't show angle if stepper is running or spindle is turning.
@@ -324,10 +325,10 @@ void updateDisplay(bool beforeRunning) {
   // Second row.
   lcd.setCursor(0, 1);
   lcd.print("Pitch ");
-  if (!imperial || abs(tmmpr) <= MAX_FEED_IMP) {
-    printMicrons(tmmpr);
-  } else { // imperial and non-feed tmmpr
-    float tpi = 25400.0 / tmmpr;
+  if (measure != MEASURE_TPI) {
+    printMicrons(dupr);
+  } else {
+    float tpi = 254000.0 / dupr;
     if (abs(tpi - round(tpi)) < TPI_ROUND_EPSILON) {
       lcd.print(round(tpi));
     } else {
@@ -356,7 +357,7 @@ void updateDisplay(bool beforeRunning) {
   // Third row.
   lcd.setCursor(0, 2);
   lcd.print("Position ");
-  printMicrons(round(pos * LEAD_SCREW_TMM / MOTOR_STEPS));
+  printMicrons(round(pos * LEAD_SCREW_DU / MOTOR_STEPS));
 
   // Fourth row.
   lcd.setCursor(0, 3);
@@ -486,7 +487,7 @@ void setup() {
   }
 
   isOn = EEPROM.read(ADDR_ONOFF) == 1;
-  savedTmmpr = tmmpr = loadInt(ADDR_TMMPR);
+  savedDupr = dupr = loadLong(ADDR_DUPR);
   savedStarts = starts = min(STARTS_MAX, max(1, loadInt(ADDR_STARTS)));
   savedPos = pos = loadLong(ADDR_POS);
   savedLeftStop = leftStop = loadLong(ADDR_LEFT_STOP);
@@ -497,7 +498,7 @@ void setup() {
   savedShowTacho = showTacho = EEPROM.read(ADDR_SHOW_TACHO) == 1;
   savedMoveStep = moveStep = loadInt(ADDR_MOVE_STEP);
   savedMode = loadInt(ADDR_MODE);
-  savedImperial = imperial = EEPROM.read(ADDR_IMPERIAL) == 1;
+  savedMeasure = measure = loadInt(ADDR_MEASURE);
   // Don't move on power-on.
   setMode((isOn && savedMode == MODE_ASYNC) ? MODE_NORMAL : savedMode);
 
@@ -538,8 +539,8 @@ void preventMoveOnStart() {
 
 // Saves all positions in EEPROM, should be called infrequently to reduce EEPROM wear.
 void saveIfChanged() {
-  if (tmmpr != savedTmmpr) {
-    saveInt(ADDR_TMMPR, savedTmmpr = tmmpr);
+  if (dupr != savedDupr) {
+    saveLong(ADDR_DUPR, savedDupr = dupr);
   }
   if (starts != savedStarts) {
     saveInt(ADDR_STARTS, savedStarts = starts);
@@ -571,8 +572,8 @@ void saveIfChanged() {
   if (mode != savedMode) {
     saveInt(ADDR_MODE, savedMode = mode);
   }
-  if (imperial != savedImperial) {
-    EEPROM.write(ADDR_IMPERIAL, savedImperial = imperial);
+  if (measure != savedMeasure) {
+    saveInt(ADDR_MEASURE, savedMeasure = measure);
   }
 }
 
@@ -586,8 +587,8 @@ bool checkAndMarkButtonTime() {
 }
 
 // Loose the thread and mark current physical positions of
-// encoder and stepper as a new 0. To be called when tmmpr changes
-// or ELS is turned on/off. Without this, changing tmmpr will
+// encoder and stepper as a new 0. To be called when dupr changes
+// or ELS is turned on/off. Without this, changing dupr will
 // result in stepper rushing across the lathe to the new position.
 void markAsZero() {
   noInterrupts();
@@ -603,8 +604,8 @@ void markAsZero() {
   interrupts();
 }
 
-void setTmmpr(int value) {
-  tmmpr = value;
+void setDupr(long value) {
+  dupr = value;
   markAsZero();
   // Printing new pitch can stall the motor due to time spent on it. Don't have time to even clear the LCD.
   if (!stepperIsRunning()) {
@@ -624,12 +625,12 @@ void setStarts(int value) {
   }
 }
 
-void setImperial(bool value) {
-  if (imperial == value) {
+void setMeasure(int value) {
+  if (measure == value) {
     return;
   }
-  imperial = value;
-  moveStep = imperial ? MOVE_STEP_IMP_1 : MOVE_STEP_1;
+  measure = value;
+  moveStep = measure == MEASURE_METRIC ? MOVE_STEP_1 : MOVE_STEP_IMP_1;
 }
 
 void splashScreen() {
@@ -680,10 +681,10 @@ void setMode(int value) {
 }
 
 unsigned int getOcr1a() {
-  if (tmmpr == 0) {
+  if (dupr == 0) {
     return 65535;
   }
-  return min(65535, 2000000 / (MOTOR_STEPS * abs(tmmpr) / LEAD_SCREW_TMM) - 1); // 2000000/Hz - 1
+  return min(65535, 2000000 / (MOTOR_STEPS * abs(dupr) / LEAD_SCREW_DU) - 1); // 2000000/Hz - 1
 }
 
 // Only used for async movement.
@@ -693,19 +694,19 @@ unsigned int getOcr1a() {
 ISR(TIMER1_COMPA_vect) {
   if (!isOn || movingManually) {
     return;
-  } else if (tmmpr > 0 && (leftStop == LONG_MAX || pos < leftStop)) {
+  } else if (dupr > 0 && (leftStop == LONG_MAX || pos < leftStop)) {
     pos++;
-  } else if (tmmpr < 0 && (rightStop == LONG_MIN || pos > rightStop)) {
+  } else if (dupr < 0 && (rightStop == LONG_MIN || pos > rightStop)) {
     pos--;
   } else {
     return;
   }
 
-  // tmmpr and therefore direction can change while we're in async mode.
-  setDir(tmmpr > 0);
+  // dupr and therefore direction can change while we're in async mode.
+  setDir(dupr > 0);
 
   DLOW(STEP);
-  // tmmpr can change while we're in async mode, keep updating timer frequency.
+  // dupr can change while we're in async mode, keep updating timer frequency.
   OCR1A = getOcr1a();
   stepStartMicros = micros();
   loopCounter = 0;
@@ -716,11 +717,11 @@ void reset() {
   resetOnStartup = false;
   leftStop = LONG_MAX;
   rightStop = LONG_MIN;
-  setTmmpr(0);
+  setDupr(0);
   setStarts(1);
   moveStep = MOVE_STEP_1;
   setMode(MODE_NORMAL);
-  imperial = false;
+  measure = MEASURE_METRIC;
   splashScreen();
 }
 
@@ -743,50 +744,45 @@ void checkPlusMinusButtons() {
   bool minus = DREAD(B_MINUS) == LOW;
   bool plus = DREAD(B_PLUS) == LOW;
   if (!minus && !plus) {
-    tmmprPrevious = tmmpr;
+    duprPrevious = dupr;
+    return;
+  }
+  if (!checkAndMarkButtonTime()) {
     return;
   }
   if (mode == MODE_MULTISTART) {
-    if (minus && starts > 2 && checkAndMarkButtonTime()) {
+    if (minus && starts > 2) {
       setStarts(starts - 1);
-    } else if (plus && starts < STARTS_MAX && checkAndMarkButtonTime()) {
+    } else if (plus && starts < STARTS_MAX) {
       setStarts(starts + 1);
     }
-  } else if (imperial) {
-    int newTmmpr = tmmpr;
-    if ((abs(tmmpr) < MAX_FEED_IMP) || (tmmpr == MAX_FEED_IMP && minus) || (tmmpr == -MAX_FEED_IMP && plus)) {
-      newTmmpr += (plus ? 1 : -1) * MOVE_STEP_IMP_3;
-      if (abs(newTmmpr) < MOVE_STEP_IMP_3) {
-        newTmmpr = 0;
-      }
-    } else {
-      int tpi = round(25400.0 / tmmpr) + (plus ? -1 : 1);
-      newTmmpr = round(25400.0 / tpi);
-    }
-    if (newTmmpr != tmmpr && newTmmpr < TMMPR_MAX && newTmmpr > -TMMPR_MAX && checkAndMarkButtonTime()) {
-      Serial.print("checkPlusMinusButtons ");
-      Serial.print(newTmmpr);
-      Serial.print(" ");
-      Serial.println(tmmpr);
-      setTmmpr(newTmmpr);
-    }
-  } else {
-    int delta = MOVE_STEP_3;
+  } else if (measure != MEASURE_TPI) {
+    bool isMetric = measure == MEASURE_METRIC;
+    int delta = isMetric ? MOVE_STEP_3 : MOVE_STEP_IMP_3;
     if (moveStep == MOVE_STEP_4) {
       // Don't speed up scrolling when on smallest step.
       delta = MOVE_STEP_4;
-    } else if (abs(tmmprPrevious - tmmpr) >= MOVE_STEP_2) {
+    } else if (abs(duprPrevious - dupr) >= (isMetric ? MOVE_STEP_2 : MOVE_STEP_IMP_2)) {
       // Speed up scrolling when needed.
-      delta = MOVE_STEP_2;
+      delta = (isMetric ? MOVE_STEP_2 : MOVE_STEP_IMP_2);
     }
-    if (minus && checkAndMarkButtonTime()) {
-      if (tmmpr > -TMMPR_MAX) {
-        setTmmpr(max(-TMMPR_MAX, tmmpr - delta));
+    if (minus) {
+      if (dupr > -DUPR_MAX) {
+        setDupr(max(-DUPR_MAX, dupr - delta));
       }
-    } else if (plus && checkAndMarkButtonTime()) {
-      if (tmmpr < TMMPR_MAX) {
-        setTmmpr(min(TMMPR_MAX, tmmpr + delta));
+    } else if (plus) {
+      if (dupr < DUPR_MAX) {
+        setDupr(min(DUPR_MAX, dupr + delta));
       }
+    }
+  } else { // TPI
+    long newDupr = dupr;
+    int currentTpi = round(254000.0 / dupr);
+    int delta = abs(currentTpi - round(254000.0 / duprPrevious)) >= 10 ? 10 : 1;
+    int tpi = currentTpi + (plus ? delta : -delta);
+    newDupr = round(254000.0 / tpi);
+    if (newDupr != dupr && newDupr < DUPR_MAX && newDupr > -DUPR_MAX) {
+      setDupr(newDupr);
     }
   }
 }
@@ -860,24 +856,24 @@ bool allowMultiStartAdvance = false;
 
 void nextStart() {
   noInterrupts();
-  spindlePos += round(1.0 * ENCODER_STEPS / starts) * (tmmpr > 0 ? -1 : 1);
+  spindlePos += round(1.0 * ENCODER_STEPS / starts) * (dupr > 0 ? -1 : 1);
   interrupts();
 }
 
 void checkIfNextStart() {
-  if (starts <= 1 || tmmpr == 0 || rightStop == LONG_MIN || leftStop == LONG_MAX) {
+  if (starts <= 1 || dupr == 0 || rightStop == LONG_MIN || leftStop == LONG_MAX) {
     return;
   }
-  if (allowMultiStartAdvance && pos == (tmmpr > 0 ? rightStop : leftStop)) {
+  if (allowMultiStartAdvance && pos == (dupr > 0 ? rightStop : leftStop)) {
     nextStart();
     allowMultiStartAdvance = false;
-  } else if (pos == (tmmpr > 0 ? leftStop : rightStop)) {
+  } else if (pos == (dupr > 0 ? leftStop : rightStop)) {
     allowMultiStartAdvance = true;
   }
 }
 
 long getAsyncMovePos(int sign) {
-  long posDiff = sign * MOTOR_STEPS * abs(tmmpr) / LEAD_SCREW_TMM / 5;
+  long posDiff = sign * MOTOR_STEPS * abs(dupr) / LEAD_SCREW_DU / 5;
   if (posDiff > 0 && leftStop != LONG_MAX && (pos + posDiff) > leftStop) {
     return leftStop;
   } else if (posDiff < 0 && rightStop != LONG_MIN && (pos + posDiff) < rightStop) {
@@ -899,12 +895,12 @@ void checkMoveButtons() {
   int sign = left ? 1 : -1;
   bool stepperOn = true;
   stepperEnable(true);
-  if (isOn && tmmpr != 0) {
+  if (isOn && dupr != 0) {
     // Move by moveStep in the desired direction but stay in the thread by possibly traveling a little more.
-    int diff = ceil(MOTOR_STEPS * moveStep * 1.0 / LEAD_SCREW_TMM * STEPPER_TO_ENCODER_STEP_RATIO / ENCODER_STEPS / abs(tmmpr * starts))
+    int diff = ceil(MOTOR_STEPS * moveStep * 1.0 / LEAD_SCREW_DU * STEPPER_TO_ENCODER_STEP_RATIO / ENCODER_STEPS / abs(dupr * starts))
                   * ENCODER_STEPS
                   * sign
-                  * (tmmpr > 0 ? 1 : -1);
+                  * (dupr > 0 ? 1 : -1);
     long prevSpindlePos = spindlePos;
     bool resting = false;
     movingManually = true;
@@ -944,7 +940,7 @@ void checkMoveButtons() {
     do {
       // When moveStep is 1 micron and MOTOR_STEPS is e.g. 200, use ceil()
       // to make delta non-zero.
-      delta = ceil(moveStep * 1.0 / LEAD_SCREW_TMM * MOTOR_STEPS);
+      delta = ceil(moveStep * 1.0 / LEAD_SCREW_DU * MOTOR_STEPS);
 
       // Don't left-right move out of stops.
       if (leftStop != LONG_MAX && pos + delta * sign > leftStop) {
@@ -955,7 +951,7 @@ void checkMoveButtons() {
 
       step(left, abs(delta));
 
-      if (moveStep != (imperial ? MOVE_STEP_IMP_1 : MOVE_STEP_1)) {
+      if (moveStep != (measure == MEASURE_METRIC ? MOVE_STEP_1 : MOVE_STEP_IMP_1)) {
         // Allow some time for the button to be released to
         // make it possible to do single steps at 0.1, 0.01mm and 0.001mm.
         updateDisplay(false /*beforeRunning*/);
@@ -987,15 +983,7 @@ void checkDisplayButton(int button) {
 
 void checkMoveStepButton(int button) {
   if (button == B_F2 && checkAndMarkButtonTime()) {
-    if (imperial) {
-      if (moveStep == MOVE_STEP_IMP_1) {
-        moveStep = MOVE_STEP_IMP_2;
-      } else if (moveStep == MOVE_STEP_IMP_2) {
-        moveStep = MOVE_STEP_IMP_3;
-      } else {
-        moveStep = MOVE_STEP_IMP_1;
-      }
-    } else {
+    if (measure == MEASURE_METRIC) {
       if (moveStep == MOVE_STEP_1) {
         moveStep = MOVE_STEP_2;
       } else if (moveStep == MOVE_STEP_2) {
@@ -1004,6 +992,14 @@ void checkMoveStepButton(int button) {
         moveStep = MOVE_STEP_4;
       } else {
         moveStep = MOVE_STEP_1;
+      }
+    } else {
+      if (moveStep == MOVE_STEP_IMP_1) {
+        moveStep = MOVE_STEP_IMP_2;
+      } else if (moveStep == MOVE_STEP_IMP_2) {
+        moveStep = MOVE_STEP_IMP_3;
+      } else {
+        moveStep = MOVE_STEP_IMP_1;
       }
     }
   }
@@ -1031,16 +1027,28 @@ void checkModeButton(int button) {
   }
 }
 
-void checkImperialButton(int button) {
+void checkMeasureButton(int button) {
   if (button == B_F4 && checkAndMarkButtonTime()) {
-    setImperial(!imperial);
+    if (measure == MEASURE_METRIC) {
+      setMeasure(MEASURE_INCH);
+    } else if (measure == MEASURE_INCH) {
+      setMeasure(MEASURE_TPI);
+    } else {
+      setMeasure(MEASURE_METRIC);
+    }
+  }
+}
+
+void checkReverseButton(int button) {
+  if (button == B_F5 && checkAndMarkButtonTime()) {
+    setDupr(-dupr);
   }
 }
 
 // Checks if one of the pitch shortcut buttons were pressed.
 void checkPitchShortcutButton(int button, int bConst, int pitch) {
   if (button == bConst && checkAndMarkButtonTime()) {
-    setTmmpr(pitch);
+    setDupr(pitch);
   }
 }
 
@@ -1102,7 +1110,7 @@ long step(bool dir, long steps) {
 
 // Calculates stepper position from spindle position.
 long posFromSpindle(long s, bool respectStops) {
-  long newPos = s * ENCODER_TO_STEPPER_STEP_RATIO * tmmpr * starts;
+  long newPos = s * ENCODER_TO_STEPPER_STEP_RATIO * dupr * starts;
 
   // Respect left/right stops.
   if (respectStops) {
@@ -1118,7 +1126,7 @@ long posFromSpindle(long s, bool respectStops) {
 
 // Calculates spindle position from stepper position.
 long spindleFromPos(long p) {
-  return p * STEPPER_TO_ENCODER_STEP_RATIO / (tmmpr * starts);
+  return p * STEPPER_TO_ENCODER_STEP_RATIO / (dupr * starts);
 }
 
 void stepperEnable(bool value) {
@@ -1158,8 +1166,8 @@ void nonTestLoop() {
         case 6: checkDisplayButton(button); break;
         case 7: checkMoveStepButton(button); break;
         case 8: checkModeButton(button); break;
-        case 9: checkImperialButton(button); break;
-        case 0: checkPitchShortcutButton(button, B_F5, F5_PITCH); break;
+        case 9: checkMeasureButton(button); break;
+        case 0: checkReverseButton(button); break;
       }
   }
 
@@ -1190,11 +1198,11 @@ void nonTestLoop() {
   // This allows to avoid waiting when spindle direction reverses
   // and reduces the chance of the skipped stepper steps since
   // after a reverse the spindle starts slow.
-  if (tmmpr != 0) {
+  if (dupr != 0) {
     noInterrupts();
     if (rightStop != LONG_MIN && pos == rightStop) {
       long stopSpindlePos = spindleFromPos(rightStop);
-      if (tmmpr > 0) {
+      if (dupr > 0) {
         if (spindlePos < stopSpindlePos - ENCODER_STEPS) {
           spindlePos += ENCODER_STEPS;
         }
@@ -1205,7 +1213,7 @@ void nonTestLoop() {
       }
     } else if (leftStop != LONG_MAX && pos == leftStop) {
       long stopSpindlePos = spindleFromPos(leftStop);
-      if (tmmpr > 0) {
+      if (dupr > 0) {
         if (spindlePos > stopSpindlePos + ENCODER_STEPS) {
           spindlePos -= ENCODER_STEPS;
         }
@@ -1225,8 +1233,8 @@ void nonTestLoop() {
     if (loopCounter % LOOP_COUNTER_MAX == 0) {
       Serial.print("pos ");
       Serial.print(pos);
-      Serial.print(" tmmpr ");
-      Serial.print(tmmpr);
+      Serial.print(" dupr ");
+      Serial.print(dupr);
       Serial.print(" starts ");
       Serial.print(starts);
       Serial.print(" leftStop ");
