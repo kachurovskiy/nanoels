@@ -152,7 +152,9 @@ long lcdHash = 0;
 
 #include <EEPROM.h>
 
-unsigned long buttonTime = 0;
+unsigned long buttonDownTime = 0;
+unsigned long buttonUpTime = 0;
+int buttonId = 0;
 volatile long loopCounter = 0;
 int buttonLoopCounter = 0;
 bool isOn = false;
@@ -168,6 +170,7 @@ int savedStarts = 0; // starts saved in EEPROM
 
 volatile long pos = 0; // relative position of the stepper motor, in steps
 long savedPos = 0; // value saved in EEPROM
+float fractionalPos = 0.0; // fractional distance in steps that we meant to travel but couldn't
 
 volatile long leftStop = 0; // left stop value of pos
 long savedLeftStop = 0; // value saved in EEPROM
@@ -577,10 +580,24 @@ void saveIfChanged() {
   }
 }
 
-// Checks if some button was recently pressed. Returns true if not.
-bool checkAndMarkButtonTime() {
-  if (millis() > buttonTime + 300) {
-    buttonTime = millis();
+// Checks if the button can be considered pressed.
+// Protects against noise and counting presses too often.
+bool checkAndMarkButtonTime(int button) {
+  unsigned long m = millis();
+  if (buttonId != button) {
+    buttonId = button;
+    buttonDownTime = m;
+    // Protect from spurious presses caused by noise by requiring button to be
+    // pressed for a bit before it actually triggers.
+    return false;
+  }
+  if (m < buttonDownTime + 50) {
+    // Button isn't down long enough yet.
+    return false;
+  }
+  if (m > buttonUpTime + 300) {
+    buttonUpTime = m;
+    buttonDownTime = 0;
     return true;
   }
   return false;
@@ -599,6 +616,7 @@ void markAsZero() {
     rightStop -= pos;
   }
   pos = 0;
+  fractionalPos = 0;
   spindlePos = 0;
   spindlePosSync = 0;
   interrupts();
@@ -739,6 +757,19 @@ void setOutOfSync() {
 #endif
 }
 
+long normalizePitch(long pitch) {
+  int scale = 1;
+  if (measure == MEASURE_METRIC) {
+    // Keep the 3rd precision point only if we're in the micron mode.
+    // Always drop the 4th precision point if any.
+    scale = moveStep == MOVE_STEP_4 ? 10 : 100;
+  } else if (measure == MEASURE_INCH) {
+    // Always drop the 4th precision point in inch representation if any.
+    scale = 254;
+  }
+  return round(pitch / scale) * scale;
+}
+
 // Check if the - or + buttons are pressed.
 void checkPlusMinusButtons() {
   bool minus = DREAD(B_MINUS) == LOW;
@@ -747,7 +778,7 @@ void checkPlusMinusButtons() {
     duprPrevious = dupr;
     return;
   }
-  if (!checkAndMarkButtonTime()) {
+  if (!checkAndMarkButtonTime(minus ? B_MINUS : B_PLUS)) {
     return;
   }
   if (mode == MODE_MULTISTART) {
@@ -766,13 +797,16 @@ void checkPlusMinusButtons() {
       // Speed up scrolling when needed.
       delta = (isMetric ? MOVE_STEP_2 : MOVE_STEP_IMP_2);
     }
+    // Switching between mm/inch/tpi often results in getting non-0 3rd and 4th
+    // precision points that can't be easily controlled. Remove them.
+    long normalizedDupr = normalizePitch(dupr);
     if (minus) {
       if (dupr > -DUPR_MAX) {
-        setDupr(max(-DUPR_MAX, dupr - delta));
+        setDupr(max(-DUPR_MAX, normalizedDupr - delta));
       }
     } else if (plus) {
       if (dupr < DUPR_MAX) {
-        setDupr(min(DUPR_MAX, dupr + delta));
+        setDupr(min(DUPR_MAX, normalizedDupr + delta));
       }
     }
   } else { // TPI
@@ -790,7 +824,7 @@ void checkPlusMinusButtons() {
 // Check if the ON/OFF button is pressed.
 void checkOnOffButton() {
   if (DREAD(B_ONOFF) == LOW) {
-    if (resetMillis == 0) {
+    if (resetMillis == 0 && checkAndMarkButtonTime(B_ONOFF)) {
       resetMillis = millis();
       isOn = !isOn;
       stepperEnable(isOn);
@@ -812,7 +846,7 @@ void checkOnOffButton() {
 
 // Check if the left stop button is pressed.
 void checkLeftStopButton() {
-  if (DREAD(B_STOPL) == LOW) {
+  if (DREAD(B_STOPL) == LOW && checkAndMarkButtonTime(B_STOPL)) {
     if (leftStopFlag) {
       leftStopFlag = false;
       if (leftStop == LONG_MAX) {
@@ -833,7 +867,7 @@ void checkLeftStopButton() {
 
 // Check if the right stop button is pressed.
 void checkRightStopButton() {
-  if (DREAD(B_STOPR) == LOW) {
+  if (DREAD(B_STOPR) == LOW && checkAndMarkButtonTime(B_STOPR)) {
     if (rightStopFlag) {
       rightStopFlag = false;
       if (rightStop == LONG_MIN) {
@@ -888,6 +922,10 @@ void checkMoveButtons() {
   if (!left && !right) {
     return;
   }
+  if (!checkAndMarkButtonTime(left ? B_LEFT : B_RIGHT)) {
+    // Protect against being triggered by noise.
+    return;
+  }
   if (spindlePosSync) {
     // Edge case.
     return;
@@ -938,18 +976,23 @@ void checkMoveButtons() {
   } else {
     int delta = 0;
     do {
-      // When moveStep is 1 micron and MOTOR_STEPS is e.g. 200, use ceil()
-      // to make delta non-zero.
-      delta = ceil(moveStep * 1.0 / LEAD_SCREW_DU * MOTOR_STEPS);
+      float fractionalDelta = moveStep * sign / LEAD_SCREW_DU * MOTOR_STEPS + fractionalPos;
+      delta = round(fractionalDelta);
+      // Don't lose fractional steps when moving by 0.01" or 0.001".
+      fractionalPos = fractionalDelta - delta;
+      if (delta == 0) {
+        // When moveStep is e.g. 1 micron and MOTOR_STEPS is 200, make delta non-zero.
+        delta = 1;
+      }
 
       // Don't left-right move out of stops.
-      if (leftStop != LONG_MAX && pos + delta * sign > leftStop) {
+      if (leftStop != LONG_MAX && pos + delta > leftStop) {
         delta = leftStop - pos;
-      } else if (rightStop != LONG_MIN && pos + delta * sign < rightStop) {
+      } else if (rightStop != LONG_MIN && pos + delta < rightStop) {
         delta = rightStop - pos;
       }
 
-      step(left, abs(delta));
+      step(delta > 0, abs(delta));
 
       if (moveStep != (measure == MEASURE_METRIC ? MOVE_STEP_1 : MOVE_STEP_IMP_1)) {
         // Allow some time for the button to be released to
@@ -969,7 +1012,7 @@ void checkMoveButtons() {
 }
 
 void checkDisplayButton(int button) {
-  if (button == B_F1 && checkAndMarkButtonTime()) {
+  if (button == B_F1 && checkAndMarkButtonTime(button)) {
     if (!showAngle && !showTacho) {
       showAngle = true;
     } else if (showAngle) {
@@ -982,7 +1025,7 @@ void checkDisplayButton(int button) {
 }
 
 void checkMoveStepButton(int button) {
-  if (button == B_F2 && checkAndMarkButtonTime()) {
+  if (button == B_F2 && checkAndMarkButtonTime(button)) {
     if (measure == MEASURE_METRIC) {
       if (moveStep == MOVE_STEP_1) {
         moveStep = MOVE_STEP_2;
@@ -1016,7 +1059,7 @@ void setDir(bool dir) {
 }
 
 void checkModeButton(int button) {
-  if (button == B_F3 && checkAndMarkButtonTime()) {
+  if (button == B_F3 && checkAndMarkButtonTime(button)) {
     if (mode == MODE_NORMAL) {
       setMode(MODE_MULTISTART);
     } else if (mode == MODE_MULTISTART) {
@@ -1028,7 +1071,7 @@ void checkModeButton(int button) {
 }
 
 void checkMeasureButton(int button) {
-  if (button == B_F4 && checkAndMarkButtonTime()) {
+  if (button == B_F4 && checkAndMarkButtonTime(button)) {
     if (measure == MEASURE_METRIC) {
       setMeasure(MEASURE_INCH);
     } else if (measure == MEASURE_INCH) {
@@ -1040,14 +1083,14 @@ void checkMeasureButton(int button) {
 }
 
 void checkReverseButton(int button) {
-  if (button == B_F5 && checkAndMarkButtonTime()) {
+  if (button == B_F5 && checkAndMarkButtonTime(button)) {
     setDupr(-dupr);
   }
 }
 
 // Checks if one of the pitch shortcut buttons were pressed.
 void checkPitchShortcutButton(int button, int bConst, int pitch) {
-  if (button == bConst && checkAndMarkButtonTime()) {
+  if (button == bConst && checkAndMarkButtonTime(button)) {
     setDupr(pitch);
   }
 }
