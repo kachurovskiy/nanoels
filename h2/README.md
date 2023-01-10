@@ -62,7 +62,7 @@ All of this can easily be found on AliExpress, eBay or Amazon.
 
 ## PCB
 
-![What buttons do](https://user-images.githubusercontent.com/517919/211651765-6c614afe-9bd9-403c-9a59-13860a6eb42b.png)
+![image](https://user-images.githubusercontent.com/517919/188741755-bee83e05-6a87-45e7-9aa7-31f791054ae7.png)
 
 [Gerber ZIP](https://github.com/kachurovskiy/nanoels/blob/main/h2/Gerber_PCB_NanoElsLcd_20220815.zip)
 
@@ -78,7 +78,7 @@ All of this can easily be found on AliExpress, eBay or Amazon.
 
 # Operating the ELS
 
-![image](https://user-images.githubusercontent.com/517919/208245626-29afec29-7973-44c8-a76d-c0517106448a.png)
+![image](https://user-images.githubusercontent.com/517919/211652845-b4b8b73f-1903-491a-b49c-170681a01fbd.png)
 
 ## Safety
 
