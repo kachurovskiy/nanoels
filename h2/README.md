@@ -21,6 +21,7 @@ Features:
 - Tachometer
 - Multi-start threads
 - Asynchronous mode
+- Metric, inch and TPI support
 
 ## Components
 
@@ -86,13 +87,26 @@ All of this can easily be found on AliExpress, eBay or Amazon.
 - Test the automatic stop and other ELS functionality before relying on it
 - **In case of unexpected movements, disengage the half-nut or use the emergency power off switch**
 
+## Switching between metric and imperial
+
+Use button that is second from the bottom in the vertical row of buttons to change the system of measurement between:
+
+- Metric (mm)
+- Inch
+- TPI
+
+It affects how the pitch and position is displayed and changes, move steps for precision moves.
+
 ## Setting pitch
 
 Pitch is the distance that carriage will move when the spindle makes the full turn. For example, M14 thread uses 2mm pitch.
 
 Select the desired pitch using `-` and `+` buttons or `0.10mm`, `1mm` and `2mm` shortcut buttons in the top row. If you keep the buttons pressed, the pitch starts changing faster after a few seconds.
 
-Use negative pitch values e.g. `-2mm` to cut left-to-right threads. Do do that, hold the `-` button until the pitch drops below 0 to the required value.
+Use negative pitch values e.g. `-2mm` to cut left-to-right threads. Do do that, you have 2 options:
+
+- hold the `-` button until the pitch drops below 0 to the required value
+- or press the bottom-right button to toggle the pitch sign between `+` and `-`
 
 Some inch threads require setting the micron part (3rd precision point) of the pitch, to do that click the `Step` button until you're in the `0.001mm` mode. Now clicking `-` or `+` buttons will change the pitch by a micron.
 
@@ -121,7 +135,7 @@ Setting only one stop is also supported. Stops aren't lost when `ON` button is c
 
 Use `LEFT` and `RIGHT` buttons to move the carriage. If stops are set, they will be respected during the movement.
 
-When the ELS is off, carriage will move by the distance set using `Step` button (1mm if not shown on screen) but at least 1 stepper motor step.
+When the ELS is off, carriage will move by the distance set using `Step` button but at least 1 stepper motor step.
 
 When the ELS is ON, carriage will move in pitch increments (stay in the thread) and travel at least the distance set by `Step` button (1mm if not shown on screen).
 
