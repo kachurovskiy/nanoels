@@ -436,7 +436,7 @@ void spinEnc() {
 
   int delta;
   spindleEncTimeDiff = microsNow - spindleEncTime;
-  if (spindleEncTimeDiff > DIR_CHANGE_DIFF_MICROS) {
+  if (spindleEncTimeDiff > DIR_CHANGE_DIFF_MICROS || !stepDirectionInitialized) {
     delta = DREAD(ENC_B) ? -1 : 1;
     spindleDeltaPrev = delta;
   } else {
