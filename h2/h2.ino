@@ -811,10 +811,18 @@ void checkPlusMinusButtons() {
     }
   } else { // TPI
     long newDupr = dupr;
-    int currentTpi = round(254000.0 / dupr);
+    long currentTpi = round(254000.0 / dupr);
+    long tpi = currentTpi;
     int delta = abs(currentTpi - round(254000.0 / duprPrevious)) >= 10 ? 10 : 1;
-    int tpi = currentTpi + (plus ? delta : -delta);
-    newDupr = round(254000.0 / tpi);
+    do {
+      tpi += plus ? delta : -delta;
+      if (tpi == 0) {
+        break;
+      } else {
+        newDupr = round(254000.0 / tpi);
+      }
+      // Need more than one iteration for small pitches like 0.01mm.
+    } while (newDupr == dupr);
     if (newDupr != dupr && newDupr < DUPR_MAX && newDupr > -DUPR_MAX) {
       setDupr(newDupr);
     }
