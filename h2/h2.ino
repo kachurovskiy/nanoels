@@ -19,9 +19,6 @@
 #define INVERT_STEPPER false // change (true/false) if the carriage moves e.g. "left" when you press "right".
 #define DISABLE_STEPPER_WHEN_RESTING false
 
-// Pitch shortcut buttons, set to your most used values that should be available within 1 click.
-#define F5_PITCH 2000 // 2mm
-
 // Voltage on A6 when F1-F5 buttons are pressed.
 // If those buttons don't work as expected, uncomment "// Serial.println(value);" in getAnalogButton(),
 // upload sketch to your Arduino and click each button (topmost is F1) to find the right value for each.
@@ -44,7 +41,6 @@
 #define LOOP_COUNTER_MAX 1500 // 1500 loops without stepper move to start reading buttons
 #define DUPR_MAX 100000 // 10mm
 #define STARTS_MAX 124 // No more than 124-start thread
-#define STARTS_RESET_DELAY_MS 1000 // Milliseconds to hold the F3 button to reset starts to 1
 
 // Ratios between spindle and stepper.
 #define ENCODER_TO_STEPPER_STEP_RATIO MOTOR_STEPS / (LEAD_SCREW_DU * ENCODER_STEPS)
