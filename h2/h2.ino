@@ -451,6 +451,14 @@ void spinEnc() {
   }
 }
 
+void setAsyncTimerEnable(bool value) {
+  if (value) {
+    TIMSK1 |= (1 << OCIE1A); // enable timer
+  } else {
+    TIMSK1 &= ~(1 << OCIE1A); // disable timer
+  }
+}
+
 #ifdef TEST
 void setup() {
   Serial.begin(9600);
@@ -473,6 +481,11 @@ void setup() {
   pinMode(DIR, OUTPUT);
   pinMode(STEP, OUTPUT);
   digitalWrite(STEP, HIGH);
+
+  // There was a mysterious crash in async mode with negative dupr
+  // happening after some time running that caused setup() to be run again.
+  // This line mitigates the effects (erratic movement) if this is ever to happen.
+  setAsyncTimerEnable(false);
 
   // Wipe EEPROM if this is the first start after uploading a new build.
   if (EEPROM.read(ADDR_EEPROM_VERSION) != EEPROM_VERSION) {
@@ -618,12 +631,23 @@ void markAsZero() {
   interrupts();
 }
 
+void updateAsyncTimerSettings() {
+  // dupr and therefore direction can change while we're in async mode.
+  setDir(dupr > 0);
+
+  // dupr can change while we're in async mode, keep updating timer frequency.
+  OCR1A = getOcr1a();
+}
+
 void setDupr(long value) {
   dupr = value;
   markAsZero();
   // Printing new pitch can stall the motor due to time spent on it. Don't have time to even clear the LCD.
   if (!stepperIsRunning()) {
     updateDisplay(false /*beforeRunning*/);
+  }
+  if (mode == MODE_ASYNC) {
+    updateAsyncTimerSettings();
   }
 }
 
@@ -666,7 +690,7 @@ void setMode(int value) {
   if (mode == MODE_MULTISTART) {
     setStarts(1);
   } else if (mode == MODE_ASYNC) {
-    TIMSK1 &= ~(1 << OCIE1A); // disable timer
+    setAsyncTimerEnable(false);
   }
   mode = value;
   markAsZero();
@@ -675,18 +699,18 @@ void setMode(int value) {
       updateDisplay(true /*beforeRunning*/);
     }
 
+    // Pretent that stepper is already running to prevent a screen update during the
+    // async movement initialization.
+    stepStartMicros = micros();
+
     // See pages 108 - 112 of ATmega328P_Datasheet.pdf
     // CS11 means prescaler = 8. WGM12 means issuing
     // interrupt when TCNT1 == OCR1A and set TCNT1 to 0.
     TCCR1B = (1 << WGM12) + (1 << CS11);
     TCCR1A = 0;
     TCNT1 = 0;
-    OCR1A = getOcr1a();
-    TIMSK1 |= (1 << OCIE1A); // enable timer
-
-    // Pretent that stepper is already running to prevent a screen update during the
-    // async movement initialization.
-    stepStartMicros = micros();
+    updateAsyncTimerSettings();
+    setAsyncTimerEnable(true);
   } else if (mode == MODE_MULTISTART) {
     if (starts < 2) {
       setStarts(2);
@@ -716,12 +740,8 @@ ISR(TIMER1_COMPA_vect) {
     return;
   }
 
-  // dupr and therefore direction can change while we're in async mode.
-  setDir(dupr > 0);
-
   DLOW(STEP);
-  // dupr can change while we're in async mode, keep updating timer frequency.
-  OCR1A = getOcr1a();
+  // Don't call setDir() or getOcr1a() from an interrupt, it can cause crashes.
   stepStartMicros = micros();
   loopCounter = 0;
   DHIGH(STEP);
