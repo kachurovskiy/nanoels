@@ -6,7 +6,7 @@ This is the second hardware version (hence H2) of NanoEls electronic lead screw 
 microcontroller, a [custom PCB board](https://github.com/kachurovskiy/nanoels/blob/main/h2/Gerber_PCB_NanoElsLcd_20220815.zip) you
 can print cheaply on jlcpcb.com and a few widely available components allowing you to build a DIY single-axis ELS.
 
-![image](https://user-images.githubusercontent.com/517919/188740458-17936e54-3a53-435a-9475-1c2a5db8f14e.png)
+![image](https://user-images.githubusercontent.com/517919/217100536-5412f1bf-da5f-4414-a2ed-c4bd029409aa.png)
 
 Features:
 
