@@ -37,8 +37,6 @@ For spindles with 56 teeth, try [56 teeth gear model by kingjamez](https://www.t
 
 # Stepper and driver
 
-**People report problems with open loop steppers losing steps. Closed loop stepper and driver are strongly recommended. They're 50% more expensive but well worth it.**
-
 I used the following one but most Nema 23 or higher steppers should work.
 
 - Nema 23 Stepper Motor Bipolar 1.8deg 3.0 Nm 4.2A 57x57x113mm 4 Wires Open Loop
