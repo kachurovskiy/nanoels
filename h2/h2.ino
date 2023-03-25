@@ -55,7 +55,7 @@
 #define EEPROM_VERSION 3
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 6
+#define SOFTWARE_VERSION 7
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 2
@@ -78,7 +78,6 @@
 #define B_F5 15
 
 #define ADDR_EEPROM_VERSION 0 // takes 1 byte
-#define ADDR_ONOFF 1 // takes 1 byte
 #define ADDR_DUPR 2 // takes 4 bytes
 #define ADDR_POS 6 // takes 4 bytes
 #define ADDR_LEFT_STOP 10 // takes 4 bytes
@@ -498,7 +497,10 @@ void setup() {
     saveInt(ADDR_MOVE_STEP, MOVE_STEP_1);
   }
 
-  isOn = EEPROM.read(ADDR_ONOFF) == 1;
+  // Controller shouldn't be "on" right after start since the power
+  // can be restored unexpectedly, causing dangerous movement.
+  // Not saving or restoring isOn value.
+
   savedDupr = dupr = loadLong(ADDR_DUPR);
   savedStarts = starts = min(STARTS_MAX, max(1, loadInt(ADDR_STARTS)));
   savedPos = pos = loadLong(ADDR_POS);
@@ -511,8 +513,7 @@ void setup() {
   savedMoveStep = moveStep = loadInt(ADDR_MOVE_STEP);
   savedMode = loadInt(ADDR_MODE);
   savedMeasure = measure = loadInt(ADDR_MEASURE);
-  // Don't move on power-on.
-  setMode((isOn && savedMode == MODE_ASYNC) ? MODE_NORMAL : savedMode);
+  setMode(savedMode);
 
   if (DISABLE_STEPPER_WHEN_RESTING) {
     stepperEnable(isOn);
@@ -529,25 +530,9 @@ void setup() {
   Serial.print(" V");
   Serial.println(SOFTWARE_VERSION);
 
-  preventMoveOnStart();
-
   attachInterrupt(digitalPinToInterrupt(ENC_A), spinEnc, FALLING);
 }
 #endif
-
-void preventMoveOnStart() {
-  // Sometimes, especially if ELS was run outside above max RPM before, pos and spindlePos
-  // will be out of sync causing immediate stepper movement if isOn. This could be dangerous
-  // and surely won't be expected by the operator.
-  long newPos = posFromSpindle(spindlePos, true);
-  if (isOn && newPos != pos) {
-#ifdef DEBUG
-    Serial.println("Losing the thread");
-#endif
-    resetOnStartup = true;
-    markAsZero();
-  }
-}
 
 // Saves all positions in EEPROM, should be called infrequently to reduce EEPROM wear.
 void saveIfChanged() {
@@ -851,7 +836,6 @@ void checkOnOffButton() {
       resetMillis = millis();
       isOn = !isOn;
       stepperEnable(isOn);
-      EEPROM.write(ADDR_ONOFF, isOn ? 1 : 0);
 #ifdef DEBUG
       Serial.print("isOn ");
       Serial.println(isOn);
