@@ -847,7 +847,8 @@ void checkPlusMinusButtons() {
 // Check if the ON/OFF button is pressed.
 void checkOnOffButton() {
   if (DREAD(B_ONOFF) == LOW) {
-    if (resetMillis == 0 && checkAndMarkButtonTime(B_ONOFF)) {
+    // We should not ignore an OFF click even if it doesn't pass the noise/time check.
+    if (resetMillis == 0 && (isOn || checkAndMarkButtonTime(B_ONOFF))) {
       resetMillis = millis();
       isOn = !isOn;
       stepperEnable(isOn);
