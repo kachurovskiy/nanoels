@@ -155,6 +155,7 @@ int buttonLoopCounter = 0;
 bool isOn = false;
 unsigned long resetMillis = 0;
 bool resetOnStartup = false;
+bool emergencyStop = false;
 
 volatile long dupr = 0; // pitch, tenth of a micron per rotation
 long savedDupr = 0; // dupr saved in EEPROM
@@ -265,6 +266,9 @@ void printMicrons(long deciMicrons) {
 
 void updateDisplay(bool beforeRunning) {
 #ifndef TEST
+  if (emergencyStop) {
+    return;
+  }
   int rpm = getApproxRpm();
   // Hide rows 3 and 4 if ON and about to or is already moving.
   // Not hiding when off since it results in flickering of rows 3 and 4 during short manual moves.
@@ -522,7 +526,6 @@ void setup() {
   }
 
   lcd.begin(20, 4);
-  updateDisplay(false /*beforeRunning*/);
 
   Serial.begin(9600);
   Serial.print("NanoEls H");
@@ -530,7 +533,19 @@ void setup() {
   Serial.print(" V");
   Serial.println(SOFTWARE_VERSION);
 
-  attachInterrupt(digitalPinToInterrupt(ENC_A), spinEnc, FALLING);
+  if (getAnalogButton() > 0 || DREAD(B_LEFT) == LOW || DREAD(B_RIGHT) == LOW || DREAD(B_MINUS) == LOW
+      || DREAD(B_PLUS) == LOW || DREAD(B_ONOFF) == LOW || DREAD(B_STOPL) == LOW || DREAD(B_STOPR) == LOW) {
+    emergencyStop = true;
+    setAsyncTimerEnable(false);
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Key down at power-up");
+    lcd.setCursor(0, 1);
+    lcd.print("Hardware failure?");
+  } else {
+    updateDisplay(false /*beforeRunning*/);
+    attachInterrupt(digitalPinToInterrupt(ENC_A), spinEnc, FALLING);
+  }
 }
 #endif
 
@@ -1201,6 +1216,10 @@ void stepperEnable(bool value) {
 
 // What is called in the loop() function in when not in test mode.
 void nonTestLoop() {
+  if (emergencyStop) {
+    return;
+  }
+
   buttonLoopCounter = (buttonLoopCounter + 1) % 10;
   // Spread button checking in time to give move time to stepper logic.
   // It takes 200ms for a human to press a button so this shouldn't be noticeable.
