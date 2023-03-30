@@ -8,16 +8,31 @@ void spinEncTimes(int times) {
   }
 }
 
+void nonTestLoopTimes(int times) {
+  for (int i = 0; i < times; i++) {
+    nonTestLoop();
+  }
+}
+
+void prepareButtonPress(int button) {
+  mockDigitalPins[button] = LOW;
+  checkAndMarkButtonTime(button);
+  delay(400);
+  // Next checkAndMarkButtonTime(button) will return true.
+}
+
 void setupEach() {
-  buttonTime = 0;
+  buttonId = 0;
+  buttonDownTime = 0;
+  buttonUpTime = 0;
   loopCounter = 0;
   resetMillis = false;
   isOn = false;
   resetOnStartup = false;
 
-  tmmpr = 0;
-  savedTmmpr = 0;
-  tmmprPrevious = 0;
+  dupr = 0;
+  savedDupr = 0;
+  duprPrevious = 0;
 
   pos = 0;
   savedPos = 0;
@@ -40,10 +55,13 @@ void setupEach() {
 
   stepDelayUs = PULSE_MAX_US;
   stepDelayDirection = true;
-  stepStartMs = 0;
+  stepStartMicros = 0;
 
   showAngle = false;
   savedShowAngle = false;
+
+  setMode(MODE_NORMAL);
+  setMeasure(MEASURE_METRIC);
 
   for (int i = 0; i < sizeof(mockDigitalPins); i++) {
     mockDigitalPins[i] = HIGH;
@@ -75,7 +93,7 @@ test(saveLoadLong) {
 
 test(spinEnc) {
   spindlePos = 0;
-  mockDigitalPins[ENC_B] = LOW;
+  prepareButtonPress(ENC_B);
   spinEnc();
   spinEnc();
   assertEqual(2L, spindlePos);
@@ -89,7 +107,7 @@ test(spinEnc) {
 }
 
 test(spinEncSyncHigh) {
-  tmmpr = 500;
+  dupr = 5000;
   pos = 200;
   spindlePos = 0;
   spindlePosSync = 100;
@@ -113,11 +131,11 @@ test(spinEncSyncHigh) {
 }
 
 test(spinEncSyncLow) {
-  tmmpr = 500;
+  dupr = 5000;
   pos = 200;
   spindlePos = 0;
   spindlePosSync = 100;
-  mockDigitalPins[ENC_B] = LOW;
+  prepareButtonPress(ENC_B);
 
   spinEnc();
   assertEqual(1L, spindlePos);
@@ -134,24 +152,9 @@ test(spinEncSyncLow) {
   assertEqual(0, spindlePosSync);
 }
 
-test(preventMoveOnStart) {
-  isOn = true;
-  tmmpr = 1000;
-  spindlePos = 300;
-  pos = 50;
-  preventMoveOnStart();
-  assertFalse(resetOnStartup);
-
-  pos = 0;
-  preventMoveOnStart();
-  assertTrue(resetOnStartup);
-  assertEqual(0L, pos);
-  assertEqual(0L, spindlePos);
-}
-
 test(saveIfChanged) {
-  savedTmmpr = 0;
-  tmmpr = 10;
+  savedDupr = 0;
+  dupr = 100;
   savedPos = 0;
   pos = 2;
   savedLeftStop = 0;
@@ -162,21 +165,35 @@ test(saveIfChanged) {
   spindlePos = 5;
   savedSpindlePosSync = 0;
   spindlePosSync = 6;
+  savedShowAngle = false;
+  showAngle = true;
+  savedShowTacho = false;
+  showTacho = true;
+  savedMoveStep = 0;
+  moveStep = 10;
+  savedMode = MODE_NORMAL;
+  mode = MODE_MULTISTART;
   saveIfChanged();
-  assertEqual(1, savedTmmpr);
+  assertEqual(100L, savedDupr);
   assertEqual(2L, savedPos);
   assertEqual(3L, savedLeftStop);
   assertEqual(4L, savedRightStop);
   assertEqual(5L, savedSpindlePos);
-  assertEqual(6, savedSpindlePosSync);
+  assertEqual(true, savedShowAngle);
+  assertEqual(true, savedShowTacho);
+  assertEqual(10, savedMoveStep);
+  assertEqual(MODE_MULTISTART, savedMode);
 }
 
 test(checkAndMarkButtonTime) {
   delay(400);
-  assertTrue(checkAndMarkButtonTime());
-  assertFalse(checkAndMarkButtonTime());
+  assertFalse(checkAndMarkButtonTime(B_LEFT));
+  delay(100);
+  assertTrue(checkAndMarkButtonTime(B_LEFT));
+  delay(100);
+  assertFalse(checkAndMarkButtonTime(B_LEFT));
   delay(400);
-  assertTrue(checkAndMarkButtonTime());
+  assertTrue(checkAndMarkButtonTime(B_LEFT));
 }
 
 test(markAsZero) {
@@ -228,7 +245,7 @@ test(markAsZero) {
 }
 
 test(setOutOfSync) {
-  tmmpr = 1000;
+  dupr = 10000;
   pos = 0;
   spindlePos = 0;
   setOutOfSync();
@@ -265,92 +282,87 @@ test(setOutOfSync) {
 }
 
 test(checkPlusMinusButtons) {
-  mockDigitalPins[LEFT] = HIGH;
-  mockDigitalPins[RIGHT] = HIGH;
+  mockDigitalPins[B_MINUS] = HIGH;
+  mockDigitalPins[B_PLUS] = HIGH;
   pos = 100;
-  tmmpr = 10;
-  tmmprPrevious = 0;
-  buttonTime = 0L;
+  dupr = 100;
+  duprPrevious = 0;
   checkPlusMinusButtons();
   assertEqual(100L, pos);
-  assertEqual(10, tmmpr);
-  assertEqual(10, tmmprPrevious);
+  assertEqual(100L, dupr);
+  assertEqual(100L, duprPrevious);
 
-  mockDigitalPins[LEFT] = LOW;
-  mockDigitalPins[RIGHT] = HIGH;
-  buttonTime = 0L;
+  prepareButtonPress(B_MINUS);
+  mockDigitalPins[B_PLUS] = HIGH;
   checkPlusMinusButtons();
   assertEqual(0L, pos);
-  assertEqual(0, tmmpr);
-  assertEqual(10, tmmprPrevious);
+  assertEqual(0L, dupr);
+  assertEqual(100L, duprPrevious);
 
-  buttonTime = 0L;
+  prepareButtonPress(B_MINUS);
   checkPlusMinusButtons();
   assertEqual(0L, pos);
-  assertEqual(-10, tmmpr);
-  assertEqual(10, tmmprPrevious);
+  assertEqual(-100L, dupr);
+  assertEqual(100L, duprPrevious);
 
-  mockDigitalPins[LEFT] = HIGH;
-  buttonTime = 0L;
+  mockDigitalPins[B_MINUS] = HIGH;
   checkPlusMinusButtons();
   assertEqual(0L, pos);
-  assertEqual(-10, tmmpr);
-  assertEqual(-10, tmmprPrevious);
+  assertEqual(-100L, dupr);
+  assertEqual(-100L, duprPrevious);
 
-  mockDigitalPins[LEFT] = LOW;
-  for (int i = 0; i < 200; i++) {
-    buttonTime = 0L;
+  for (int i = 0; i < 110; i++) {
+    prepareButtonPress(B_MINUS);
     checkPlusMinusButtons();
   }
   assertEqual(0L, pos);
-  assertEqual(-10000, tmmpr);
-  assertEqual(-10, tmmprPrevious);
+  assertEqual(-100000L, dupr);
+  assertEqual(-100L, duprPrevious);
 
-  mockDigitalPins[LEFT] = HIGH;
-  buttonTime = 0L;
+  mockDigitalPins[B_MINUS] = HIGH;
+  buttonDownTime = 0L;
   checkPlusMinusButtons();
-  assertEqual(-10000, tmmprPrevious);
+  assertEqual(-100000L, duprPrevious);
 
-  mockDigitalPins[RIGHT] = LOW;
-  for (int i = 0; i < 300; i++) {
-    buttonTime = 0L;
+  for (int i = 0; i < 220; i++) {
+    prepareButtonPress(B_PLUS);
     checkPlusMinusButtons();
   }
   assertEqual(0L, pos);
-  assertEqual(10000, tmmpr);
-  assertEqual(-10000, tmmprPrevious);
+  assertEqual(100000L, dupr);
+  assertEqual(-100000L, duprPrevious);
 }
 
 test(checkOnOffButton) {
   isOn = false;
-  mockDigitalPins[ONOFF] = HIGH;
+  mockDigitalPins[B_ONOFF] = HIGH;
   checkOnOffButton();
   assertFalse(isOn);
 
-  mockDigitalPins[ONOFF] = LOW;
+  prepareButtonPress(B_ONOFF);
   checkOnOffButton();
   assertTrue(isOn);
   checkOnOffButton();
   assertTrue(isOn);
 
-  mockDigitalPins[ONOFF] = HIGH;
+  mockDigitalPins[B_ONOFF] = HIGH;
   checkOnOffButton();
   assertTrue(isOn);
 
-  mockDigitalPins[ONOFF] = LOW;
+  prepareButtonPress(B_ONOFF);
   checkOnOffButton();
   assertFalse(isOn);
   checkOnOffButton();
   assertFalse(isOn);
 
-  tmmpr = 10;
+  dupr = 100;
   pos = 2;
   leftStop = 3;
   rightStop = -1;
   resetMillis = millis() - 6001;
   checkOnOffButton();
   assertFalse(isOn);
-  assertEqual(0, tmmpr);
+  assertEqual(0L, dupr);
   assertEqual(0L, pos);
   assertEqual(LONG_MAX, leftStop);
   assertEqual(LONG_MIN, rightStop);
@@ -358,35 +370,35 @@ test(checkOnOffButton) {
 
 test(checkLeftStopButton) {
   isOn = true;
-  tmmpr = 1000;
+  dupr = 10000;
   pos = 200;
   spindlePos = 1200;
   spindlePosSync = 0;
-  mockDigitalPins[LEFT_STOP] = HIGH;
+  mockDigitalPins[B_STOPL] = HIGH;
   checkLeftStopButton();
   assertEqual(LONG_MAX, leftStop);
 
-  mockDigitalPins[LEFT_STOP] = LOW;
+  prepareButtonPress(B_STOPL);
   checkLeftStopButton();
   assertEqual(200L, leftStop);
   checkLeftStopButton();
   assertEqual(200L, leftStop);
 
-  mockDigitalPins[LEFT_STOP] = HIGH;
+  mockDigitalPins[B_STOPL] = HIGH;
   checkLeftStopButton();
-  mockDigitalPins[LEFT_STOP] = LOW;
+  prepareButtonPress(B_STOPL);
   checkLeftStopButton();
   assertEqual(LONG_MAX, leftStop);
   assertEqual(0, spindlePosSync);
 
-  mockDigitalPins[LEFT_STOP] = HIGH;
+  mockDigitalPins[B_STOPL] = HIGH;
   checkLeftStopButton();
-  mockDigitalPins[LEFT_STOP] = LOW;
+  prepareButtonPress(B_STOPL);
   checkLeftStopButton();
   assertEqual(200L, leftStop);
 
   // Go left beyound the left stop.
-  mockDigitalPins[ENC_B] = LOW;
+  prepareButtonPress(ENC_B);
   spinEncTimes(6);
   nonTestLoop();
   assertEqual(1206L, spindlePos);
@@ -412,7 +424,7 @@ test(checkLeftStopButton) {
 
   // Go left beyound the left stop.
   delay(10);
-  mockDigitalPins[ENC_B] = LOW;
+  prepareButtonPress(ENC_B);
   spinEncTimes(12);
   nonTestLoop();
   assertEqual(1206L, spindlePos);
@@ -420,9 +432,9 @@ test(checkLeftStopButton) {
   assertEqual(200L, leftStop);
 
   // Remove the stop when spindle is out of sync with the stepper.
-  mockDigitalPins[LEFT_STOP] = HIGH;
+  mockDigitalPins[B_STOPL] = HIGH;
   checkLeftStopButton();
-  mockDigitalPins[LEFT_STOP] = LOW;
+  prepareButtonPress(B_STOPL);
   checkLeftStopButton();
   assertEqual(1206L, spindlePos);
   assertEqual(200L, pos);
@@ -447,7 +459,7 @@ test(checkLeftStopButton) {
   assertEqual(LONG_MAX, leftStop);
   assertEqual(0, spindlePosSync);
   spinEncTimes(594);
-  nonTestLoop();
+  nonTestLoopTimes(200);
   assertEqual(600L, spindlePos);
   assertEqual(100L, pos);
   assertEqual(LONG_MAX, leftStop);
@@ -456,30 +468,30 @@ test(checkLeftStopButton) {
 
 test(checkRightStopButton) {
   isOn = true;
-  tmmpr = 1000;
+  dupr = 10000;
   pos = 200;
   spindlePos = 1200;
   spindlePosSync = 0;
-  mockDigitalPins[RIGHT_STOP] = HIGH;
+  mockDigitalPins[B_STOPR] = HIGH;
   checkRightStopButton();
   assertEqual(LONG_MIN, rightStop);
 
-  mockDigitalPins[RIGHT_STOP] = LOW;
+  prepareButtonPress(B_STOPR);
   checkRightStopButton();
   assertEqual(200L, rightStop);
   checkRightStopButton();
   assertEqual(200L, rightStop);
 
-  mockDigitalPins[RIGHT_STOP] = HIGH;
+  mockDigitalPins[B_STOPR] = HIGH;
   checkRightStopButton();
-  mockDigitalPins[RIGHT_STOP] = LOW;
+  prepareButtonPress(B_STOPR);
   checkRightStopButton();
   assertEqual(LONG_MIN, rightStop);
   assertEqual(0, spindlePosSync);
 
-  mockDigitalPins[RIGHT_STOP] = HIGH;
+  mockDigitalPins[B_STOPR] = HIGH;
   checkRightStopButton();
-  mockDigitalPins[RIGHT_STOP] = LOW;
+  prepareButtonPress(B_STOPR);
   checkRightStopButton();
   assertEqual(200L, rightStop);
 
@@ -500,7 +512,7 @@ test(checkRightStopButton) {
 
   // Go back into the allowed interval.
   delay(10);
-  mockDigitalPins[ENC_B] = LOW;
+  prepareButtonPress(ENC_B);
   spinEncTimes(12);
   nonTestLoop();
   assertEqual(1206L, spindlePos);
@@ -518,9 +530,9 @@ test(checkRightStopButton) {
   assertEqual(200L, rightStop);
 
   // Remove the stop when spindle is out of sync with the stepper.
-  mockDigitalPins[RIGHT_STOP] = HIGH;
+  mockDigitalPins[B_STOPR] = HIGH;
   checkRightStopButton();
-  mockDigitalPins[RIGHT_STOP] = LOW;
+  prepareButtonPress(B_STOPR);
   checkRightStopButton();
   assertEqual(1194L, spindlePos);
   assertEqual(200L, pos);
@@ -529,7 +541,7 @@ test(checkRightStopButton) {
 
   // Move spindle back to the sync position.
   delay(10);
-  mockDigitalPins[ENC_B] = LOW;
+  prepareButtonPress(ENC_B);
   spinEncTimes(6);
   nonTestLoop();
   assertEqual(1200L, spindlePos);
@@ -545,7 +557,7 @@ test(checkRightStopButton) {
   assertEqual(LONG_MIN, rightStop);
   assertEqual(0, spindlePosSync);
   spinEncTimes(594);
-  nonTestLoop();
+  nonTestLoopTimes(100);
   assertEqual(1800L, spindlePos);
   assertEqual(300L, pos);
   assertEqual(LONG_MIN, rightStop);
@@ -555,7 +567,7 @@ test(checkRightStopButton) {
 test(leftStopNegativePitch) {
   isOn = true;
   leftStop = 200;
-  tmmpr = -1000;
+  dupr = -10000;
   pos = 200;
   spindlePos = -1200;
   spindlePosSync = 0;
@@ -570,7 +582,7 @@ test(leftStopNegativePitch) {
 
   // Go right.
   delay(10);
-  mockDigitalPins[ENC_B] = LOW;
+  prepareButtonPress(ENC_B);
   spinEncTimes(12);
   nonTestLoop();
   assertEqual(-1194L, spindlePos);
@@ -581,13 +593,13 @@ test(leftStopNegativePitch) {
 test(rightStopNegativePitch) {
   isOn = true;
   rightStop = 200;
-  tmmpr = -1000;
+  dupr = -10000;
   pos = 200;
   spindlePos = -1200;
   spindlePosSync = 0;
 
   // Go right beyound the right stop.
-  mockDigitalPins[ENC_B] = LOW;
+  prepareButtonPress(ENC_B);
   spinEncTimes(6);
   nonTestLoop();
   assertEqual(-1194L, spindlePos);
@@ -606,21 +618,21 @@ test(rightStopNegativePitch) {
 
 test(turnForward) {
   isOn = false;
-  tmmpr = 1000;
+  dupr = 10000;
   delay(10);
-  mockDigitalPins[ENC_B] = LOW;
+  prepareButtonPress(ENC_B);
   for (long i = 0; i < 300; i++) {
     spinEnc();
     nonTestLoop();
   }
 
-  mockDigitalPins[ONOFF] = LOW;
+  prepareButtonPress(B_ONOFF);
   checkOnOffButton();
-  mockDigitalPins[ONOFF] = HIGH;
+  mockDigitalPins[B_ONOFF] = HIGH;
 
-  tmmpr = 1000;
+  dupr = 10000;
   delay(10);
-  mockDigitalPins[ENC_B] = LOW;
+  prepareButtonPress(ENC_B);
   long lastPos = pos;
   for (long i = 0; i < 300; i++) {
     spinEnc();
@@ -631,11 +643,11 @@ test(turnForward) {
   assertEqual(50L, pos);
 }
 
-test(turnForwardNegativeTmmpr) {
+test(turnForwardNegativeDupr) {
   isOn = true;
-  tmmpr = -1000;
+  dupr = -10000;
   delay(10);
-  mockDigitalPins[ENC_B] = LOW;
+  prepareButtonPress(ENC_B);
   long lastPos = pos;
   for (long i = 0; i < 300; i++) {
     spinEnc();
@@ -648,7 +660,7 @@ test(turnForwardNegativeTmmpr) {
 
 test(turnReverse) {
   isOn = true;
-  tmmpr = 1000;
+  dupr = 10000;
   delay(10);
   mockDigitalPins[ENC_B] = HIGH;
   long lastPos = pos;
@@ -661,9 +673,9 @@ test(turnReverse) {
   assertEqual(-50L, pos);
 }
 
-test(turnReverseNegativeTmmpr) {
+test(turnReverseNegativeDupr) {
   isOn = true;
-  tmmpr = -1000;
+  dupr = -10000;
   delay(10);
   mockDigitalPins[ENC_B] = HIGH;
   long lastPos = pos;
@@ -682,9 +694,9 @@ test(moveLeftIsOff) {
   spindlePos = 0L;
   leftStop = 150L;
   rightStop = -100L;
-  mockDigitalPins[F1] = LOW;
-  mockDigitalPins[F2] = HIGH;
-  mockDigitalPinToggleOnRead = F1;
+  prepareButtonPress(B_LEFT);
+  mockDigitalPins[B_RIGHT] = HIGH;
+  mockDigitalPinToggleOnRead = B_LEFT;
   checkMoveButtons();
 
   assertEqual(100L, pos);
@@ -692,8 +704,8 @@ test(moveLeftIsOff) {
   assertEqual(150L, leftStop);
   assertEqual(-100L, rightStop);
 
-  mockDigitalPins[F1] = LOW;
-  mockDigitalPins[F2] = HIGH;
+  prepareButtonPress(B_LEFT);
+  mockDigitalPins[B_RIGHT] = HIGH;
   checkMoveButtons();
   assertEqual(150L, pos);
   assertEqual(0L, spindlePos);
@@ -701,16 +713,16 @@ test(moveLeftIsOff) {
   assertEqual(-100L, rightStop);
 }
 
-test(moveLeftIsOffNegativeTmmpr) {
+test(moveLeftIsOffNegativeDupr) {
   isOn = false;
-  tmmpr = -500;
+  dupr = -5000;
   pos = 0L;
   spindlePos = 0L;
   leftStop = 150L;
   rightStop = -100L;
-  mockDigitalPins[F1] = LOW;
-  mockDigitalPins[F2] = HIGH;
-  mockDigitalPinToggleOnRead = F1;
+  prepareButtonPress(B_LEFT);
+  mockDigitalPins[B_RIGHT] = HIGH;
+  mockDigitalPinToggleOnRead = B_LEFT;
   checkMoveButtons();
 
   assertEqual(100L, pos);
@@ -725,9 +737,9 @@ test(moveRightIsOff) {
   spindlePos = 0L;
   leftStop = 100L;
   rightStop = -150L;
-  mockDigitalPins[F1] = HIGH;
-  mockDigitalPins[F2] = LOW;
-  mockDigitalPinToggleOnRead = F2;
+  mockDigitalPins[B_LEFT] = HIGH;
+  prepareButtonPress(B_RIGHT);
+  mockDigitalPinToggleOnRead = B_RIGHT;
   checkMoveButtons();
 
   assertEqual(-100L, pos);
@@ -735,8 +747,8 @@ test(moveRightIsOff) {
   assertEqual(100L, leftStop);
   assertEqual(-150L, rightStop);
 
-  mockDigitalPins[F1] = HIGH;
-  mockDigitalPins[F2] = LOW;
+  mockDigitalPins[B_LEFT] = HIGH;
+  prepareButtonPress(B_RIGHT);
   checkMoveButtons();
   assertEqual(-150L, pos);
   assertEqual(0L, spindlePos);
@@ -744,16 +756,16 @@ test(moveRightIsOff) {
   assertEqual(-150L, rightStop);
 }
 
-test(moveRightIsOffNegativeTmmpr) {
+test(moveRightIsOffNegativeDupr) {
   isOn = false;
-  tmmpr = -500;
+  dupr = -5000;
   pos = 0L;
   spindlePos = 0L;
   leftStop = 100L;
   rightStop = -150L;
-  mockDigitalPins[F1] = HIGH;
-  mockDigitalPins[F2] = LOW;
-  mockDigitalPinToggleOnRead = F2;
+  mockDigitalPins[B_LEFT] = HIGH;
+  prepareButtonPress(B_RIGHT);
+  mockDigitalPinToggleOnRead = B_RIGHT;
   checkMoveButtons();
 
   assertEqual(-100L, pos);
@@ -765,20 +777,20 @@ test(moveRightIsOffNegativeTmmpr) {
 test(moveIsOn) {
   isOn = true;
   pos = 0L;
-  tmmpr = 750;
+  dupr = 7500;
   spindlePos = 0L;
   leftStop = 200L;
   rightStop = -200L;
-  mockDigitalPins[F1] = LOW;
-  mockDigitalPins[F2] = HIGH;
-  mockDigitalPinToggleOnRead = F1;
+  prepareButtonPress(B_LEFT);
+  mockDigitalPins[B_RIGHT] = HIGH;
+  mockDigitalPinToggleOnRead = B_LEFT;
   checkMoveButtons();
 
   assertEqual(150L, pos);
   assertEqual(1200L, spindlePos);
 
-  mockDigitalPins[F1] = LOW;
-  mockDigitalPins[F2] = HIGH;
+  prepareButtonPress(B_LEFT);
+  mockDigitalPins[B_RIGHT] = HIGH;
   checkMoveButtons();
 
   assertEqual(200L, pos);
@@ -787,23 +799,23 @@ test(moveIsOn) {
   nonTestLoop();
   assertEqual(1800L, spindlePos);
 
-  mockDigitalPins[F1] = HIGH;
-  mockDigitalPins[F2] = LOW;
-  mockDigitalPinToggleOnRead = F2;
+  mockDigitalPins[B_LEFT] = HIGH;
+  prepareButtonPress(B_RIGHT);
+  mockDigitalPinToggleOnRead = B_RIGHT;
   checkMoveButtons();
 
   assertEqual(75L, pos);
   assertEqual(600L, spindlePos);
 
-  mockDigitalPins[F1] = HIGH;
-  mockDigitalPins[F2] = LOW;
+  mockDigitalPins[B_LEFT] = HIGH;
+  prepareButtonPress(B_RIGHT);
   checkMoveButtons();
 
   assertEqual(-75L, pos);
   assertEqual(-600L, spindlePos);
 
-  mockDigitalPins[F1] = HIGH;
-  mockDigitalPins[F2] = LOW;
+  mockDigitalPins[B_LEFT] = HIGH;
+  prepareButtonPress(B_RIGHT);
   checkMoveButtons();
 
   assertEqual(-200L, pos);
@@ -812,25 +824,25 @@ test(moveIsOn) {
   nonTestLoop();
   assertEqual(-1800L, spindlePos);
 
-  mockDigitalPins[F1] = LOW;
-  mockDigitalPins[F2] = HIGH;
-  mockDigitalPinToggleOnRead = F1;
+  prepareButtonPress(B_LEFT);
+  mockDigitalPins[B_RIGHT] = HIGH;
+  mockDigitalPinToggleOnRead = B_LEFT;
   checkMoveButtons();
 
   assertEqual(-75L, pos);
   assertEqual(-600L, spindlePos);
 }
 
-test(moveIsOnZeroTmmpr) {
+test(moveIsOnZeroDupr) {
   isOn = true;
   pos = 0L;
-  tmmpr = 0;
+  dupr = 0;
   spindlePos = 0L;
   leftStop = 200L;
   rightStop = -200L;
-  mockDigitalPins[F1] = LOW;
-  mockDigitalPins[F2] = HIGH;
-  mockDigitalPinToggleOnRead = F1;
+  prepareButtonPress(B_LEFT);
+  mockDigitalPins[B_RIGHT] = HIGH;
+  mockDigitalPinToggleOnRead = B_LEFT;
   checkMoveButtons();
 
   assertEqual(0L, pos);
@@ -839,23 +851,23 @@ test(moveIsOnZeroTmmpr) {
   assertEqual(-300L, rightStop);
 }
 
-test(moveIsOnNegativeTmmpr) {
+test(moveIsOnNegativeDupr) {
   isOn = true;
   pos = 0L;
-  tmmpr = -750;
+  dupr = -7500;
   spindlePos = 0L;
   leftStop = 200L;
   rightStop = -200L;
-  mockDigitalPins[F1] = LOW;
-  mockDigitalPins[F2] = HIGH;
-  mockDigitalPinToggleOnRead = F1;
+  prepareButtonPress(B_LEFT);
+  mockDigitalPins[B_RIGHT] = HIGH;
+  mockDigitalPinToggleOnRead = B_LEFT;
   checkMoveButtons();
 
   assertEqual(150L, pos);
   assertEqual(-1200L, spindlePos);
 
-  mockDigitalPins[F1] = LOW;
-  mockDigitalPins[F2] = HIGH;
+  prepareButtonPress(B_LEFT);
+  mockDigitalPins[B_RIGHT] = HIGH;
   checkMoveButtons();
 
   assertEqual(200L, pos);
@@ -864,23 +876,23 @@ test(moveIsOnNegativeTmmpr) {
   nonTestLoop();
   assertEqual(-1800L, spindlePos);
 
-  mockDigitalPins[F1] = HIGH;
-  mockDigitalPins[F2] = LOW;
-  mockDigitalPinToggleOnRead = F2;
+  mockDigitalPins[B_LEFT] = HIGH;
+  prepareButtonPress(B_RIGHT);
+  mockDigitalPinToggleOnRead = B_RIGHT;
   checkMoveButtons();
 
   assertEqual(75L, pos);
   assertEqual(-600L, spindlePos);
 
-  mockDigitalPins[F1] = HIGH;
-  mockDigitalPins[F2] = LOW;
+  mockDigitalPins[B_LEFT] = HIGH;
+  prepareButtonPress(B_RIGHT);
   checkMoveButtons();
 
   assertEqual(-75L, pos);
   assertEqual(600L, spindlePos);
 
-  mockDigitalPins[F1] = HIGH;
-  mockDigitalPins[F2] = LOW;
+  mockDigitalPins[B_LEFT] = HIGH;
+  prepareButtonPress(B_RIGHT);
   checkMoveButtons();
 
   assertEqual(-200L, pos);
@@ -889,9 +901,9 @@ test(moveIsOnNegativeTmmpr) {
   nonTestLoop();
   assertEqual(1800L, spindlePos);
 
-  mockDigitalPins[F1] = LOW;
-  mockDigitalPins[F2] = HIGH;
-  mockDigitalPinToggleOnRead = F1;
+  prepareButtonPress(B_LEFT);
+  mockDigitalPins[B_RIGHT] = HIGH;
+  mockDigitalPinToggleOnRead = B_LEFT;
   checkMoveButtons();
 
   assertEqual(-75L, pos);

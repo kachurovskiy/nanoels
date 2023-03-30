@@ -129,7 +129,12 @@ int mockDigitalRead(int x) {
   }
   return value;
 }
+int mockDigitalWrite(int x, int value) {
+  mockDigitalPins[x] = value;
+}
 #define DREAD(x) mockDigitalRead(x)
+#define DHIGH(x) mockDigitalWrite(x, HIGH)
+#define DLOW(x) mockDigitalWrite(x, LOW)
 #else
 #include <FastGPIO.h>
 #define DREAD(x) FastGPIO::Pin<x>::isInputHigh()
@@ -242,8 +247,9 @@ bool stepperIsRunning() {
 }
 
 void printMicrons(long deciMicrons) {
+#ifndef TEST
   if (deciMicrons == 0) {
-    lcd.print("0");
+      lcd.print("0");
     return;
   }
   bool imperial = measure != MEASURE_METRIC;
@@ -262,6 +268,7 @@ void printMicrons(long deciMicrons) {
   }
   lcd.print(deciMicrons / (imperial ? 254000.0 : 10000.0), points);
   lcd.print(imperial ? "\"" : "mm");
+#endif
 }
 
 void updateDisplay(bool beforeRunning) {
@@ -514,7 +521,8 @@ void setup() {
   savedSpindlePosSync = spindlePosSync = loadInt(ADDR_OUT_OF_SYNC);
   savedShowAngle = showAngle = EEPROM.read(ADDR_SHOW_ANGLE) == 1;
   savedShowTacho = showTacho = EEPROM.read(ADDR_SHOW_TACHO) == 1;
-  savedMoveStep = moveStep = loadInt(ADDR_MOVE_STEP);
+  savedMoveStep = loadInt(ADDR_MOVE_STEP);
+  moveStep = savedMoveStep > 0 ? savedMoveStep : MOVE_STEP_1;
   savedMode = loadInt(ADDR_MODE);
   savedMeasure = measure = loadInt(ADDR_MEASURE);
   setMode(savedMode);
@@ -869,8 +877,10 @@ void checkOnOffButton() {
 
 // Check if the left stop button is pressed.
 void checkLeftStopButton() {
-  if (DREAD(B_STOPL) == LOW && checkAndMarkButtonTime(B_STOPL)) {
-    if (leftStopFlag) {
+  if (DREAD(B_STOPL) == LOW) {
+    // checkAndMarkButtonTime() checked only when LOW to avoid stop
+    // being toggled while B_STOPL is pressed.
+    if (leftStopFlag && checkAndMarkButtonTime(B_STOPL)) {
       leftStopFlag = false;
       if (leftStop == LONG_MAX) {
         leftStop = pos;
@@ -890,8 +900,10 @@ void checkLeftStopButton() {
 
 // Check if the right stop button is pressed.
 void checkRightStopButton() {
-  if (DREAD(B_STOPR) == LOW && checkAndMarkButtonTime(B_STOPR)) {
-    if (rightStopFlag) {
+  if (DREAD(B_STOPR) == LOW) {
+    // checkAndMarkButtonTime() checked only when LOW to avoid stop
+    // being toggled while B_STOPR is pressed.
+    if (rightStopFlag && checkAndMarkButtonTime(B_STOPR)) {
       rightStopFlag = false;
       if (rightStop == LONG_MIN) {
         rightStop = pos;
@@ -958,10 +970,7 @@ void checkMoveButtons() {
   stepperEnable(true);
   if (isOn && dupr != 0) {
     // Move by moveStep in the desired direction but stay in the thread by possibly traveling a little more.
-    int diff = ceil(MOTOR_STEPS * moveStep * 1.0 / LEAD_SCREW_DU * STEPPER_TO_ENCODER_STEP_RATIO / ENCODER_STEPS / abs(dupr * starts))
-                  * ENCODER_STEPS
-                  * sign
-                  * (dupr > 0 ? 1 : -1);
+    int diff = ceil(moveStep * 1.0 / abs(dupr * starts)) * ENCODER_STEPS * sign * (dupr > 0 ? 1 : -1);
     long prevSpindlePos = spindlePos;
     bool resting = false;
     movingManually = true;
@@ -1345,6 +1354,7 @@ void loop() {
   // In unit testing mode, only run tests.
 #ifdef TEST
   setupEach();
+  aunit::TestRunner::setTimeout(0);
   aunit::TestRunner::run();
 #else
   nonTestLoop();
