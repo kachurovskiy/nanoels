@@ -30,7 +30,7 @@ See https://github.com/kachurovskiy/nanoels/blob/main/h2/ for more info.
 
 ## Hardware
 
-Controller can be self-built entirely or from the official kit that can be purchased at https://kachurovskiy.com/ with shipping to USA, Australia, Canada, New Zealand, Singapore and Ukraine.
+Controller can be self-built entirely or from the [official kit](https://kachurovskiy.com/products/1-axis-electronic-lead-screw-controller-kit) (shipping to USA, Australia, Canada, New Zealand, Singapore and Ukraine).
 
 Apart from controller, any ELS requires mounting a motor and encoder. It's suggested to use STEPPERONLINE CL57T closed-loop driver with NEMA 23 3NM motor or stronger. If you use some other driver, make sure it has 200 steps per resolution mode, most start from 800. See [hardware.md](hardware.md) for more info.
 
