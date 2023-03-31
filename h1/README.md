@@ -43,6 +43,19 @@ Cheap DIY Electronic Lead Screw (ELS) based on Arduino Nano for metal lathes.
 - 50T metal gear that your lathe came with
 - Grease for the gears
 
+# Build examples
+
+- [bestbean](https://github.com/kachurovskiy/nanoels/discussions/109)
+- [Dididu12](https://github.com/kachurovskiy/nanoels/discussions/40#discussioncomment-2019521)
+- [Hedning003](https://github.com/kachurovskiy/nanoels/discussions/16)
+- [HW61](https://github.com/kachurovskiy/nanoels/discussions/43)
+- [kachurovskiy](https://www.youtube.com/watch?v=9uTdDk2EqG4?t=272)
+- [mockendon](https://github.com/kachurovskiy/nanoels/discussions/32)
+- [Sonny Madlangbayan](https://www.youtube.com/watch?v=qiPQUa50Uog)
+- [wberggren](https://github.com/kachurovskiy/nanoels/discussions/13)
+- [WillieJilesen](https://github.com/kachurovskiy/nanoels/discussions/39)
+- [zabu83](https://github.com/kachurovskiy/nanoels/discussions/11)
+
 # Limitations
 
 - PLA plastic gears and mounts shouldn't heat up or they will deform and disconnect. Stepper can heat up quite a bit during continuous operation. Depending on the stepper driver current, the limit seems to be ~50% duty cycle with 10min operation / 10min cooldown. For higher duty cycle something like metal HTD 5M gears, belt and a metal stepper mount would be required. Another option is using PETG or ABS.
