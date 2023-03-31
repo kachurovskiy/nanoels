@@ -3,53 +3,45 @@
 [🇷🇺 перевод на русский](https://translate.google.com/translate?hl=en&sl=en&tl=ru&u=https%3A%2F%2Fgithub.com%2Fkachurovskiy%2Fnanoels%2Fblob%2Fmain%2FREADME.md)
 [🇩🇪 Deutsche Übersetzung](https://translate.google.com/translate?hl=en&sl=en&tl=de&u=https%3A%2F%2Fgithub.com%2Fkachurovskiy%2Fnanoels%2Fblob%2Fmain%2FREADME.md)
 
-# NanoEls
+# NanoEls H2
 
 Cheap DIY Electronic Lead Screw (ELS) based on Arduino Nano for metal lathes.
 
-There are 2 hardware versions of NanoEls, [H1](https://github.com/kachurovskiy/nanoels/blob/main/h1/) is older, [H2 is newer](https://github.com/kachurovskiy/nanoels/blob/main/h2/) and more capable.
+![h2](https://user-images.githubusercontent.com/517919/217100828-9071f6ac-a719-4ce1-8656-21346a133838.png)
 
-|  | [NanoEls H1](https://github.com/kachurovskiy/nanoels/blob/main/h1/) | [NanoEls H2](https://github.com/kachurovskiy/nanoels/blob/main/h2/) |
-| --- | --- | --- |
-|  | ![h1](https://user-images.githubusercontent.com/517919/192354717-12b16d0e-4f9f-4f10-a7f7-c1daaba6f542.png) | ![h2](https://user-images.githubusercontent.com/517919/217100828-9071f6ac-a719-4ce1-8656-21346a133838.png) |
-| Metric pitches (+/-) | Yes, -10mm to 10mm, resolution 0.01mm | Yes, -10mm to 10mm, resolution 0.001mm |
-| Imperial pitches | Yes (specify in mm) | Yes (specify in mm) |
-| Position indication | Yes | Yes |
-| Angle indication | Yes | Yes |
-| Automatic stops | Yes | Yes |
-| Independent carriage moves | Yes | Yes |
-| Precision moves |   | Yes |
-| Moving while ON |   | Yes |
-| Big screen |  | Yes |
-| Pluggable terminals |   | Yes |
-| On/off switch |  | Yes |
-| Disabling stepper when not in use |   | Yes |
-| Multi-start threads |   | Yes |
-| Asynchronous mode |    | Yes |
-| Inch and TPI mode |    | Yes |
-| Example builds | [bestbean](https://github.com/kachurovskiy/nanoels/discussions/109)<br>[Dididu12](https://github.com/kachurovskiy/nanoels/discussions/40#discussioncomment-2019521)<br>[Hedning003](https://github.com/kachurovskiy/nanoels/discussions/16)<br>[HW61](https://github.com/kachurovskiy/nanoels/discussions/43)<br>[kachurovskiy](https://www.youtube.com/watch?v=9uTdDk2EqG4?t=272)<br>[mockendon](https://github.com/kachurovskiy/nanoels/discussions/32)<br>[Sonny Madlangbayan](https://www.youtube.com/watch?v=qiPQUa50Uog)<br>[wberggren](https://github.com/kachurovskiy/nanoels/discussions/13)<br>[WillieJilesen](https://github.com/kachurovskiy/nanoels/discussions/39)<br>[zabu83](https://github.com/kachurovskiy/nanoels/discussions/11) | [EdFleta](https://github.com/kachurovskiy/nanoels/discussions/87)<br>[Johannmupa](https://github.com/kachurovskiy/nanoels/discussions/89)<br>[kachurovskiy](https://youtu.be/jR4tBBHSl3c?t=62) |
+## Features
+
+- Metric pitches, -10mm to 10mm, resolution up to 0.001 mm
+- Inch and TPI support, resolution up to 0.001 inch
+- Position indication
+- Angle indication
+- Automatic stops
+- Independent carriage moves
+- Precision moves
+- Moving while ON
+- Big screen
+- Pluggable terminals
+- On/off switch
+- Disabling stepper when not in use
+- Multi-start threads
+- Asynchronous mode
+
+See https://github.com/kachurovskiy/nanoels/blob/main/h2/ for more info.
 
 ## Hardware
 
-Any ELS requires mounting a motor and encoder first. Overall I recommend using STEPPERONLINE CL57T closed-loop driver with NEMA 23 3NM motor or stronger. If you use some other driver, make sure it has 200 steps per resolution mode, most start from 800. See [hardware.md](hardware.md) for more info.
+Controller can be self-built entirely or from the official kit that can be purchased at https://kachurovskiy.com/ with shipping to USA, Australia, Canada, New Zealand, Singapore and Ukraine.
 
-# Alternative UI versions
+Apart from controller, any ELS requires mounting a motor and encoder. It's suggested to use STEPPERONLINE CL57T closed-loop driver with NEMA 23 3NM motor or stronger. If you use some other driver, make sure it has 200 steps per resolution mode, most start from 800. See [hardware.md](hardware.md) for more info.
 
-![nanoels-imperial](https://user-images.githubusercontent.com/517919/197325760-6dda7e82-3949-4972-9ff2-933450d30f55.png)
+## Build examples
 
-For H2, there's an imperial version of the software for users who mostly work with inches / TPIs at https://github.com/gstwrt/nanoels-imperial.
+- [EdFleta](https://github.com/kachurovskiy/nanoels/discussions/87)
+- [Johannmupa](https://github.com/kachurovskiy/nanoels/discussions/89)
+- [kachurovskiy](https://youtu.be/jR4tBBHSl3c?t=62)
 
 # Contributing to the project
 
-- Questions: please open a new GitHub Discussion
-- Successful/failed builds: please file a GitHub Issue with explanations and photos
-- Code changes: to maximize the chance of your PR being accepted, [discuss the planned change](https://github.com/kachurovskiy/nanoels/discussions/new) beforehand
-  - Only make the necessary minimal edits
-  - Run in the `TEST` mode, add new tests if needed
-  - Split unrelated changes into separate PRs
-- PCB changes: please open a new GitHub Discussion
-- 3D models: in most cases, don't edit the model, add a new file. PNG preview and a dimension would be nice too.
-
-# Looking for resellers and manufacturers
-
-If you're willing to manufacture this device and/or sell it as a kit, we'd be happy to link to your page for free - especially if it makes the build cheaper than buying all the components separately.
+- Questions, problems and improvements: please start [a new GitHub Discussion](https://github.com/kachurovskiy/nanoels/discussions/new) or a new Issue
+- Successful/failed builds: please start a new GitHub Discussion with photos and comments
+- 3D models: in most cases, don't edit the model, add a new file. PNG preview and a dimension would be nice too
