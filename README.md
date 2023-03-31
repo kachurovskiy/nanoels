@@ -26,7 +26,7 @@ Cheap DIY Electronic Lead Screw (ELS) based on Arduino Nano for metal lathes.
 - Multi-start threads
 - Asynchronous mode
 
-See https://github.com/kachurovskiy/nanoels/blob/main/h2/ for more info.
+See [h2 folder](https://github.com/kachurovskiy/nanoels/blob/main/h2/) for more info.
 
 ## Hardware
 
