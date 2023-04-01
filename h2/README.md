@@ -49,7 +49,7 @@ All of this can easily be found on AliExpress, eBay or Amazon. Alternatively, tr
 1. Check that your Arduino Nano is functional before soldering
 1. Solder everything except the display onto the PCB, pay attention which side a part should be facing (up/down/left/right) and ensure Arduino pins won't be touching the display later
 1. Ensure perfect soldering joints on 1kOhm resistors or the vertical row of buttons won't work well
-1. Solder the display on, place something non-conductive between the display and the PCB (not the sticky tape as the glue can actually be conductive)
+1. Solder the display
 1. Check that your board is working (connect to a PC via Arduino Nano USB port, upload code) before inserting it into the case
 1. Push threaded inserts into the case using your soldering iron
 1. Drill out the main case button holes using a 7mm drill and ensure the buttons are moving freely
