@@ -32,7 +32,7 @@ See [h2 folder](https://github.com/kachurovskiy/nanoels/blob/main/h2/) for more 
 
 Controller can be built from generally available components or from the [official kit](https://kachurovskiy.com/products/1-axis-electronic-lead-screw-controller-kit):
 
-[![kit](https://user-images.githubusercontent.com/517919/229221103-8ce8429c-ae2c-4ba4-8f67-8588164a2329.png)](https://kachurovskiy.com/products/1-axis-electronic-lead-screw-controller-kit)
+[![kit](h2/kit.jpg)](https://kachurovskiy.com/products/1-axis-electronic-lead-screw-controller-kit)
 
 Apart from controller, any ELS requires mounting a motor and encoder. It's suggested to use STEPPERONLINE CL57T closed-loop driver with NEMA 23 3NM motor or stronger. If you use some other driver, make sure it has 200 steps per resolution mode, most start from 800. See [hardware.md](hardware.md) for more info.
 
