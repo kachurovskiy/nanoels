@@ -36,7 +36,7 @@ Features:
 - RV09 10kOhm potentiometer
 - 6 M3 threaded inserts
 
-All of this can easily be found on AliExpress, eBay or Amazon.
+All of this can easily be found on AliExpress, eBay or Amazon. Alternatively, try the [official kit](https://kachurovskiy.com/products/1-axis-electronic-lead-screw-controller-kit).
 
 ## Case
 
