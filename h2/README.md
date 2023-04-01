@@ -1,4 +1,4 @@
-**This software and instructions are provided as is, without warranty of any kind. This is a hobby project. Using this might damage your equipment, cause injury or death. Use at your own risk.**
+This software and instructions are provided as is, [without warranty of any kind](LICENSE).
 
 # NanoEls H2
 
