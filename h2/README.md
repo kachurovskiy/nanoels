@@ -55,6 +55,27 @@ All of this can easily be found on AliExpress, eBay or Amazon. Alternatively, tr
 1. Drill out the main case button holes using a 7mm drill and ensure the buttons are moving freely
 1. Insert buttons into the case, insert PCB, screw in stand-offs (sorry, it's non-trivial), close the lid and screw it to the stand-offs
 
+## Wiring
+
+Starting from the top terminal:
+
+- 5V - connect to 5V power supply positive output (usually red) through an emergency stop button
+- GND - connect to 5V power supply negative output (usually black)
+
+Encoder terminal:
+
+- ENCA - connect to one of the encoder signal lines
+- ENCB - connect to one of the encoder signal lines
+- 5V - connect to encoder power-in line (usually red)
+- GND - connect to encoder power-in line (usually black) and wire shielding if there's any
+
+Stepper terminal:
+
+- STEP - connect to stepper driver PUL-
+- DIR - connect to stepper driver DIR-
+- ENA - connect to stepper driver ENA-
+- 5V - connect to stepper driver PUL+, DIR+, ENA+ and wire shielding if there's any
+
 ## Schematics
 
 **WARNING:** trying to build this on a breadboard will result in [interference problems](https://github.com/kachurovskiy/nanoels/discussions/89) and will likely make the device unusable. Please use the PCB instead.
