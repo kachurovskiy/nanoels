@@ -30,7 +30,7 @@ See [h2 folder](https://github.com/kachurovskiy/nanoels/blob/main/h2/) for more 
 
 ## Hardware
 
-Controller can be self-built entirely or from the [official kit](https://kachurovskiy.com/products/1-axis-electronic-lead-screw-controller-kit) (shipping to USA, Australia, Canada, New Zealand, Singapore and Ukraine).
+Controller can be built from generally available components or from the [official kit](https://kachurovskiy.com/products/1-axis-electronic-lead-screw-controller-kit):
 
 [![kit](https://user-images.githubusercontent.com/517919/229221103-8ce8429c-ae2c-4ba4-8f67-8588164a2329.png)](https://kachurovskiy.com/products/1-axis-electronic-lead-screw-controller-kit)
 
