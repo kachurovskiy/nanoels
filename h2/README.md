@@ -83,9 +83,9 @@ All of this can easily be found on AliExpress, eBay or Amazon. Alternatively, tr
 
 ## Safety
 
-- Make sure that stepper motor is turned off using lathe emergency power off switch
-- Test the automatic stop and other ELS functionality before relying on it
-- **In case of unexpected movements, disengage the half-nut or use the emergency power off switch**
+- **In case of unexpected movements use Emergency Stop button.** Ensure that your Emergency Stop button stops all motion and it can't automatically restart when Emergency Stop is lifted.
+- Ensure that your machine complies with all applicable laws and regulations e.g. [Machinery Directive](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=celex%3A32006L0042) in Europe.
+- Test the controller functionality before relying on it. Don't operate machinery without the necessary training and knowledge, in a hurry or when tired.
 
 ## Switching between metric and imperial
 
