@@ -7,24 +7,13 @@ This software and instructions are provided as is, [without warranty of any kind
 
 Cheap DIY Electronic Lead Screw (ELS) based on Arduino Nano for metal lathes.
 
-![h2](https://user-images.githubusercontent.com/517919/217100828-9071f6ac-a719-4ce1-8656-21346a133838.png)
+![h2 kit](https://user-images.githubusercontent.com/517919/232871612-c7588f52-828f-48a2-a554-b5b93112c32b.jpg)
 
-## Features
+No more greasy gear swapping! Control your metal lathe lead screw with a few clicks.
 
-- Metric pitches, -10mm to 10mm, resolution up to 0.001 mm
-- Inch and TPI support, resolution up to 0.001 inch
-- Position indication
-- Angle indication
-- Automatic stops
-- Independent carriage moves
-- Precision moves
-- Moving while ON
-- Big screen
-- Pluggable terminals
-- On/off switch
-- Disabling stepper when not in use
-- Multi-start threads
-- Asynchronous mode
+- Set leadscrew pitch for feed or thread
+- Soft limits for the carriage
+- Multi-start threads in 1 start of the spindle
 
 See [h2 folder](https://github.com/kachurovskiy/nanoels/blob/main/h2/) for more info.
 
@@ -34,7 +23,9 @@ Controller can be built from generally available components or from the [officia
 
 [![kit](h2/kit.jpg)](https://kachurovskiy.com/)
 
-Apart from controller, any ELS requires mounting a motor and encoder. It's suggested to use STEPPERONLINE CL57T closed-loop driver with NEMA 23 3NM motor or stronger. If you use some other driver, make sure it has 200 steps per resolution mode, most start from 800. See [hardware.md](hardware.md) for more info.
+It's suggested to use STEPPERONLINE CL57T closed-loop driver with NEMA 23 3NM motor or stronger with 200 step resolution mode (full step).
+
+See [hardware.md](hardware.md) for more info.
 
 ## Build examples
 
@@ -45,5 +36,4 @@ Apart from controller, any ELS requires mounting a motor and encoder. It's sugge
 # Contributing to the project
 
 - Questions, problems and improvements: please start [a new GitHub Discussion](https://github.com/kachurovskiy/nanoels/discussions/new) or a new Issue
-- Successful/failed builds: please start a new GitHub Discussion with photos and comments
-- 3D models: in most cases, don't edit the model, add a new file. PNG preview and a dimension would be nice too
+- Successful builds: please start a new GitHub Discussion with photos and comments
