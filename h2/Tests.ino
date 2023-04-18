@@ -28,7 +28,6 @@ void setupEach() {
   loopCounter = 0;
   resetMillis = false;
   isOn = false;
-  resetOnStartup = false;
 
   dupr = 0;
   savedDupr = 0;

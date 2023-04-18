@@ -7,10 +7,9 @@
 #define MOTOR_STEPS 200.0
 #define LEAD_SCREW_DU 20000.0 // 2mm lead screw in deci-microns (10^-7) of a meter
 
-// Spindle rotary encoder pins. Nano only supports interrupts on D2 and D3.
-// Swap values if the rotation direction is wrong.
-#define ENC_A 3 // D3
-#define ENC_B 2 // D2
+// Spindle rotary encoder pins. Swap values if the rotation direction is wrong.
+#define ENC_A 15
+#define ENC_B 7
 
 // Stepper pulse and acceleration constants.
 #define PULSE_MIN_US round(500.0 * 200.0 / MOTOR_STEPS) // Microseconds to wait after high pulse, min.
@@ -19,27 +18,13 @@
 #define INVERT_STEPPER false // change (true/false) if the carriage moves e.g. "left" when you press "right".
 #define DISABLE_STEPPER_WHEN_RESTING false
 
-// Voltage on A6 when F1-F5 buttons are pressed.
-// If those buttons don't work as expected, uncomment "// Serial.println(value);" in getAnalogButton(),
-// upload sketch to your Arduino and click each button (topmost is F1) to find the right value for each.
-// If values are too close to each other (should be ~170 apart), improve resistor soldering connections.
-#define F1_VOLTAGE 850
-#define F2_VOLTAGE 679
-#define F3_VOLTAGE 509
-#define F4_VOLTAGE 339
-#define F5_VOLTAGE 169
-
 /* Changing anything below shouldn't be needed for basic use. */
-
-// Analog voltage epsilon allowing for slightly imprecise resistances.
-// Should be around (F1_VOLTAGE - F2_VOLTAGE) / 3
-#define BUTTON_EPSILON 50
 
 #define LONG_MIN long(-2147483648)
 #define LONG_MAX long(2147483647)
 
 #define LOOP_COUNTER_MAX 1500 // 1500 loops without stepper move to start reading buttons
-#define DUPR_MAX 100000 // 10mm
+#define DUPR_MAX long(100000) // 10mm
 #define STARTS_MAX 124 // No more than 124-start thread
 
 // Ratios between spindle and stepper.
@@ -52,30 +37,67 @@
 
 // Version of the EEPROM storage format, should be changed when non-backward-compatible
 // changes are made to the storage logic, resulting in EEPROM wipe on first start.
-#define EEPROM_VERSION 3
+#define EEPROM_VERSION 1
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 7
+#define SOFTWARE_VERSION 1
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
-#define HARDWARE_VERSION 2
+#define HARDWARE_VERSION 4
 
-#define DIR 11
-#define STEP 12
-#define ENA 13
+#define Z_ENA 16
+#define Z_DIR 17
+#define Z_STEP 18
 
-#define B_LEFT  4
-#define B_RIGHT 5
-#define B_MINUS 6
-#define B_PLUS  7
-#define B_ONOFF 8
-#define B_STOPL 9
-#define B_STOPR 10
-#define B_F1 11
-#define B_F2 12
-#define B_F3 13
-#define B_F4 14
-#define B_F5 15
+#define X_ENA 8
+#define X_DIR 19
+#define X_STEP 20
+
+#define OVERALL_ENABLE 3
+
+#define INT 4
+#define SCL 5
+#define SDA 6
+
+#define B_LEFT 57
+#define B_RIGHT 37
+#define B_UP 47
+#define B_DOWN 67
+#define B_MINUS 5
+#define B_PLUS 64
+#define B_ON 17
+#define B_OFF 27
+#define B_STOPL 7
+#define B_STOPR 15
+#define B_STOPU 6
+#define B_STOPD 16
+#define B_DISPL 43
+#define B_STEP 24
+#define B_SETTINGS 34
+#define B_MEASURE 54
+#define B_REVERSE 44
+#define B_0 51
+#define B_1 41
+#define B_2 61
+#define B_3 31
+#define B_4 2
+#define B_5 21
+#define B_6 12
+#define B_7 11
+#define B_8 22
+#define B_9 1
+#define B_BACKSPACE 32
+#define B_MODE_GEARS 42
+#define B_MODE_TURN 52
+#define B_MODE_FACE 62
+#define B_MODE_CONE 3
+#define B_MODE_CUT 13
+#define B_MODE_THREAD 23
+#define B_MODE_OTHER 33
+#define B_X_0 53
+#define B_X_ENA 4
+#define B_Z_0 63
+#define B_Z_ENA 14
 
 #define ADDR_EEPROM_VERSION 0 // takes 1 byte
 #define ADDR_DUPR 2 // takes 4 bytes
@@ -117,40 +139,31 @@
 // Uncomment to print out debug info in Serial.
 // #define DEBUG
 
-// Uncomment to run the self-test of the code instead of the actual program.
-// #define TEST
-#ifdef TEST
-bool mockDigitalPins[20] = {0};
-int mockDigitalPinToggleOnRead = -1;
-int mockDigitalRead(int x) {
-  int value = mockDigitalPins[x];
-  if (x == mockDigitalPinToggleOnRead) {
-    mockDigitalPins[x] ^= 1;
-  }
-  return value;
-}
-int mockDigitalWrite(int x, int value) {
-  mockDigitalPins[x] = value;
-}
-#define DREAD(x) mockDigitalRead(x)
-#define DHIGH(x) mockDigitalWrite(x, HIGH)
-#define DLOW(x) mockDigitalWrite(x, LOW)
-#else
-#include <FastGPIO.h>
-#define DREAD(x) FastGPIO::Pin<x>::isInputHigh()
-#define DHIGH(x) FastGPIO::Pin<x>::setOutputHigh()
-#define DLOW(x) FastGPIO::Pin<x>::setOutputLow()
-#endif
+#define DREAD(x) digitalRead(x)
+#define DHIGH(x) digitalWrite(x, HIGH)
+#define DLOW(x) digitalWrite(x, LOW)
 
-#ifndef TEST
 #include <SPI.h>
 #include <Wire.h>
 #include <LiquidCrystal.h>
-LiquidCrystal lcd(A0, A1, A2, A3, A4, A5);
+LiquidCrystal lcd(45, 48, 47, 38, 39, 40, 41, 42, 2, 1);
 long lcdHash = 0;
-#endif
 
 #include <EEPROM.h>
+
+#include <Adafruit_TCA8418.h>
+Adafruit_TCA8418 keypad;
+
+// Most buttons we only have "down" handling, holding them has no effect.
+// Buttons with special "holding" logic have flags below.
+bool buttonLeftPressed = false;
+bool buttonRightPressed = false;
+bool buttonUpPressed = false;
+bool buttonDownPressed = false;
+bool buttonOffPressed = false;
+bool inNumpad = false;
+int numpadDigits[6];
+int numpadIndex = 0;
 
 unsigned long buttonDownTime = 0;
 unsigned long buttonUpTime = 0;
@@ -159,11 +172,11 @@ volatile long loopCounter = 0;
 int buttonLoopCounter = 0;
 bool isOn = false;
 unsigned long resetMillis = 0;
+bool resetOnStartup = false;
 bool emergencyStop = false;
 
 volatile long dupr = 0; // pitch, tenth of a micron per rotation
 long savedDupr = 0; // dupr saved in EEPROM
-long duprPrevious = 0;
 
 int starts = 1; // number of starts in a multi-start thread
 int savedStarts = 0; // starts saved in EEPROM
@@ -199,6 +212,7 @@ volatile bool stepDelayDirection = true; // To reset stepDelayUs when direction 
 volatile bool stepDirectionInitialized = false;
 volatile unsigned long stepStartMicros = 0;
 int stepperEnableCounter = 0;
+bool manualEnableFlag = !DISABLE_STEPPER_WHEN_RESTING;
 
 bool showAngle = false; // Whether to show 0-359 spindle angle on screen
 bool showTacho = false; // Whether to show spindle RPM on screen
@@ -216,6 +230,8 @@ int savedMode = -1; // mode saved in EEPROM
 
 int measure = MEASURE_METRIC; // Whether to show distances in inches
 int savedMeasure = MEASURE_METRIC; // measure value saved in EEPROM
+
+hw_timer_t *async_timer = timerBegin(0, 80, true);
 
 int getApproxRpm() {
   if (!showTacho) {
@@ -246,9 +262,8 @@ bool stepperIsRunning() {
 }
 
 void printMicrons(long deciMicrons) {
-#ifndef TEST
   if (deciMicrons == 0) {
-      lcd.print("0");
+    lcd.print("0");
     return;
   }
   bool imperial = measure != MEASURE_METRIC;
@@ -267,11 +282,30 @@ void printMicrons(long deciMicrons) {
   }
   lcd.print(deciMicrons / (imperial ? 254000.0 : 10000.0), points);
   lcd.print(imperial ? "\"" : "mm");
-#endif
+}
+
+void printDupr(long value) {
+  if (measure != MEASURE_TPI) {
+    printMicrons(value);
+  } else {
+    float tpi = 254000.0 / value;
+    if (abs(tpi - round(tpi)) < TPI_ROUND_EPSILON) {
+      lcd.print(int(round(tpi)));
+    } else {
+      int tpi100 = round(tpi * 100);
+      int points = 0;
+      if ((tpi100 % 10) != 0) {
+        points = 2;
+      } else if ((tpi100 % 100) != 0) {
+        points = 1;
+      }
+      lcd.print(tpi, points);
+    }
+    lcd.print("tpi");
+  }
 }
 
 void updateDisplay(bool beforeRunning) {
-#ifndef TEST
   if (emergencyStop) {
     return;
   }
@@ -279,12 +313,13 @@ void updateDisplay(bool beforeRunning) {
   // Hide rows 3 and 4 if ON and about to or is already moving.
   // Not hiding when off since it results in flickering of rows 3 and 4 during short manual moves.
   bool running = isOn && (beforeRunning || stepperIsRunning());
+  long numpadDupr = numpadToDupr();
   // Sum of values affecting rows 1 and 2 of the LCD.
   long hashRows12 = dupr + isOn * 2 + leftStop / 3
-                    + rightStop / 4 + spindlePosSync * 5 +
+                    + rightStop / 4 + spindlePosSync * 5 + resetOnStartup * 6
                     + moveStep * 7 + running * 8 + starts * 12 + mode * 13 + measure * 14;
   // Sum of values affecting rows 3 and 4 of the LCD.
-  long hashRows34 = pos * 9 + showAngle * 10 + (showTacho ? rpm : -1) * 11 + measure * 14;
+  long hashRows34 = pos * 9 + showAngle * 10 + (showTacho ? rpm : -1) * 11 + measure * 14 + numpadDupr;
   // Ignore changes in hashRows34 when stepper is running since they aren't shown.
   long newLcdHash = hashRows12 + (running ? 0 : hashRows34);
   // Don't show angle if stepper is running or spindle is turning.
@@ -320,7 +355,10 @@ void updateDisplay(bool beforeRunning) {
   if (spindlePosSync) {
     lcd.print(" SYN");
   }
-  if (mode == MODE_NORMAL && !spindlePosSync) {
+  if (resetOnStartup) {
+    lcd.print(" LTW");
+  }
+  if (mode == MODE_NORMAL && !resetOnStartup && !spindlePosSync) {
     lcd.print(" step ");
   } else {
     lcd.print(" ");
@@ -330,24 +368,7 @@ void updateDisplay(bool beforeRunning) {
   // Second row.
   lcd.setCursor(0, 1);
   lcd.print("Pitch ");
-  if (measure != MEASURE_TPI) {
-    printMicrons(dupr);
-  } else {
-    float tpi = 254000.0 / dupr;
-    if (abs(tpi - round(tpi)) < TPI_ROUND_EPSILON) {
-      lcd.print(round(tpi));
-    } else {
-      int tpi100 = round(tpi * 100);
-      int points = 0;
-      if ((tpi100 % 10) != 0) {
-        points = 2;
-      } else if ((tpi100 % 100) != 0) {
-        points = 1;
-      }
-      lcd.print(tpi, points);
-    }
-    lcd.print("tpi");
-  }
+  printDupr(dupr);
   if (starts != 1) {
     lcd.print(" x");
     lcd.print(starts);
@@ -366,7 +387,11 @@ void updateDisplay(bool beforeRunning) {
 
   // Fourth row.
   lcd.setCursor(0, 3);
-  if (showAngle) {
+  if (numpadDupr != 0) {
+    lcd.print("Use ");
+    printDupr(numpadDupr);
+    lcd.print("?");
+  } else if (showAngle) {
     lcd.print("Angle ");
     if (spindleStopped) {
       lcd.print(((spindlePos % (int) ENCODER_STEPS + (int) ENCODER_STEPS) % (int) ENCODER_STEPS) * 360 / ENCODER_STEPS, 2);
@@ -381,7 +406,6 @@ void updateDisplay(bool beforeRunning) {
     }
     lcd.print("rpm");
   }
-#endif
 }
 
 void saveInt(int i, int v) {
@@ -459,40 +483,27 @@ void spinEnc() {
 
 void setAsyncTimerEnable(bool value) {
   if (value) {
-    TIMSK1 |= (1 << OCIE1A); // enable timer
+    timerAlarmEnable(async_timer);
   } else {
-    TIMSK1 &= ~(1 << OCIE1A); // disable timer
+    timerAlarmDisable(async_timer);
   }
 }
 
-#ifdef TEST
 void setup() {
-  Serial.begin(9600);
-}
-#else
-void setup() {
-  pinMode(LED_BUILTIN, OUTPUT);
-
-  pinMode(B_LEFT, INPUT_PULLUP);
-  pinMode(B_RIGHT, INPUT_PULLUP);
-  pinMode(B_MINUS, INPUT_PULLUP);
-  pinMode(B_PLUS, INPUT_PULLUP);
-  pinMode(B_ONOFF, INPUT_PULLUP);
-  pinMode(B_STOPL, INPUT_PULLUP);
-  pinMode(B_STOPR, INPUT_PULLUP);
-
   pinMode(ENC_A, INPUT_PULLUP);
   pinMode(ENC_B, INPUT_PULLUP);
 
-  pinMode(DIR, OUTPUT);
-  pinMode(STEP, OUTPUT);
-  digitalWrite(STEP, HIGH);
+  pinMode(Z_DIR, OUTPUT);
+  pinMode(Z_STEP, OUTPUT);
+  pinMode(Z_ENA, OUTPUT);
+  DHIGH(Z_STEP);
 
-  // There was a mysterious crash in async mode with negative dupr
-  // happening after some time running that caused setup() to be run again.
-  // This line mitigates the effects (erratic movement) if this is ever to happen.
-  setAsyncTimerEnable(false);
+  pinMode(X_DIR, OUTPUT);
+  pinMode(X_STEP, OUTPUT);
+  pinMode(X_ENA, OUTPUT);
+  DHIGH(X_STEP);
 
+  EEPROM.begin(256);
   // Wipe EEPROM if this is the first start after uploading a new build.
   if (EEPROM.read(ADDR_EEPROM_VERSION) != EEPROM_VERSION) {
     for (int i = 0; i < 256; i++) {
@@ -504,10 +515,7 @@ void setup() {
     saveInt(ADDR_MOVE_STEP, MOVE_STEP_1);
   }
 
-  // Controller shouldn't be "on" right after start since the power
-  // can be restored unexpectedly, causing dangerous movement.
-  // Not saving or restoring isOn value.
-
+  isOn = false;
   savedDupr = dupr = loadLong(ADDR_DUPR);
   savedStarts = starts = min(STARTS_MAX, max(1, loadInt(ADDR_STARTS)));
   savedPos = pos = loadLong(ADDR_POS);
@@ -526,19 +534,32 @@ void setup() {
   if (DISABLE_STEPPER_WHEN_RESTING) {
     stepperEnable(isOn);
   } else {
-    digitalWrite(ENA, HIGH);
+    DHIGH(Z_ENA);
   }
 
   lcd.begin(20, 4);
+  updateDisplay(false /*beforeRunning*/);
 
-  Serial.begin(9600);
+  Serial.begin(115200);
+  // During first second prints don't show up in Serial Monitor.
+  delay(1000);
   Serial.print("NanoEls H");
   Serial.print(HARDWARE_VERSION);
   Serial.print(" V");
   Serial.println(SOFTWARE_VERSION);
 
-  if (getAnalogButton() > 0 || DREAD(B_LEFT) == LOW || DREAD(B_RIGHT) == LOW || DREAD(B_MINUS) == LOW
-      || DREAD(B_PLUS) == LOW || DREAD(B_ONOFF) == LOW || DREAD(B_STOPL) == LOW || DREAD(B_STOPR) == LOW) {
+  if (!Wire.begin(SDA, SCL)) {
+    Serial.println("I2C initialization failed");
+  } else if (!keypad.begin(TCA8418_DEFAULT_ADDR, &Wire)) {
+    Serial.println("TCA8418 key controller not found");
+  } else {
+    keypad.matrix(7, 7);
+    keypad.enableDebounce();
+    keypad.flush();
+  }
+
+  delay(100);
+  if (keypad.available()) {
     emergencyStop = true;
     setAsyncTimerEnable(false);
     lcd.clear();
@@ -546,74 +567,69 @@ void setup() {
     lcd.print("Key down at power-up");
     lcd.setCursor(0, 1);
     lcd.print("Hardware failure?");
-  } else {
-    updateDisplay(false /*beforeRunning*/);
-    attachInterrupt(digitalPinToInterrupt(ENC_A), spinEnc, FALLING);
+    return;
   }
+
+  attachInterrupt(digitalPinToInterrupt(ENC_A), spinEnc, FALLING);
+
+  pinMode(OVERALL_ENABLE, OUTPUT);
+  DHIGH(OVERALL_ENABLE);
 }
-#endif
 
 // Saves all positions in EEPROM, should be called infrequently to reduce EEPROM wear.
 void saveIfChanged() {
+  bool changed = false;
   if (dupr != savedDupr) {
     saveLong(ADDR_DUPR, savedDupr = dupr);
+    changed = true;
   }
   if (starts != savedStarts) {
     saveInt(ADDR_STARTS, savedStarts = starts);
+    changed = true;
   }
   if (pos != savedPos) {
     saveLong(ADDR_POS, savedPos = pos);
+    changed = true;
   }
   if (leftStop != savedLeftStop) {
     saveLong(ADDR_LEFT_STOP, savedLeftStop = leftStop);
+    changed = true;
   }
   if (rightStop != savedRightStop) {
     saveLong(ADDR_RIGHT_STOP, savedRightStop = rightStop);
+    changed = true;
   }
   if (spindlePos != savedSpindlePos) {
     saveLong(ADDR_SPINDLE_POS, savedSpindlePos = spindlePos);
+    changed = true;
   }
   if (spindlePosSync != savedSpindlePosSync) {
     saveInt(ADDR_OUT_OF_SYNC, savedSpindlePosSync = spindlePosSync);
+    changed = true;
   }
   if (showAngle != savedShowAngle) {
     EEPROM.write(ADDR_SHOW_ANGLE, savedShowAngle = showAngle);
+    changed = true;
   }
   if (showTacho != savedShowTacho) {
     EEPROM.write(ADDR_SHOW_TACHO, savedShowTacho = showTacho);
+    changed = true;
   }
   if (moveStep != savedMoveStep) {
     saveInt(ADDR_MOVE_STEP, savedMoveStep = moveStep);
+    changed = true;
   }
   if (mode != savedMode) {
     saveInt(ADDR_MODE, savedMode = mode);
+    changed = true;
   }
   if (measure != savedMeasure) {
     saveInt(ADDR_MEASURE, savedMeasure = measure);
+    changed = true;
   }
-}
-
-// Checks if the button can be considered pressed.
-// Protects against noise and counting presses too often.
-bool checkAndMarkButtonTime(int button) {
-  unsigned long m = millis();
-  if (buttonId != button) {
-    buttonId = button;
-    buttonDownTime = m;
-    // Protect from spurious presses caused by noise by requiring button to be
-    // pressed for a bit before it actually triggers.
-    return false;
+  if (changed) {
+    EEPROM.commit();
   }
-  if (m < buttonDownTime + 50) {
-    // Button isn't down long enough yet.
-    return false;
-  }
-  if (m > buttonUpTime + 300) {
-    buttonUpTime = m;
-    buttonDownTime = 0;
-    return true;
-  }
-  return false;
 }
 
 // Loose the thread and mark current physical positions of
@@ -640,7 +656,7 @@ void updateAsyncTimerSettings() {
   setDir(dupr > 0);
 
   // dupr can change while we're in async mode, keep updating timer frequency.
-  OCR1A = getOcr1a();
+  timerAlarmWrite(async_timer, getTimerLimit(), true);
 }
 
 void setDupr(long value) {
@@ -687,6 +703,33 @@ void splashScreen() {
 #endif
 }
 
+unsigned int getTimerLimit() {
+  if (dupr == 0) {
+    return 65535;
+  }
+  return min(long(65535), long(1000000 / (MOTOR_STEPS * abs(dupr) / LEAD_SCREW_DU)) - 1); // 1000000/Hz - 1
+}
+
+// Only used for async movement.
+// Keep code in this method to absolute minimum to achieve high stepper speeds.
+void IRAM_ATTR onAsyncTimer() {
+  if (!isOn || movingManually) {
+    return;
+  } else if (dupr > 0 && (leftStop == LONG_MAX || pos < leftStop)) {
+    pos++;
+  } else if (dupr < 0 && (rightStop == LONG_MIN || pos > rightStop)) {
+    pos--;
+  } else {
+    return;
+  }
+
+  DLOW(Z_STEP);
+  stepStartMicros = micros();
+  loopCounter = 0;
+  delayMicroseconds(10);
+  DHIGH(Z_STEP);
+}
+
 void setMode(int value) {
   if (mode == value) {
     return;
@@ -703,16 +746,7 @@ void setMode(int value) {
       updateDisplay(true /*beforeRunning*/);
     }
 
-    // Pretent that stepper is already running to prevent a screen update during the
-    // async movement initialization.
-    stepStartMicros = micros();
-
-    // See pages 108 - 112 of ATmega328P_Datasheet.pdf
-    // CS11 means prescaler = 8. WGM12 means issuing
-    // interrupt when TCNT1 == OCR1A and set TCNT1 to 0.
-    TCCR1B = (1 << WGM12) + (1 << CS11);
-    TCCR1A = 0;
-    TCNT1 = 0;
+    timerAttachInterrupt(async_timer, &onAsyncTimer, true);
     updateAsyncTimerSettings();
     setAsyncTimerEnable(true);
   } else if (mode == MODE_MULTISTART) {
@@ -722,36 +756,8 @@ void setMode(int value) {
   }
 }
 
-unsigned int getOcr1a() {
-  if (dupr == 0) {
-    return 65535;
-  }
-  return min(65535, 2000000 / (MOTOR_STEPS * abs(dupr) / LEAD_SCREW_DU) - 1); // 2000000/Hz - 1
-}
-
-// Only used for async movement.
-// Every 8 clock ticks, processor increments TCNT1.
-// When TCNT1 == OCR1A, this method is called and TCNT1 is reset to 0.
-// Keep code in this method to absolute minimum to achieve high stepper speeds.
-ISR(TIMER1_COMPA_vect) {
-  if (!isOn || movingManually) {
-    return;
-  } else if (dupr > 0 && (leftStop == LONG_MAX || pos < leftStop)) {
-    pos++;
-  } else if (dupr < 0 && (rightStop == LONG_MIN || pos > rightStop)) {
-    pos--;
-  } else {
-    return;
-  }
-
-  DLOW(STEP);
-  // Don't call setDir() or getOcr1a() from an interrupt, it can cause crashes.
-  stepStartMicros = micros();
-  loopCounter = 0;
-  DHIGH(STEP);
-}
-
 void reset() {
+  resetOnStartup = false;
   leftStop = LONG_MAX;
   rightStop = LONG_MIN;
   setDupr(0);
@@ -789,17 +795,8 @@ long normalizePitch(long pitch) {
   return round(pitch / scale) * scale;
 }
 
-// Check if the - or + buttons are pressed.
-void checkPlusMinusButtons() {
-  bool minus = DREAD(B_MINUS) == LOW;
-  bool plus = DREAD(B_PLUS) == LOW;
-  if (!minus && !plus) {
-    duprPrevious = dupr;
-    return;
-  }
-  if (!checkAndMarkButtonTime(minus ? B_MINUS : B_PLUS)) {
-    return;
-  }
+void buttonPlusMinusPress(bool plus) {
+  bool minus = !plus;
   if (mode == MODE_MULTISTART) {
     if (minus && starts > 2) {
       setStarts(starts - 1);
@@ -812,9 +809,6 @@ void checkPlusMinusButtons() {
     if (moveStep == MOVE_STEP_4) {
       // Don't speed up scrolling when on smallest step.
       delta = MOVE_STEP_4;
-    } else if (abs(duprPrevious - dupr) >= (isMetric ? MOVE_STEP_2 : MOVE_STEP_IMP_2)) {
-      // Speed up scrolling when needed.
-      delta = (isMetric ? MOVE_STEP_2 : MOVE_STEP_IMP_2);
     }
     // Switching between mm/inch/tpi often results in getting non-0 3rd and 4th
     // precision points that can't be easily controlled. Remove them.
@@ -833,8 +827,7 @@ void checkPlusMinusButtons() {
       setDupr(plus ? 1 : -1);
     } else {
       long currentTpi = round(254000.0 / dupr);
-      int delta = duprPrevious != 0 && abs(currentTpi - round(254000.0 / duprPrevious)) >= 10 ? 10 : 1;
-      long tpi = currentTpi + (plus ? delta : -delta);
+      long tpi = currentTpi + (plus ? 1 : -1);
       long newDupr = newDupr = round(254000.0 / tpi);
       // Happens for small pitches like 0.01mm.
       if (newDupr == dupr) {
@@ -847,72 +840,42 @@ void checkPlusMinusButtons() {
   }
 }
 
-// Check if the ON/OFF button is pressed.
-void checkOnOffButton() {
-  if (DREAD(B_ONOFF) == LOW) {
-    // We should not ignore an OFF click even if it doesn't pass the noise/time check.
-    if (resetMillis == 0 && (isOn || checkAndMarkButtonTime(B_ONOFF))) {
-      resetMillis = millis();
-      isOn = !isOn;
-      stepperEnable(isOn);
-#ifdef DEBUG
-      Serial.print("isOn ");
-      Serial.println(isOn);
-#endif
-      markAsZero();
-      updateDisplay(false /*beforeRunning*/);
-    } else if (resetMillis > 0 && millis() - resetMillis > 6000) {
-      resetMillis = 0;
-      reset();
-    }
-  } else {
-    resetMillis = 0;
+void buttonOnOffPress(bool on) {
+  resetMillis = millis();
+  isOn = on;
+  stepperEnable(on);
+  updateDisplay(false /*beforeRunning*/);
+}
+
+void buttonOffRelease() {
+  if (millis() - resetMillis > 4000) {
+    reset();
   }
 }
 
-// Check if the left stop button is pressed.
-void checkLeftStopButton() {
-  if (DREAD(B_STOPL) == LOW) {
-    // checkAndMarkButtonTime() checked only when LOW to avoid stop
-    // being toggled while B_STOPL is pressed.
-    if (leftStopFlag && checkAndMarkButtonTime(B_STOPL)) {
-      leftStopFlag = false;
-      if (leftStop == LONG_MAX) {
-        leftStop = pos;
-      } else {
-        if (pos == leftStop) {
-          // Spindle is most likely out of sync with the stepper because
-          // it was spinning while the lead screw was on the stop.
-          setOutOfSync();
-        }
-        leftStop = LONG_MAX;
-      }
-    }
+void buttonLeftStopPress() {
+  if (leftStop == LONG_MAX) {
+    leftStop = pos;
   } else {
-    leftStopFlag = true;
+    if (pos == leftStop) {
+      // Spindle is most likely out of sync with the stepper because
+      // it was spinning while the lead screw was on the stop.
+      setOutOfSync();
+    }
+    leftStop = LONG_MAX;
   }
 }
 
-// Check if the right stop button is pressed.
-void checkRightStopButton() {
-  if (DREAD(B_STOPR) == LOW) {
-    // checkAndMarkButtonTime() checked only when LOW to avoid stop
-    // being toggled while B_STOPR is pressed.
-    if (rightStopFlag && checkAndMarkButtonTime(B_STOPR)) {
-      rightStopFlag = false;
-      if (rightStop == LONG_MIN) {
-        rightStop = pos;
-      } else {
-        if (pos == rightStop) {
-          // Spindle is most likely out of sync with the stepper because
-          // it was spinning while the lead screw was on the stop.
-          setOutOfSync();
-        }
-        rightStop = LONG_MIN;
-      }
-    }
+void buttonRightStopPress() {
+  if (rightStop == LONG_MIN) {
+    rightStop = pos;
   } else {
-    rightStopFlag = true;
+    if (pos == rightStop) {
+      // Spindle is most likely out of sync with the stepper because
+      // it was spinning while the lead screw was on the stop.
+      setOutOfSync();
+    }
+    rightStop = LONG_MIN;
   }
 }
 
@@ -946,14 +909,10 @@ long getAsyncMovePos(int sign) {
   return pos + posDiff;
 }
 
-void checkMoveButtons() {
-  bool left = DREAD(B_LEFT) == LOW;
-  bool right = DREAD(B_RIGHT) == LOW;
+void buttonLeftRightUpDownPress() {
+  bool left = buttonLeftPressed;
+  bool right = buttonRightPressed;
   if (!left && !right) {
-    return;
-  }
-  if (!checkAndMarkButtonTime(left ? B_LEFT : B_RIGHT)) {
-    // Protect against being triggered by noise.
     return;
   }
   if (spindlePosSync) {
@@ -998,7 +957,8 @@ void checkMoveButtons() {
         updateDisplay(false /*beforeRunning*/);
         delay(200);
       }
-    } while ((left ? DREAD(B_LEFT) : DREAD(B_RIGHT)) == LOW);
+      processKeypadEvents();
+    } while (left ? buttonLeftPressed : buttonRightPressed);
     movingManually = false;
   } else {
     int delta = 0;
@@ -1027,7 +987,8 @@ void checkMoveButtons() {
         updateDisplay(false /*beforeRunning*/);
         delay(500);
       }
-    } while (delta != 0 && (left ? DREAD(B_LEFT) : DREAD(B_RIGHT)) == LOW);
+      processKeypadEvents();
+    } while (delta != 0 && (left ? buttonLeftPressed : buttonRightPressed));
     if (isOn) {
       // Prevent stepper from jumping back to position calculated from the spindle.
       markAsZero();
@@ -1038,39 +999,35 @@ void checkMoveButtons() {
   }
 }
 
-void checkDisplayButton(int button) {
-  if (button == B_F1 && checkAndMarkButtonTime(button)) {
-    if (!showAngle && !showTacho) {
-      showAngle = true;
-    } else if (showAngle) {
-      showAngle = false;
-      showTacho = true;
-    } else {
-      showTacho = false;
-    }
+void buttonDisplayPress() {
+  if (!showAngle && !showTacho) {
+    showAngle = true;
+  } else if (showAngle) {
+    showAngle = false;
+    showTacho = true;
+  } else {
+    showTacho = false;
   }
 }
 
-void checkMoveStepButton(int button) {
-  if (button == B_F2 && checkAndMarkButtonTime(button)) {
-    if (measure == MEASURE_METRIC) {
-      if (moveStep == MOVE_STEP_1) {
-        moveStep = MOVE_STEP_2;
-      } else if (moveStep == MOVE_STEP_2) {
-        moveStep = MOVE_STEP_3;
-      } else if (moveStep == MOVE_STEP_3) {
-        moveStep = MOVE_STEP_4;
-      } else {
-        moveStep = MOVE_STEP_1;
-      }
+void buttonMoveStepPress() {
+  if (measure == MEASURE_METRIC) {
+    if (moveStep == MOVE_STEP_1) {
+      moveStep = MOVE_STEP_2;
+    } else if (moveStep == MOVE_STEP_2) {
+      moveStep = MOVE_STEP_3;
+    } else if (moveStep == MOVE_STEP_3) {
+      moveStep = MOVE_STEP_4;
     } else {
-      if (moveStep == MOVE_STEP_IMP_1) {
-        moveStep = MOVE_STEP_IMP_2;
-      } else if (moveStep == MOVE_STEP_IMP_2) {
-        moveStep = MOVE_STEP_IMP_3;
-      } else {
-        moveStep = MOVE_STEP_IMP_1;
-      }
+      moveStep = MOVE_STEP_1;
+    }
+  } else {
+    if (moveStep == MOVE_STEP_IMP_1) {
+      moveStep = MOVE_STEP_IMP_2;
+    } else if (moveStep == MOVE_STEP_IMP_2) {
+      moveStep = MOVE_STEP_IMP_3;
+    } else {
+      moveStep = MOVE_STEP_IMP_1;
     }
   }
 }
@@ -1081,69 +1038,203 @@ void setDir(bool dir) {
     stepDelayUs = PULSE_MAX_US;
     stepDelayDirection = dir;
     stepDirectionInitialized = true;
-    digitalWrite(DIR, dir ^ INVERT_STEPPER ? HIGH : LOW);
-  }
-}
-
-void checkModeButton(int button) {
-  if (button == B_F3 && checkAndMarkButtonTime(button)) {
-    if (mode == MODE_NORMAL) {
-      setMode(MODE_MULTISTART);
-    } else if (mode == MODE_MULTISTART) {
-      setMode(MODE_ASYNC);
+    if (dir ^ INVERT_STEPPER) {
+      DHIGH(Z_DIR);
     } else {
-      setMode(MODE_NORMAL);
+      DLOW(Z_DIR);
     }
   }
 }
 
-void checkMeasureButton(int button) {
-  if (button == B_F4 && checkAndMarkButtonTime(button)) {
-    if (measure == MEASURE_METRIC) {
-      setMeasure(MEASURE_INCH);
-    } else if (measure == MEASURE_INCH) {
-      setMeasure(MEASURE_TPI);
-    } else {
-      setMeasure(MEASURE_METRIC);
+void buttonModePress() {
+  if (mode == MODE_NORMAL) {
+    setMode(MODE_MULTISTART);
+  } else if (mode == MODE_MULTISTART) {
+    setMode(MODE_ASYNC);
+  } else {
+    setMode(MODE_NORMAL);
+  }
+}
+
+void buttonMeasurePress() {
+  if (measure == MEASURE_METRIC) {
+    setMeasure(MEASURE_INCH);
+  } else if (measure == MEASURE_INCH) {
+    setMeasure(MEASURE_TPI);
+  } else {
+    setMeasure(MEASURE_METRIC);
+  }
+}
+
+void buttonReversePress() {
+  setDupr(-dupr);
+}
+
+void numpadPress(int digit) {
+  if (!inNumpad) {
+    numpadIndex = 0;
+  }
+  numpadDigits[numpadIndex] = digit;
+  if (numpadIndex < sizeof(numpadDigits) - 1) {
+    numpadIndex++;
+  } else {
+    numpadIndex = 0;
+  }
+}
+
+void numpadBackspace() {
+  if (inNumpad && numpadIndex > 0) {
+    numpadIndex--;
+  }
+}
+
+void resetNumpad() {
+  numpadIndex = 0;
+}
+
+long getNumpadResult() {
+  long result = 0;
+  for (int i = 0; i < numpadIndex; i++) {
+    result += numpadDigits[i] * pow(10, numpadIndex - 1 - i);
+  }
+  return result;
+}
+
+long numpadToDupr() {
+  long result = getNumpadResult();
+  if (result == 0) {
+    return 0;
+  }
+  if (measure == MEASURE_INCH) {
+    result = result * 254;
+  } else if (measure == MEASURE_TPI) {
+    result = round(254000.0 / result);
+  } else { // Metric
+    result = result * 10;
+  }
+  return result;
+}
+
+void processKeypadEvents() {
+  while (keypad.available() > 0) {
+    int event = keypad.getEvent();
+    int keyCode = event;
+    bitWrite(keyCode, 7, 0);
+    bool isPress = bitRead(event, 7) == 1; // 1 - press, 0 - release
+    if (keyCode == B_OFF) {
+      buttonOffPressed = isPress;
+      isPress ? buttonOnOffPress(false) : buttonOffRelease();
+    } else if (keyCode == B_LEFT) {
+      buttonLeftPressed = isPress;
+      if (isPress) buttonLeftRightUpDownPress();
+    } else if (keyCode == B_RIGHT) {
+      buttonRightPressed = isPress;
+      if (isPress) buttonLeftRightUpDownPress();
+    } else if (keyCode == B_UP) {
+      buttonUpPressed = isPress;
+      if (isPress) buttonLeftRightUpDownPress();
+    } else if (keyCode == B_DOWN) {
+      buttonDownPressed = isPress;
+      if (isPress) buttonLeftRightUpDownPress();
+    }
+
+    // For all other keys we have no "release" logic.
+    if (!isPress) {
+      continue;
+    }
+
+    // Numpad separately to lower inNumpad when non-numeric key is pressed.
+    if (keyCode == B_0) {
+      numpadPress(0);
+      inNumpad = true;
+    } else if (keyCode == B_1) {
+      numpadPress(1);
+      inNumpad = true;
+    } else if (keyCode == B_2) {
+      numpadPress(2);
+      inNumpad = true;
+    } else if (keyCode == B_3) {
+      numpadPress(3);
+      inNumpad = true;
+    } else if (keyCode == B_4) {
+      numpadPress(4);
+      inNumpad = true;
+    } else if (keyCode == B_5) {
+      numpadPress(5);
+      inNumpad = true;
+    } else if (keyCode == B_6) {
+      numpadPress(6);
+      inNumpad = true;
+    } else if (keyCode == B_7) {
+      numpadPress(7);
+      inNumpad = true;
+    } else if (keyCode == B_8) {
+      numpadPress(8);
+      inNumpad = true;
+    } else if (keyCode == B_9) {
+      numpadPress(9);
+      inNumpad = true;
+    } else if (keyCode == B_BACKSPACE) {
+      numpadBackspace();
+      inNumpad = true;
+    } else if (inNumpad) {
+      inNumpad = false;
+      long newDupr = numpadToDupr();
+      resetNumpad();
+      // Ignore numpad input unless confirmed with ON.
+      if (keyCode == B_ON) {
+        if (abs(newDupr) <= DUPR_MAX) {
+          setDupr(newDupr);
+        }
+        // Don't use this ON press for starting the motion.
+        continue;
+      }
+    }
+
+    if (keyCode == B_PLUS) {
+      buttonPlusMinusPress(true);
+    } else if (keyCode == B_MINUS) {
+      buttonPlusMinusPress(false);
+    } else if (keyCode == B_ON) {
+      buttonOnOffPress(true);
+    } else if (keyCode == B_STOPL) {
+      buttonLeftStopPress();
+    } else if (keyCode == B_STOPR) {
+      buttonRightStopPress();
+    } else if (keyCode == B_STOPU) {
+      // TODO.
+    } else if (keyCode == B_STOPD) {
+      // TODO.
+    } else if (keyCode == B_MODE_OTHER) {
+      buttonModePress();
+    } else if (keyCode == B_DISPL) {
+      buttonDisplayPress();
+    } else if (keyCode == B_X_0) {
+      // TODO.
+    } else if (keyCode == B_X_ENA) {
+      // TODO.
+    } else if (keyCode == B_Z_0) {
+      markAsZero();
+    } else if (keyCode == B_Z_ENA) {
+      manualEnableFlag = !manualEnableFlag;
+      stepperEnable(manualEnableFlag);
+    } else if (keyCode == B_STEP) {
+      buttonMoveStepPress();
+    } else if (keyCode == B_SETTINGS) {
+      // TODO.
+    } else if (keyCode == B_REVERSE) {
+      buttonReversePress();
+    } else if (keyCode == B_MEASURE) {
+      buttonMeasurePress();
     }
   }
-}
-
-void checkReverseButton(int button) {
-  if (button == B_F5 && checkAndMarkButtonTime(button)) {
-    setDupr(-dupr);
-  }
-}
-
-// Checks if one of the pitch shortcut buttons were pressed.
-void checkPitchShortcutButton(int button, int bConst, int pitch) {
-  if (button == bConst && checkAndMarkButtonTime(button)) {
-    setDupr(pitch);
-  }
-}
-
-int getAnalogButton() {
-  int value = analogRead(A6);
-  // Serial.println(value);
-  if ((F1_VOLTAGE + BUTTON_EPSILON > value) && (F1_VOLTAGE - BUTTON_EPSILON < value)) {
-    return B_F1;
-  } else if ((F2_VOLTAGE + BUTTON_EPSILON > value) && (F2_VOLTAGE - BUTTON_EPSILON < value)) {
-    return B_F2;
-  } else if ((F3_VOLTAGE + BUTTON_EPSILON > value) && (F3_VOLTAGE - BUTTON_EPSILON < value)) {
-    return B_F3;
-  } else if ((F4_VOLTAGE + BUTTON_EPSILON > value) && (F4_VOLTAGE - BUTTON_EPSILON < value)) {
-    return B_F4;
-  } else if ((F5_VOLTAGE + BUTTON_EPSILON > value) && (F5_VOLTAGE - BUTTON_EPSILON < value)) {
-    return B_F5;
-  }
-  return 0;
 }
 
 unsigned long stepStart = 0;
 unsigned long stepToStep = PULSE_MIN_US;
 
 // Moves the stepper.
-long step(bool dir, long steps) {
+void step(bool dir, long steps) {
   setDir(dir);
 
   // Stepper basically has no speed if it was standing for 10ms.
@@ -1159,13 +1250,14 @@ long step(bool dir, long steps) {
 
   long minDelay = steps == 1 ? 1 : PULSE_MIN_US;
   for (int i = 0; i < steps; i++) {
-    DLOW(STEP);
+    DLOW(Z_STEP);
     long constAccelDelay = 1000000 / (1000000 / stepDelayUs + ACCELERATION * stepDelayUs / 1000);
-    stepDelayUs = min(PULSE_MAX_US, max(minDelay, constAccelDelay));
+    stepDelayUs = min(long(PULSE_MAX_US), max(minDelay, constAccelDelay));
     unsigned long t = micros();
     stepToStep = min(stepToStep, t - stepStartMicros);
     stepStartMicros = t;
-    DHIGH(STEP);
+    delayMicroseconds(5);
+    DHIGH(Z_STEP);
     // Don't wait during the last step, it will pass by itself before we get back to stepping again.
     // This condition is the reason moving left-right is limited to 600rpm but with ELS On and spindle
     // gradually speeding up, stepper can go to ~1200rpm.
@@ -1207,43 +1299,20 @@ void stepperEnable(bool value) {
   if (value) {
     stepperEnableCounter++;
     if (value == 1) {
-      digitalWrite(ENA, HIGH);
+      DHIGH(Z_ENA);
       // Stepper driver needs some time before it will react to pulses.
       delay(100);
     }
   } else if (stepperEnableCounter > 0) {
     stepperEnableCounter--;
     if (stepperEnableCounter == 0) {
-      digitalWrite(ENA, LOW);
+      DLOW(Z_ENA);
     }
   }
 }
 
-// What is called in the loop() function in when not in test mode.
-void nonTestLoop() {
-  if (emergencyStop) {
-    return;
-  }
-
-  buttonLoopCounter = (buttonLoopCounter + 1) % 10;
-  // Spread button checking in time to give move time to stepper logic.
-  // It takes 200ms for a human to press a button so this shouldn't be noticeable.
-  switch (buttonLoopCounter) {
-    case 1: checkOnOffButton(); break;
-    case 2: checkPlusMinusButtons(); break;
-    case 3: checkLeftStopButton(); break;
-    case 4: checkRightStopButton(); break;
-    case 5: checkMoveButtons(); break;
-    default:
-      int button = getAnalogButton();
-      switch (buttonLoopCounter) {
-        case 6: checkDisplayButton(button); break;
-        case 7: checkMoveStepButton(button); break;
-        case 8: checkModeButton(button); break;
-        case 9: checkMeasureButton(button); break;
-        case 0: checkReverseButton(button); break;
-      }
-  }
+void loop() {
+  processKeypadEvents();
 
   noInterrupts();
   long spindlePosCopy = spindlePos;
@@ -1303,25 +1372,6 @@ void nonTestLoop() {
 
   loopCounter++;
   if (loopCounter > LOOP_COUNTER_MAX) {
-#ifdef DEBUG
-    if (loopCounter % LOOP_COUNTER_MAX == 0) {
-      Serial.print("pos ");
-      Serial.print(pos);
-      Serial.print(" dupr ");
-      Serial.print(dupr);
-      Serial.print(" starts ");
-      Serial.print(starts);
-      Serial.print(" leftStop ");
-      Serial.print(leftStop == LONG_MAX ? "-" : String(leftStop));
-      Serial.print(" rightStop ");
-      Serial.print(rightStop == LONG_MIN ? "-" : String(rightStop));
-      Serial.print(" spindlePos ");
-      Serial.println(spindlePos);
-      Serial.print(" moveStep ");
-      Serial.println(moveStep);
-    }
-#endif
-
     // Only check buttons when stepper is surely not running.
     // It might have to run any millisecond though e.g. when leaving the stop
     // so it still should complete within milliseconds.
@@ -1332,21 +1382,10 @@ void nonTestLoop() {
     if (loopCounter % 137 == 0) {
       saveIfChanged();
     }
+
+    // Drop the lost thread warning after some time.
+    if (resetOnStartup && loopCounter > 2 * LOOP_COUNTER_MAX) {
+      resetOnStartup = false;
+    }
   }
-}
-
-// In unit testing mode, include test library.
-#ifdef TEST
-#include <AUnit.h>
-#endif
-
-void loop() {
-  // In unit testing mode, only run tests.
-#ifdef TEST
-  setupEach();
-  aunit::TestRunner::setTimeout(0);
-  aunit::TestRunner::run();
-#else
-  nonTestLoop();
-#endif
 }
