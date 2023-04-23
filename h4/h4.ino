@@ -53,9 +53,7 @@
 #define X_DIR 19
 #define X_STEP 20
 
-#define OVERALL_ENABLE 3
-
-#define INT 4
+#define BUZZ 4
 #define SCL 5
 #define SDA 6
 
@@ -146,8 +144,12 @@
 #include <SPI.h>
 #include <Wire.h>
 #include <LiquidCrystal.h>
-LiquidCrystal lcd(45, 48, 47, 38, 39, 40, 41, 42, 2, 1);
-long lcdHash = 0;
+LiquidCrystal lcd(21, 48, 47, 38, 39, 40, 41, 42, 2, 1);
+#define LCD_HASH_INITIAL -3845709 // Random number that's unlikely to naturally occur as an actual hash
+long lcdHashLine0 = LCD_HASH_INITIAL;
+long lcdHashLine1 = LCD_HASH_INITIAL;
+long lcdHashLine2 = LCD_HASH_INITIAL;
+long lcdHashLine3 = LCD_HASH_INITIAL;
 
 #include <EEPROM.h>
 
@@ -161,18 +163,13 @@ bool buttonRightPressed = false;
 bool buttonUpPressed = false;
 bool buttonDownPressed = false;
 bool buttonOffPressed = false;
+
 bool inNumpad = false;
 int numpadDigits[6];
 int numpadIndex = 0;
 
-unsigned long buttonDownTime = 0;
-unsigned long buttonUpTime = 0;
-int buttonId = 0;
-volatile long loopCounter = 0;
-int buttonLoopCounter = 0;
 bool isOn = false;
 unsigned long resetMillis = 0;
-bool resetOnStartup = false;
 bool emergencyStop = false;
 
 volatile long dupr = 0; // pitch, tenth of a micron per rotation
@@ -261,10 +258,10 @@ bool stepperIsRunning() {
   return micros() - stepStartMicros < 10000;
 }
 
-void printMicrons(long deciMicrons) {
+// Returns number of letters printed.
+int printMicrons(long deciMicrons) {
   if (deciMicrons == 0) {
-    lcd.print("0");
-    return;
+    return lcd.print("0");
   }
   bool imperial = measure != MEASURE_METRIC;
   long v = imperial ? round(deciMicrons / 25.4) : deciMicrons;
@@ -280,17 +277,19 @@ void printMicrons(long deciMicrons) {
   } else if ((v % 10000) != 0) {
     points = 1;
   }
-  lcd.print(deciMicrons / (imperial ? 254000.0 : 10000.0), points);
-  lcd.print(imperial ? "\"" : "mm");
+  int count = lcd.print(deciMicrons / (imperial ? 254000.0 : 10000.0), points);
+  count += lcd.print(imperial ? "\"" : "mm");
+  return count;
 }
 
-void printDupr(long value) {
+int printDupr(long value) {
+  int count = 0;
   if (measure != MEASURE_TPI) {
-    printMicrons(value);
+    count += printMicrons(value);
   } else {
     float tpi = 254000.0 / value;
     if (abs(tpi - round(tpi)) < TPI_ROUND_EPSILON) {
-      lcd.print(int(round(tpi)));
+      count += lcd.print(int(round(tpi)));
     } else {
       int tpi100 = round(tpi * 100);
       int points = 0;
@@ -299,112 +298,108 @@ void printDupr(long value) {
       } else if ((tpi100 % 100) != 0) {
         points = 1;
       }
-      lcd.print(tpi, points);
+      count += lcd.print(tpi, points);
     }
-    lcd.print("tpi");
+    count += lcd.print("tpi");
+  }
+  return count;
+}
+
+void printLcdSpaces(int charIndex) {
+  // Our screen has width 20.
+  while (charIndex < 20) {
+    charIndex++;
+    lcd.print(" ");
   }
 }
 
-void updateDisplay(bool beforeRunning) {
+void updateDisplay() {
   if (emergencyStop) {
     return;
   }
   int rpm = getApproxRpm();
-  // Hide rows 3 and 4 if ON and about to or is already moving.
-  // Not hiding when off since it results in flickering of rows 3 and 4 during short manual moves.
-  bool running = isOn && (beforeRunning || stepperIsRunning());
   long numpadDupr = numpadToDupr();
-  // Sum of values affecting rows 1 and 2 of the LCD.
-  long hashRows12 = dupr + isOn * 2 + leftStop / 3
-                    + rightStop / 4 + spindlePosSync * 5 + resetOnStartup * 6
-                    + moveStep * 7 + running * 8 + starts * 12 + mode * 13 + measure * 14;
-  // Sum of values affecting rows 3 and 4 of the LCD.
-  long hashRows34 = pos * 9 + showAngle * 10 + (showTacho ? rpm : -1) * 11 + measure * 14 + numpadDupr;
-  // Ignore changes in hashRows34 when stepper is running since they aren't shown.
-  long newLcdHash = hashRows12 + (running ? 0 : hashRows34);
-  // Don't show angle if stepper is running or spindle is turning.
-  bool spindleStopped = micros() > spindleEncTime + 100000;
-  if (!running && showAngle && spindleStopped) {
-    newLcdHash += spindlePos;
+  int charIndex = 0;
+
+  if (lcdHashLine0 == LCD_HASH_INITIAL) {
+    // First run after reset.
+    lcd.clear();
   }
 
-  // Don't spend 40ms and flicker the screen if nothing changed.
-  if (newLcdHash == lcdHash) {
-    return;
-  }
-
-  lcdHash = newLcdHash;
-  lcd.clear();
-
-  // First row.
-  lcd.setCursor(0, 0);
-  if (mode == MODE_MULTISTART) {
-    lcd.print("MUL ");
-  } else if (mode == MODE_ASYNC) {
-    lcd.print("ASY ");
-  }
-  lcd.print(isOn ? "ON" : "off");
-  if (leftStop != LONG_MAX && rightStop != LONG_MIN) {
-    lcd.print(" LR");
-  } else if (leftStop != LONG_MAX) {
-    lcd.print(" L");
-  } else if (rightStop != LONG_MIN) {
-    lcd.print("  R");
-  }
-
-  if (spindlePosSync) {
-    lcd.print(" SYN");
-  }
-  if (resetOnStartup) {
-    lcd.print(" LTW");
-  }
-  if (mode == MODE_NORMAL && !resetOnStartup && !spindlePosSync) {
-    lcd.print(" step ");
-  } else {
-    lcd.print(" ");
-  }
-  printMicrons(moveStep);
-
-  // Second row.
-  lcd.setCursor(0, 1);
-  lcd.print("Pitch ");
-  printDupr(dupr);
-  if (starts != 1) {
-    lcd.print(" x");
-    lcd.print(starts);
-  }
-
-  if (running) {
-    // Stepper is running, updateDisplay() will no longer be called soon,
-    // don't draw position, RPM and angle that won't be accurate shortly.
-    return;
-  }
-
-  // Third row.
-  lcd.setCursor(0, 2);
-  lcd.print("Position ");
-  printMicrons(round(pos * LEAD_SCREW_DU / MOTOR_STEPS));
-
-  // Fourth row.
-  lcd.setCursor(0, 3);
-  if (numpadDupr != 0) {
-    lcd.print("Use ");
-    printDupr(numpadDupr);
-    lcd.print("?");
-  } else if (showAngle) {
-    lcd.print("Angle ");
-    if (spindleStopped) {
-      lcd.print(((spindlePos % (int) ENCODER_STEPS + (int) ENCODER_STEPS) % (int) ENCODER_STEPS) * 360 / ENCODER_STEPS, 2);
-      lcd.print(char(223));
+  long newHashLine0 = isOn + leftStop - rightStop + spindlePosSync + moveStep + mode + measure;
+  if (lcdHashLine0 != newHashLine0) {
+    lcdHashLine0 = newHashLine0;
+    lcd.setCursor(0, 0);
+    if (mode == MODE_MULTISTART) {
+      charIndex += lcd.print("MUL ");
+    } else if (mode == MODE_ASYNC) {
+      charIndex += lcd.print("ASY ");
     }
-  } else if (showTacho) {
-    lcd.print("Tacho ");
-    lcd.print(rpm);
-    if (shownRpm != rpm) {
-      shownRpm = rpm;
-      shownRpmTime = micros();
+    charIndex += lcd.print(isOn ? "ON" : "off");
+    if (leftStop != LONG_MAX && rightStop != LONG_MIN) {
+      charIndex += lcd.print(" LR");
+    } else if (leftStop != LONG_MAX) {
+      charIndex += lcd.print(" L");
+    } else if (rightStop != LONG_MIN) {
+      charIndex += lcd.print("  R");
     }
-    lcd.print("rpm");
+
+    if (spindlePosSync) {
+      charIndex += lcd.print(" SYN");
+    }
+    if (mode == MODE_NORMAL && !spindlePosSync) {
+      charIndex += lcd.print(" step ");
+    } else {
+      charIndex += lcd.print(" ");
+    }
+    charIndex += printMicrons(moveStep);
+    printLcdSpaces(charIndex);
+  }
+
+  long newHashLine1 = dupr + starts + mode + measure;
+  if (lcdHashLine1 != newHashLine1) {
+    lcdHashLine1 = newHashLine1;
+    lcd.setCursor(0, 1);
+    charIndex += lcd.print("Pitch ");
+    charIndex += printDupr(dupr);
+    if (starts != 1) {
+      charIndex += lcd.print(" x");
+      charIndex += lcd.print(starts);
+    }
+    printLcdSpaces(charIndex);
+  }
+
+  long newHashLine2 = pos + measure;
+  if (lcdHashLine2 != newHashLine2) {
+    lcdHashLine2 = newHashLine2;
+    lcd.setCursor(0, 2);
+    charIndex += lcd.print("Position ");
+    charIndex += printMicrons(round(pos * LEAD_SCREW_DU / MOTOR_STEPS));
+    printLcdSpaces(charIndex);
+  }
+
+  long newHashLine3 = pos + (showAngle ? spindlePos : 0) + (showTacho ? rpm : 0) + measure + numpadDupr;
+  if (lcdHashLine3 != newHashLine3) {
+    lcdHashLine3 = newHashLine3;
+    lcd.setCursor(0, 3);
+    if (numpadDupr != 0) {
+      charIndex += lcd.print("Use ");
+      charIndex += printDupr(numpadDupr);
+      charIndex += lcd.print("?");
+    } else if (showAngle) {
+      charIndex += lcd.print("Angle ");
+      charIndex += lcd.print(((spindlePos % (int) ENCODER_STEPS + (int) ENCODER_STEPS) % (int) ENCODER_STEPS) * 360 / ENCODER_STEPS, 2);
+      charIndex += lcd.print(char(223));
+    } else if (showTacho) {
+      charIndex += lcd.print("Tacho ");
+      charIndex += lcd.print(rpm);
+      if (shownRpm != rpm) {
+        shownRpm = rpm;
+        shownRpmTime = micros();
+      }
+      charIndex += lcd.print("rpm");
+    }
+    printLcdSpaces(charIndex);
   }
 }
 
@@ -489,6 +484,16 @@ void setAsyncTimerEnable(bool value) {
   }
 }
 
+void core0Task(void *param) {
+  while (true) {
+    updateDisplay();
+    if (!stepperIsRunning()) {
+      saveIfChanged();
+    }
+    delay(50);
+  }
+}
+
 void setup() {
   pinMode(ENC_A, INPUT_PULLUP);
   pinMode(ENC_B, INPUT_PULLUP);
@@ -502,6 +507,8 @@ void setup() {
   pinMode(X_STEP, OUTPUT);
   pinMode(X_ENA, OUTPUT);
   DHIGH(X_STEP);
+
+  pinMode(BUZZ, OUTPUT);
 
   EEPROM.begin(256);
   // Wipe EEPROM if this is the first start after uploading a new build.
@@ -538,7 +545,6 @@ void setup() {
   }
 
   lcd.begin(20, 4);
-  updateDisplay(false /*beforeRunning*/);
 
   Serial.begin(115200);
   // During first second prints don't show up in Serial Monitor.
@@ -572,8 +578,7 @@ void setup() {
 
   attachInterrupt(digitalPinToInterrupt(ENC_A), spinEnc, FALLING);
 
-  pinMode(OVERALL_ENABLE, OUTPUT);
-  DHIGH(OVERALL_ENABLE);
+  xTaskCreatePinnedToCore(core0Task, "core0Task", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
 }
 
 // Saves all positions in EEPROM, should be called infrequently to reduce EEPROM wear.
@@ -662,10 +667,6 @@ void updateAsyncTimerSettings() {
 void setDupr(long value) {
   dupr = value;
   markAsZero();
-  // Printing new pitch can stall the motor due to time spent on it. Don't have time to even clear the LCD.
-  if (!stepperIsRunning()) {
-    updateDisplay(false /*beforeRunning*/);
-  }
   if (mode == MODE_ASYNC) {
     updateAsyncTimerSettings();
   }
@@ -677,10 +678,6 @@ void setStarts(int value) {
   }
   starts = value;
   markAsZero();
-  // Printing new pitch can stall the motor due to time spent on it. Don't have time to even clear the LCD.
-  if (!stepperIsRunning()) {
-    updateDisplay(false /*beforeRunning*/);
-  }
 }
 
 void setMeasure(int value) {
@@ -698,7 +695,10 @@ void splashScreen() {
   lcd.print("NanoEls");
   lcd.setCursor(6, 2);
   lcd.print("H" + String(HARDWARE_VERSION) + " V" + String(SOFTWARE_VERSION));
-  lcdHash = 0;
+  lcdHashLine0 = LCD_HASH_INITIAL;
+  lcdHashLine1 = LCD_HASH_INITIAL;
+  lcdHashLine2 = LCD_HASH_INITIAL;
+  lcdHashLine3 = LCD_HASH_INITIAL;
   delay(2000);
 #endif
 }
@@ -725,7 +725,6 @@ void IRAM_ATTR onAsyncTimer() {
 
   DLOW(Z_STEP);
   stepStartMicros = micros();
-  loopCounter = 0;
   delayMicroseconds(10);
   DHIGH(Z_STEP);
 }
@@ -742,10 +741,6 @@ void setMode(int value) {
   mode = value;
   markAsZero();
   if (mode == MODE_ASYNC) {
-    if (isOn) {
-      updateDisplay(true /*beforeRunning*/);
-    }
-
     timerAttachInterrupt(async_timer, &onAsyncTimer, true);
     updateAsyncTimerSettings();
     setAsyncTimerEnable(true);
@@ -757,7 +752,6 @@ void setMode(int value) {
 }
 
 void reset() {
-  resetOnStartup = false;
   leftStop = LONG_MAX;
   rightStop = LONG_MIN;
   setDupr(0);
@@ -844,7 +838,6 @@ void buttonOnOffPress(bool on) {
   resetMillis = millis();
   isOn = on;
   stepperEnable(on);
-  updateDisplay(false /*beforeRunning*/);
 }
 
 void buttonOffRelease() {
@@ -954,7 +947,6 @@ void buttonLeftRightUpDownPress() {
           stepperEnable(false);
           stepperOn = false;
         }
-        updateDisplay(false /*beforeRunning*/);
         delay(200);
       }
       processKeypadEvents();
@@ -982,9 +974,6 @@ void buttonLeftRightUpDownPress() {
       step(delta > 0, abs(delta));
 
       if (moveStep != (measure == MEASURE_METRIC ? MOVE_STEP_1 : MOVE_STEP_IMP_1)) {
-        // Allow some time for the button to be released to
-        // make it possible to do single steps at 0.1, 0.01mm and 0.001mm.
-        updateDisplay(false /*beforeRunning*/);
         delay(500);
       }
       processKeypadEvents();
@@ -1242,12 +1231,6 @@ void step(bool dir, long steps) {
     stepDelayUs = PULSE_MAX_US;
   }
 
-  if (stepDelayUs == PULSE_MAX_US) {
-    // Hide 2 bottom rows in anticipation of stepper move as that info
-    // will go stale and display won't be updated anymore.
-    updateDisplay(true /*beforeRunning*/);
-  }
-
   long minDelay = steps == 1 ? 1 : PULSE_MIN_US;
   for (int i = 0; i < steps; i++) {
     DLOW(Z_STEP);
@@ -1325,9 +1308,6 @@ void loop() {
     if (newPos != pos) {
       // Move the stepper to the right position.
       step(newPos > pos, 1);
-      if (loopCounter > 0) {
-        loopCounter = 0;
-      }
 
       // No long calls on this path or stepper will move unevenly.
       return;
@@ -1368,24 +1348,5 @@ void loop() {
     }
     interrupts();
     checkIfNextStart();
-  }
-
-  loopCounter++;
-  if (loopCounter > LOOP_COUNTER_MAX) {
-    // Only check buttons when stepper is surely not running.
-    // It might have to run any millisecond though e.g. when leaving the stop
-    // so it still should complete within milliseconds.
-    if (loopCounter % 8 == 0) {
-      // This takes a really long time.
-      updateDisplay(false /*beforeRunning*/);
-    }
-    if (loopCounter % 137 == 0) {
-      saveIfChanged();
-    }
-
-    // Drop the lost thread warning after some time.
-    if (resetOnStartup && loopCounter > 2 * LOOP_COUNTER_MAX) {
-      resetOnStartup = false;
-    }
   }
 }
