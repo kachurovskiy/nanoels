@@ -7,7 +7,7 @@ This software and instructions are provided as is, [without warranty of any kind
 
 Cheap DIY Electronic Lead Screw (ELS) based on Arduino Nano for metal lathes.
 
-![h2 kit](https://user-images.githubusercontent.com/517919/232871612-c7588f52-828f-48a2-a554-b5b93112c32b.jpg)
+[![h2 kit](https://user-images.githubusercontent.com/517919/232871612-c7588f52-828f-48a2-a554-b5b93112c32b.jpg)](https://github.com/kachurovskiy/nanoels/tree/main/h2#nanoels-h2)
 
 No more greasy gear swapping! Control your metal lathe lead screw with a few clicks.
 
