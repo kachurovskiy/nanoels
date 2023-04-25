@@ -69,7 +69,7 @@
 #define B_STOPR 15
 #define B_STOPU 6
 #define B_STOPD 16
-#define B_DISPL 43
+#define B_DISPL 14
 #define B_STEP 24
 #define B_SETTINGS 34
 #define B_MEASURE 54
@@ -92,10 +92,10 @@
 #define B_MODE_CUT 13
 #define B_MODE_THREAD 23
 #define B_MODE_OTHER 33
-#define B_X_0 53
-#define B_X_ENA 4
-#define B_Z_0 63
-#define B_Z_ENA 14
+#define B_X 53
+#define B_Z 43
+#define B_A 4
+#define B_B 63
 
 #define ADDR_EEPROM_VERSION 0 // takes 1 byte
 #define ADDR_DUPR 2 // takes 4 bytes
@@ -307,8 +307,7 @@ int printDupr(long value) {
 
 void printLcdSpaces(int charIndex) {
   // Our screen has width 20.
-  while (charIndex < 20) {
-    charIndex++;
+  for (; charIndex < 20; charIndex++) {
     lcd.print(" ");
   }
 }
@@ -329,6 +328,7 @@ void updateDisplay() {
   long newHashLine0 = isOn + leftStop - rightStop + spindlePosSync + moveStep + mode + measure;
   if (lcdHashLine0 != newHashLine0) {
     lcdHashLine0 = newHashLine0;
+    charIndex = 0;
     lcd.setCursor(0, 0);
     if (mode == MODE_MULTISTART) {
       charIndex += lcd.print("MUL ");
@@ -359,6 +359,7 @@ void updateDisplay() {
   long newHashLine1 = dupr + starts + mode + measure;
   if (lcdHashLine1 != newHashLine1) {
     lcdHashLine1 = newHashLine1;
+    charIndex = 0;
     lcd.setCursor(0, 1);
     charIndex += lcd.print("Pitch ");
     charIndex += printDupr(dupr);
@@ -372,15 +373,17 @@ void updateDisplay() {
   long newHashLine2 = pos + measure;
   if (lcdHashLine2 != newHashLine2) {
     lcdHashLine2 = newHashLine2;
+    charIndex = 0;
     lcd.setCursor(0, 2);
     charIndex += lcd.print("Position ");
     charIndex += printMicrons(round(pos * LEAD_SCREW_DU / MOTOR_STEPS));
     printLcdSpaces(charIndex);
   }
 
-  long newHashLine3 = pos + (showAngle ? spindlePos : 0) + (showTacho ? rpm : 0) + measure + numpadDupr;
+  long newHashLine3 = pos + (showAngle ? spindlePos  : -1) + (showTacho ? rpm : -2) + measure + numpadDupr;
   if (lcdHashLine3 != newHashLine3) {
     lcdHashLine3 = newHashLine3;
+    charIndex = 0;
     lcd.setCursor(0, 3);
     if (numpadDupr != 0) {
       charIndex += lcd.print("Use ");
@@ -1198,13 +1201,13 @@ void processKeypadEvents() {
       buttonModePress();
     } else if (keyCode == B_DISPL) {
       buttonDisplayPress();
-    } else if (keyCode == B_X_0) {
+    } else if (keyCode == B_X) {
       // TODO.
-    } else if (keyCode == B_X_ENA) {
-      // TODO.
-    } else if (keyCode == B_Z_0) {
+    } else if (keyCode == B_Z) {
       markAsZero();
-    } else if (keyCode == B_Z_ENA) {
+    } else if (keyCode == B_A) {
+      // TODO.
+    } else if (keyCode == B_B) {
       manualEnableFlag = !manualEnableFlag;
       stepperEnable(manualEnableFlag);
     } else if (keyCode == B_STEP) {
