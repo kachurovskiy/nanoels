@@ -4,12 +4,12 @@
 
 // Define your hardware parameters here. Don't remove the ".0" at the end.
 #define ENCODER_STEPS 600.0 // 600 step spindle optical rotary encoder
-#define MOTOR_STEPS 200.0
+#define MOTOR_STEPS 800.0
 #define LEAD_SCREW_DU 20000.0 // 2mm lead screw in deci-microns (10^-7) of a meter
 
 // Spindle rotary encoder pins. Swap values if the rotation direction is wrong.
-#define ENC_A 15
-#define ENC_B 7
+#define ENC_A 7
+#define ENC_B 15
 
 // Stepper pulse and acceleration constants.
 #define PULSE_MIN_US round(500.0 * 200.0 / MOTOR_STEPS) // Microseconds to wait after high pulse, min.
@@ -26,14 +26,6 @@
 #define LOOP_COUNTER_MAX 1500 // 1500 loops without stepper move to start reading buttons
 #define DUPR_MAX long(100000) // 10mm
 #define STARTS_MAX 124 // No more than 124-start thread
-
-// Ratios between spindle and stepper.
-#define ENCODER_TO_STEPPER_STEP_RATIO MOTOR_STEPS / (LEAD_SCREW_DU * ENCODER_STEPS)
-#define STEPPER_TO_ENCODER_STEP_RATIO LEAD_SCREW_DU * ENCODER_STEPS / MOTOR_STEPS
-
-// If time between encoder ticks is less than this, direction change is not allowed.
-// Effectively this limits direction change to the time when spindle is <20rpm.
-#define DIR_CHANGE_DIFF_MICROS (int) (5000 * ENCODER_STEPS / 600)
 
 // Version of the EEPROM storage format, should be changed when non-backward-compatible
 // changes are made to the storage logic, resulting in EEPROM wipe on first start.
@@ -110,6 +102,7 @@
 #define ADDR_STARTS 28 // takes 2 bytes
 #define ADDR_MODE 30 // takes 2 bytes
 #define ADDR_MEASURE 32 // takes 2 bytes
+#define ADDR_ORIGIN_POS 34 // takes 4 bytes
 
 #define MOVE_STEP_1 10000 // 1mm
 #define MOVE_STEP_2 1000 // 0.1mm
@@ -181,6 +174,8 @@ int savedStarts = 0; // starts saved in EEPROM
 volatile long pos = 0; // relative position of the stepper motor, in steps
 long savedPos = 0; // value saved in EEPROM
 float fractionalPos = 0.0; // fractional distance in steps that we meant to travel but couldn't
+volatile long originPos = 0; // relative position of the stepper motor to origin, in steps
+long savedOriginPos = 0; // originPos saved in EEPROM
 
 volatile long leftStop = 0; // left stop value of pos
 long savedLeftStop = 0; // value saved in EEPROM
@@ -191,7 +186,6 @@ long savedRightStop = 0; // value saved in EEPROM
 bool rightStopFlag = true; // prevent toggling the stop while button is pressed.
 
 volatile unsigned long spindleEncTime = 0; // micros() of the previous spindle update
-volatile unsigned long spindleEncTimeDiff = 0; // micros() since the previous spindle update
 volatile unsigned long spindleEncTimeDiffBulk = 0; // micros() between RPM_BULK spindle updates
 volatile unsigned long spindleEncTimeAtIndex0 = 0; // micros() when spindleEncTimeIndex was 0
 volatile int spindleEncTimeIndex = 0; // counter going between 0 and RPM_BULK - 1
@@ -370,13 +364,13 @@ void updateDisplay() {
     printLcdSpaces(charIndex);
   }
 
-  long newHashLine2 = pos + measure;
+  long newHashLine2 = pos + originPos + measure;
   if (lcdHashLine2 != newHashLine2) {
     lcdHashLine2 = newHashLine2;
     charIndex = 0;
     lcd.setCursor(0, 2);
     charIndex += lcd.print("Position ");
-    charIndex += printMicrons(round(pos * LEAD_SCREW_DU / MOTOR_STEPS));
+    charIndex += printMicrons(round((pos + originPos) * LEAD_SCREW_DU / MOTOR_STEPS));
     printLcdSpaces(charIndex);
   }
 
@@ -459,14 +453,8 @@ void spinEnc() {
   spindleEncTimeIndex = (spindleEncTimeIndex + 1) % int(RPM_BULK);
 
   int delta;
-  spindleEncTimeDiff = microsNow - spindleEncTime;
-  if (spindleEncTimeDiff > DIR_CHANGE_DIFF_MICROS || !stepDirectionInitialized) {
-    delta = DREAD(ENC_B) ? -1 : 1;
-    spindleDeltaPrev = delta;
-  } else {
-    // Spindle is going fast, unlikely to change direction momentarily.
-    delta = spindleDeltaPrev;
-  }
+  delta = DREAD(ENC_B) ? -1 : 1;
+  spindleDeltaPrev = delta;
   spindlePos += delta;
   spindleEncTime = microsNow;
 
@@ -529,6 +517,7 @@ void setup() {
   savedDupr = dupr = loadLong(ADDR_DUPR);
   savedStarts = starts = min(STARTS_MAX, max(1, loadInt(ADDR_STARTS)));
   savedPos = pos = loadLong(ADDR_POS);
+  savedOriginPos = originPos = loadLong(ADDR_ORIGIN_POS);
   savedLeftStop = leftStop = loadLong(ADDR_LEFT_STOP);
   savedRightStop = rightStop = loadLong(ADDR_RIGHT_STOP);
   savedSpindlePos = spindlePos = loadLong(ADDR_SPINDLE_POS);
@@ -599,6 +588,10 @@ void saveIfChanged() {
     saveLong(ADDR_POS, savedPos = pos);
     changed = true;
   }
+  if (originPos != savedOriginPos) {
+    saveLong(ADDR_ORIGIN_POS, savedOriginPos = originPos);
+    changed = true;
+  }
   if (leftStop != savedLeftStop) {
     saveLong(ADDR_LEFT_STOP, savedLeftStop = leftStop);
     changed = true;
@@ -644,7 +637,7 @@ void saveIfChanged() {
 // encoder and stepper as a new 0. To be called when dupr changes
 // or ELS is turned on/off. Without this, changing dupr will
 // result in stepper rushing across the lathe to the new position.
-void markAsZero() {
+void markOrigin() {
   noInterrupts();
   if (leftStop != LONG_MAX) {
     leftStop -= pos;
@@ -652,11 +645,16 @@ void markAsZero() {
   if (rightStop != LONG_MIN) {
     rightStop -= pos;
   }
+  originPos += pos;
   pos = 0;
   fractionalPos = 0;
   spindlePos = 0;
   spindlePosSync = 0;
   interrupts();
+}
+
+void markZ0() {
+  originPos = -pos;
 }
 
 void updateAsyncTimerSettings() {
@@ -669,7 +667,7 @@ void updateAsyncTimerSettings() {
 
 void setDupr(long value) {
   dupr = value;
-  markAsZero();
+  markOrigin();
   if (mode == MODE_ASYNC) {
     updateAsyncTimerSettings();
   }
@@ -680,7 +678,7 @@ void setStarts(int value) {
     return;
   }
   starts = value;
-  markAsZero();
+  markOrigin();
 }
 
 void setMeasure(int value) {
@@ -742,7 +740,7 @@ void setMode(int value) {
     setAsyncTimerEnable(false);
   }
   mode = value;
-  markAsZero();
+  markOrigin();
   if (mode == MODE_ASYNC) {
     timerAttachInterrupt(async_timer, &onAsyncTimer, true);
     updateAsyncTimerSettings();
@@ -762,6 +760,7 @@ void reset() {
   moveStep = MOVE_STEP_1;
   setMode(MODE_NORMAL);
   measure = MEASURE_METRIC;
+  originPos = 0;
   splashScreen();
 }
 
@@ -841,6 +840,7 @@ void buttonOnOffPress(bool on) {
   resetMillis = millis();
   isOn = on;
   stepperEnable(on);
+  markOrigin();
 }
 
 void buttonOffRelease() {
@@ -983,7 +983,7 @@ void buttonLeftRightUpDownPress() {
     } while (delta != 0 && (left ? buttonLeftPressed : buttonRightPressed));
     if (isOn) {
       // Prevent stepper from jumping back to position calculated from the spindle.
-      markAsZero();
+      markOrigin();
     }
   }
   if (stepperOn) {
@@ -1202,9 +1202,9 @@ void processKeypadEvents() {
     } else if (keyCode == B_DISPL) {
       buttonDisplayPress();
     } else if (keyCode == B_X) {
-      // TODO.
+      markOrigin();
     } else if (keyCode == B_Z) {
-      markAsZero();
+      markZ0();
     } else if (keyCode == B_A) {
       // TODO.
     } else if (keyCode == B_B) {
@@ -1258,7 +1258,7 @@ void step(bool dir, long steps) {
 
 // Calculates stepper position from spindle position.
 long posFromSpindle(long s, bool respectStops) {
-  long newPos = s * ENCODER_TO_STEPPER_STEP_RATIO * dupr * starts;
+  long newPos = s * MOTOR_STEPS / LEAD_SCREW_DU / ENCODER_STEPS * dupr * starts;
 
   // Respect left/right stops.
   if (respectStops) {
@@ -1274,7 +1274,7 @@ long posFromSpindle(long s, bool respectStops) {
 
 // Calculates spindle position from stepper position.
 long spindleFromPos(long p) {
-  return p * STEPPER_TO_ENCODER_STEP_RATIO / (dupr * starts);
+  return p * LEAD_SCREW_DU * ENCODER_STEPS / MOTOR_STEPS / (dupr * starts);
 }
 
 void stepperEnable(bool value) {
