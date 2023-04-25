@@ -38,6 +38,8 @@ Features:
 
 All of this can easily be found on AliExpress, eBay or Amazon. Alternatively, try the [official kit](https://kachurovskiy.com/).
 
+[![kit](kit.jpg)](https://kachurovskiy.com/)
+
 ## Case
 
 3D models ready for printing: [main case](https://github.com/kachurovskiy/nanoels/blob/main/h2/nanoels-lcd-case.stl),
