@@ -11,3 +11,5 @@ For now there's no DIY option for H4 since ordering from Gerber would be prohibi
 ## Schematic
 
 ![nanoels h4 schematic](https://user-images.githubusercontent.com/517919/235243083-bcb5f049-8b22-48ac-9893-384d90eb027f.png)
+
+![nanoels h4 keypad schematic](https://user-images.githubusercontent.com/517919/235243339-f8324757-1175-4306-bf85-bc3c6ad79657.png)
