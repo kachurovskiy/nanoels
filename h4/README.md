@@ -7,3 +7,7 @@
 Controller itself is available for purchase on https://kachurovskiy.com/
 
 For now there's no DIY option for H4 since ordering from Gerber would be prohibitevely expensive - at least $400 for a minimum order due to the large number of small SMD components. Once the project gets traction, we'll likely have a compatible DIY version of the boards but it would still cost close to the commercial hardware since 2 sizeable PCBs, several critical chips, connectors and terminals are required and they all ship from different suppliers.
+
+## Schematic
+
+![nanoels h4 schematic](https://user-images.githubusercontent.com/517919/235243083-bcb5f049-8b22-48ac-9893-384d90eb027f.png)
