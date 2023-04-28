@@ -39,7 +39,7 @@ See [hardware.md](hardware.md) for more info.
 
 ELS controller based on ESP32-S3 that supports up to 4 axis. ELS software for it [is in active developent in the h4 package](https://github.com/kachurovskiy/nanoels/tree/main/h4).
 
-![h4-600px](https://user-images.githubusercontent.com/517919/235074149-307f8b7f-a9d5-4ade-b29a-13809ba81e75.JPG)
+[![h4-600px](https://user-images.githubusercontent.com/517919/235074149-307f8b7f-a9d5-4ade-b29a-13809ba81e75.JPG)](https://kachurovskiy.com/)
 
 Controller itself is available for purchase on https://kachurovskiy.com/
 
