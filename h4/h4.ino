@@ -11,20 +11,19 @@
 #define ENC_A 7
 #define ENC_B 15
 
-// Stepper pulse and acceleration constants.
-#define PULSE_MIN_US round(500.0 * 200.0 / MOTOR_STEPS) // Microseconds to wait after high pulse, min.
-#define PULSE_MAX_US round(2000.0 * 200.0 / MOTOR_STEPS) // Microseconds to wait after high pulse, max. Slow start.
-#define ACCELERATION round(16 * 200.0 / MOTOR_STEPS)
+// Stepper speed and acceleration constants.
+#define SPEED_START (2 * MOTOR_STEPS) // Initial speed of a motor, steps / second.
+#define ACCELERATION (20 * MOTOR_STEPS) // Acceleration of a motor, steps / second ^ 2.
+#define SPEED_MANUAL_MOVE (8 * MOTOR_STEPS) // Maximum speed of a motor during manual move, steps / second.
 #define INVERT_STEPPER false // change (true/false) if the carriage moves e.g. "left" when you press "right".
-#define DISABLE_STEPPER_WHEN_RESTING false
+#define DISABLE_STEPPER_WHEN_RESTING false // Set to false for closed-loop drivers, true for open-loop.
 
 /* Changing anything below shouldn't be needed for basic use. */
 
 #define LONG_MIN long(-2147483648)
 #define LONG_MAX long(2147483647)
 
-#define LOOP_COUNTER_MAX 1500 // 1500 loops without stepper move to start reading buttons
-#define DUPR_MAX long(100000) // 10mm
+#define DUPR_MAX long(254000) // 25.4mm
 #define STARTS_MAX 124 // No more than 124-start thread
 
 // Version of the EEPROM storage format, should be changed when non-backward-compatible
@@ -202,11 +201,11 @@ long spindleRightStop = 0;
 volatile int spindlePosSync = 0;
 int savedSpindlePosSync = 0;
 
-volatile int stepDelayUs = PULSE_MAX_US;
-volatile int stepDelayMin = 0; // To limit max speed e.g. for manual moves
-volatile bool stepDelayDirection = true; // To reset stepDelayUs when direction changes.
+volatile unsigned long stepSpeed = SPEED_START;
+volatile unsigned long stepSpeedMax = LONG_MAX; // To limit max speed e.g. for manual moves
+volatile bool stepDelayDirection = true; // To reset stepSpeed when direction changes.
 volatile bool stepDirectionInitialized = false;
-volatile unsigned long stepStartMicros = 0;
+volatile unsigned long stepStartUs = 0;
 int stepperEnableCounter = 0;
 bool manualEnableFlag = !DISABLE_STEPPER_WHEN_RESTING;
 
@@ -254,7 +253,7 @@ int getApproxRpm() {
 }
 
 bool stepperIsRunning() {
-  return micros() - stepStartMicros < 10000;
+  return micros() - stepStartUs < 10000;
 }
 
 // Returns number of letters printed.
@@ -535,8 +534,8 @@ void taskSpindleOnStop(void *param) {
   }
 }
 
-void waitForPendingPos0() {
-  while (pendingPos != 0) {
+void waitForPendingPosNear0() {
+  while (abs(pendingPos) > MOTOR_STEPS / 10) {
     taskYIELD();
   }
 }
@@ -557,7 +556,7 @@ void taskMove(void *param) {
     int sign = left ? 1 : -1;
     bool stepperOn = true;
     stepperEnable(true);
-    stepDelayMin = PULSE_MIN_US;
+    stepSpeedMax = SPEED_MANUAL_MOVE;
     if (isOn && dupr != 0) {
       // Move by moveStep in the desired direction but stay in the thread by possibly traveling a little more.
       int diff = ceil(moveStep * 1.0 / abs(dupr * starts)) * ENCODER_STEPS * sign * (dupr > 0 ? 1 : -1);
@@ -581,7 +580,7 @@ void taskMove(void *param) {
         long newPos = mode == MODE_ASYNC ? getAsyncMovePos(sign) : posFromSpindle(prevSpindlePos, true);
         if (newPos != pos) {
           stepTo(newPos);
-          waitForPendingPos0();
+          waitForPendingPosNear0();
         } else if (pos == (left ? leftStop : rightStop)) {
           // We're standing on a stop with the L/R move button pressed.
           resting = true;
@@ -616,9 +615,9 @@ void taskMove(void *param) {
           long newPos = pos + pendingPos + delta;
           xSemaphoreGive(posMutex);
           stepTo(newPos);
-          waitForPendingPos0();
+          waitForPendingPosNear0();
         }
-        
+
         if (moveStep != (measure == MEASURE_METRIC ? MOVE_STEP_1 : MOVE_STEP_IMP_1)) {
           DELAY(500);
         }
@@ -631,7 +630,7 @@ void taskMove(void *param) {
     if (stepperOn) {
       stepperEnable(false);
     }
-    stepDelayMin = 0;
+    stepSpeedMax = LONG_MAX;
     taskYIELD();
   }
 }
@@ -887,7 +886,7 @@ void IRAM_ATTR onAsyncTimer() {
   }
 
   DLOW(Z_STEP);
-  stepStartMicros = micros();
+  stepStartUs = micros();
   delayMicroseconds(10);
   DHIGH(Z_STEP);
 }
@@ -1103,7 +1102,7 @@ void buttonMoveStepPress() {
 void setDir(bool dir) {
   // Start slow if direction changed.
   if (stepDelayDirection != dir || !stepDirectionInitialized) {
-    stepDelayUs = PULSE_MAX_US;
+    stepSpeed = SPEED_START;
     stepDelayDirection = dir;
     stepDirectionInitialized = true;
     if (dir ^ INVERT_STEPPER) {
@@ -1348,28 +1347,27 @@ void stepperEnable(bool value) {
 void moveZ() {
   // Stepper basically has no speed if it was standing for 10ms.
   if (!stepperIsRunning()) {
-    stepDelayUs = PULSE_MAX_US;
+    stepSpeed = SPEED_START;
   }
 
-  unsigned long now = micros();
-  if (now >= stepStartMicros + stepDelayUs && xSemaphoreTake(posMutex, 1) == pdTRUE) {
+  unsigned long nowUs = micros();
+  float delayUs = 1000000.0 / stepSpeed;
+  if (nowUs >= (stepStartUs + delayUs) && xSemaphoreTake(posMutex, 1) == pdTRUE) {
     if (pendingPos != 0) {
       DLOW(Z_STEP);
+
       bool dir = pendingPos > 0;
       setDir(dir);
       pendingPos += dir ? -1 : 1;
       pos += dir ? 1 : -1;
       xSemaphoreGive(posMutex);
 
-      // Constant acceleration formula only works up to ~560us without a floating point, then it gets stuck on the same value.
-      long constAccelDelayUs = stepDelayUs > 560 ? 1000000 / (1000000 / stepDelayUs + ACCELERATION * stepDelayUs / 1000) : stepDelayUs;
-      if (constAccelDelayUs < stepDelayUs) {
-        stepDelayUs = min(long(PULSE_MAX_US), constAccelDelayUs);
-      } else if (stepDelayUs > stepDelayMin) {
-        stepDelayUs--;
+      stepSpeed += stepSpeed + ACCELERATION * delayUs / 1000000.0;
+      if (stepSpeed > stepSpeedMax) {
+        stepSpeed = stepSpeedMax;
       }
-      stepStartMicros = now;
-      
+      stepStartUs = nowUs;
+
       DHIGH(Z_STEP);
     } else {
       xSemaphoreGive(posMutex);
