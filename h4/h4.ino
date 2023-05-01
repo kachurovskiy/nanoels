@@ -16,16 +16,16 @@
 #define ACCELERATION_Z (30 * MOTOR_STEPS_Z) // Acceleration of a motor, steps / second ^ 2.
 #define SPEED_MANUAL_MOVE_Z (8 * MOTOR_STEPS_Z) // Maximum speed of a motor during manual move, steps / second.
 #define INVERT_Z false // change (true/false) if the carriage moves e.g. "left" when you press "right".
-#define DISABLE_RESTING_Z false // Set to false for closed-loop drivers, true for open-loop.
+#define NEEDS_REST_Z false // Set to false for closed-loop drivers, true for open-loop.
 
 // Cross-slide lead screw (X) parameters.
-#define MOTOR_STEPS_X 200.0
+#define MOTOR_STEPS_X 400.0
 #define SCREW_X_DU 4166.6 // 1.25mm lead screw with 3x reduction in deci-microns (10^-7) of a meter
 #define SPEED_START_X (2 * MOTOR_STEPS_X) // Initial speed of a motor, steps / second.
 #define ACCELERATION_X (30 * MOTOR_STEPS_X) // Acceleration of a motor, steps / second ^ 2.
 #define SPEED_MANUAL_MOVE_X (8 * MOTOR_STEPS_X) // Maximum speed of a motor during manual move, steps / second.
-#define INVERT_X false // change (true/false) if the carriage moves e.g. "left" when you press "right".
-#define DISABLE_RESTING_X false // Set to false for closed-loop drivers, true for open-loop.
+#define INVERT_X true // change (true/false) if the carriage moves e.g. "left" when you press "right".
+#define NEEDS_REST_X false // Set to false for all kinds of drivers or X will be unlocked when not moving.
 
 /* Changing anything below shouldn't be needed for basic use. */
 
@@ -388,7 +388,7 @@ void printLcdSpaces(int charIndex) {
 }
 
 int printAxisPos(volatile Axis* a) {
-  return printMicrons(round((a->pos + a->originPos) * a->screwPitch / a->motorSteps), stepperIsRunning(a) ? 2 : 3);
+  return printMicrons(round((a->pos + a->originPos) * a->screwPitch / a->motorSteps), 3);
 }
 
 void updateDisplay() {
@@ -466,15 +466,12 @@ void updateDisplay() {
     lcd.setCursor(0, 2);
     if (xDisplayPos == 0) {
       charIndex += lcd.print("Position ");
-    } else {
-      charIndex += lcd.print(zDisplayPos < 0 ? "Z" : "Z ");
     }
     charIndex += printAxisPos(&z);
     if (xDisplayPos != 0) {
-      while (charIndex < 9) {
+      while (charIndex < 10) {
         charIndex += lcd.print(" ");
       }
-      charIndex += lcd.print(xDisplayPos < 0 ? "X" : "X ");
       charIndex += printAxisPos(&x);
     }
     printLcdSpaces(charIndex);
@@ -676,12 +673,12 @@ void taskMoveZ(void *param) {
     bool stepperOn = true;
     stepperEnable(&z, true);
     z.speedMax = z.speedManualMove;
-    if (isOn && dupr != 0) {
+    z.movingManually = true;
+    if (isOn && dupr != 0 && mode != MODE_CONE) {
       // Move by moveStep in the desired direction but stay in the thread by possibly traveling a little more.
       int diff = ceil(moveStep * 1.0 / abs(dupr * starts)) * ENCODER_STEPS * sign * (dupr > 0 ? 1 : -1);
       long prevSpindlePos = spindlePos;
       bool resting = false;
-      z.movingManually = true;
       do {
         if (mode != MODE_ASYNC) {
           noInterrupts();
@@ -711,7 +708,6 @@ void taskMoveZ(void *param) {
           DELAY(200);
         }
       } while (left ? buttonLeftPressed : buttonRightPressed);
-      z.movingManually = false;
     } else {
       int delta = 0;
       do {
@@ -738,7 +734,12 @@ void taskMoveZ(void *param) {
           DELAY(500);
         }
       } while (delta != 0 && (left ? buttonLeftPressed : buttonRightPressed));
+      if (isOn) {
+        waitForPendingPos0(&z);
+        markOrigin();
+      }
     }
+    z.movingManually = false;
     if (stepperOn) {
       stepperEnable(&z, false);
     }
@@ -785,7 +786,10 @@ void taskMoveX(void *param) {
         DELAY(500);
       }
     } while (delta != 0 && (up ? buttonUpPressed : buttonDownPressed));
-
+    if (isOn) {
+      waitForPendingPos0(&z);
+      markOrigin();
+    }
     x.movingManually = false;
     x.speedMax = LONG_MAX;
     stepperEnable(&x, false);
@@ -824,8 +828,8 @@ void setup() {
     saveInt(ADDR_MOVE_STEP, MOVE_STEP_1);
   }
 
-  initAxis(&z, MOTOR_STEPS_Z, SCREW_Z_DU, SPEED_START_Z, SPEED_MANUAL_MOVE_Z, ACCELERATION_Z, INVERT_Z, DISABLE_RESTING_Z, Z_ENA, Z_DIR, Z_STEP);
-  initAxis(&x, MOTOR_STEPS_X, SCREW_X_DU, SPEED_START_X, SPEED_MANUAL_MOVE_X, ACCELERATION_X, INVERT_X, DISABLE_RESTING_X, X_ENA, X_DIR, X_STEP);
+  initAxis(&z, MOTOR_STEPS_Z, SCREW_Z_DU, SPEED_START_Z, SPEED_MANUAL_MOVE_Z, ACCELERATION_Z, INVERT_Z, NEEDS_REST_Z, Z_ENA, Z_DIR, Z_STEP);
+  initAxis(&x, MOTOR_STEPS_X, SCREW_X_DU, SPEED_START_X, SPEED_MANUAL_MOVE_X, ACCELERATION_X, INVERT_X, NEEDS_REST_X, X_ENA, X_DIR, X_STEP);
 
   isOn = false;
   savedDupr = dupr = loadLong(ADDR_DUPR);
@@ -975,14 +979,15 @@ void saveIfChanged() {
 
 void markAxisOrigin(volatile Axis* a) {
   bool hasSemaphore = xSemaphoreTake(a->mutex, 10) == pdTRUE;
+  long finalPos = a->pos + a->pendingPos;
   if (a->leftStop != LONG_MAX) {
-    a->leftStop -= a->pos;
+    a->leftStop -= finalPos;
   }
   if (a->rightStop != LONG_MIN) {
-    a->rightStop -= a->pos;
+    a->rightStop -= finalPos;
   }
-  a->originPos += a->pos;
-  a->pos = 0;
+  a->originPos += finalPos;
+  a->pos = -a->pendingPos;
   a->fractionalPos = 0;
   a->pendingPos = 0;
   if (hasSemaphore) {
@@ -1004,11 +1009,11 @@ void markOrigin() {
 }
 
 void markZ0() {
-  z.originPos = -z.pos;
+  z.originPos = -z.pos - z.pendingPos;
 }
 
 void markX0() {
-  x.originPos = -x.pos;
+  x.originPos = -x.pos - x.pendingPos;
 }
 
 void updateAsyncTimerSettings() {
@@ -1088,13 +1093,15 @@ void setMode(int value) {
   if (mode == value) {
     return;
   }
+  if (isOn) {
+    setIsOn(false);
+  }
   if (mode == MODE_MULTISTART) {
     setStarts(1);
   } else if (mode == MODE_ASYNC) {
     setAsyncTimerEnable(false);
   }
   mode = value;
-  markOrigin();
   if (mode == MODE_ASYNC) {
     timerAttachInterrupt(async_timer, &onAsyncTimer, true);
     updateAsyncTimerSettings();
@@ -1104,6 +1111,11 @@ void setMode(int value) {
       setStarts(2);
     }
   }
+}
+
+void setConeRatio(float value) {
+  coneRatio = value;
+  markOrigin();
 }
 
 void reset() {
@@ -1158,8 +1170,6 @@ void buttonPlusMinusPress(bool plus) {
     } else if (plus && starts < STARTS_MAX) {
       setStarts(starts + 1);
     }
-  } else if (mode == MODE_CONE) {
-    coneRatio += plus ? 1 : -1;
   } else if (measure != MEASURE_TPI) {
     bool isMetric = measure == MEASURE_METRIC;
     int delta = isMetric ? MOVE_STEP_3 : MOVE_STEP_IMP_3;
@@ -1199,6 +1209,10 @@ void buttonPlusMinusPress(bool plus) {
 
 void buttonOnOffPress(bool on) {
   resetMillis = millis();
+  setIsOn(on);
+}
+
+void setIsOn(bool on) {
   isOn = on;
   stepperEnable(&z, on);
   stepperEnable(&x, on);
@@ -1466,7 +1480,7 @@ void processKeypadEvents() {
       // Ignore numpad input unless confirmed with ON.
       if (keyCode == B_ON) {
         if (mode == MODE_CONE) {
-          coneRatio = newConeRatio;
+          setConeRatio(newConeRatio);
         } else {
           if (abs(newDupr) <= DUPR_MAX) {
             setDupr(newDupr);
@@ -1607,9 +1621,32 @@ void modeGearbox() {
 
 void modeCone() {
   if (isOn && spindlePosSync == 0 && !z.movingManually && !x.movingManually && coneRatio != 0) {
-    long zPos = posFromSpindle(spindlePos, true);
+    // -0.1/1600*400/4166*20000 = -0.12
+    float zToXRatio = -coneRatio / z.motorSteps * x.motorSteps / x.screwPitch * z.screwPitch;
+
+    // Respect limits of both axis by translating them into limits on spindlePos value.
+    long spindle = spindlePos;
+    long spindleMin = LONG_MIN;
+    long spindleMax = LONG_MAX;
+    if (z.leftStop != LONG_MAX) {
+      spindleMax = spindleFromPos(z.leftStop);
+    }
+    if (z.rightStop != LONG_MIN) {
+      spindleMin = spindleFromPos(z.rightStop);
+    }
+    long lim1 = x.leftStop == LONG_MAX ? LONG_MAX : spindleFromPos(round(x.leftStop / zToXRatio));
+    long lim2 = x.rightStop == LONG_MIN ? LONG_MIN : spindleFromPos(round(x.rightStop / zToXRatio));
+    spindleMin = max(lim1, lim2);
+    spindleMax = min(lim1, lim2);
+    if (spindle > spindleMax) {
+      spindle = spindleMax;
+    } else if (spindle < spindleMin) {
+      spindle = spindleMin;
+    }
+
+    long zPos = posFromSpindle(spindle, true);
     stepTo(&z, zPos);
-    stepTo(&x, round(zPos / z.motorSteps * x.motorSteps / x.screwPitch * z.screwPitch * coneRatio));
+    stepTo(&x, round(zPos * zToXRatio));
   }
 }
 
