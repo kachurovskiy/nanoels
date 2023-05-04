@@ -22,6 +22,7 @@ Features:
 - Multi-start threads
 - Asynchronous mode
 - Metric, inch and TPI support
+- Quick reverse
 
 ## Components
 
@@ -124,7 +125,7 @@ It affects how the pitch and position is displayed and changes, move steps for p
 
 Pitch is the distance that carriage will move when the spindle makes the full turn. For example, M14 thread uses 2mm pitch.
 
-Select the desired pitch using `-` and `+` buttons or `0.10mm`, `1mm` and `2mm` shortcut buttons in the top row. If you keep the buttons pressed, the pitch starts changing faster after a few seconds.
+Select the desired pitch using `-` and `+` buttons. If you keep the buttons pressed, the pitch starts changing faster after a few seconds.
 
 Use negative pitch values e.g. `-2mm` to cut left-to-right threads. Do do that, you have 2 options:
 
@@ -137,17 +138,14 @@ Some inch threads require setting the micron part (3rd precision point) of the p
 
 - Set desired pitch using `-` and `+` buttons
 - Turn on the lead screw using the `ON` button
-- Start the lathe spindle
-- Stop the lathe spindle when done
+- Start the lathe spindle, use `LEFT` and `RIGHT` buttons to move if needed, stop spindle when done
 - Turn off the lead screw using the `ON` button
 
-## Automatic stops
+## Soft limits / automatic stops
 
-- Move the carriage with the help of ELS to the desired stop position
-- Set the stop using e.g. `L STOP` button
-- Hold `RIGHT` to move to another stop position and press `R STOP`
+Move the carriage using `LEFT` or `RIGHT` to the desired stop position and press `L STOP` or `R STOP` depending on which limit you'd like to set.
 
-Now you can:
+When both limits are set, you can:
 
 - Use lathe forward/reverse spindle movements to move the carriage between the stops
 - Use `LEFT` and `RIGHT` buttons to move the carriage within the stops
@@ -160,29 +158,21 @@ Use `LEFT` and `RIGHT` buttons to move the carriage. If stops are set, they will
 
 When the ELS is off, carriage will move by the distance set using `Step` button but at least 1 stepper motor step.
 
-When the ELS is ON, carriage will move in pitch increments (stay in the thread) and travel at least the distance set by `Step` button (1mm if not shown on screen).
+When the ELS is ON, carriage will move in pitch increments (stay in the thread) and travel at least the distance set by `Step` button.
 
 ## Multi-start threads
 
 Use middle button in the right-side vertical row of buttons (`Mode` button) and switch into the `MUL` mode. Use `+` and `-` buttons to increase/decrease the number of starts in your multi-start thread.
 
-Set left and right limits. Cut thread normally and use `LEFT` or `RIGHT` buttons to move the carriage between cuts (no need to turn off the spindle). NanoEls will automatically move to the next line when you reach the respective limit.
+Set left and right limits. Cut thread normally and use `LEFT` or `RIGHT` buttons to move the carriage between cuts (no need to turn off the spindle). Controller automatically moves to the next start of the thread when a limit is reached.
 
 ## Asynchronous mode
 
-Click `Mode` button until you enter the `ASY` mode. In this mode the spindle rotation is ignored and motor moves with a constant speed when ELS is `ON` and pitch is non-zero. Limits and manual movement works normally.
+Click `Mode` button until you enter the `ASY` mode. In this mode the spindle rotation is ignored and motor moves with a constant speed of 1 pitch per second when ELS is `ON`. Limits and manual movement works normally.
 
 ## Losing the thread
 
-The spindle and stepper positions are reset to 0 every time one of the following happens:
-
-- `ON` button is pressed (including long press for reset)
-- Pitch is changed e.g. by pressing `-` or `+`
-- Stepper is not in the desired position when ELS is powered up
-  - Results in `LTW` lost thread warning
-  - Might happen if ELS was abruptly shutdown
-
-Thread is **not** lost when ELS is simply powered off.
+The spindle and stepper positions are reset to 0 `ON`, `-` or `+` buttons are pressed.
 
 ## Out-of-sync situations
 
@@ -192,9 +182,8 @@ This situation should resolve itself once the spindle makes a full turn.
 
 ## Resetting ELS and viewing the software version
 
-ELS remembers all the positions and ON/OFF status when powered off.
+ELS remembers all the positions and ON/OFF status when powered off. Hold `ON` button for 5+ seconds to:
 
-- Hold `ON` button for 6 seconds
   - Reset stepper and spindle positions to 0
   - Resets pitch to 0
   - Removes stops
