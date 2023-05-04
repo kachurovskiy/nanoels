@@ -14,18 +14,22 @@
 #define SCREW_Z_DU 20000.0 // 2mm lead screw in deci-microns (10^-7) of a meter
 #define SPEED_START_Z (2 * MOTOR_STEPS_Z) // Initial speed of a motor, steps / second.
 #define ACCELERATION_Z (30 * MOTOR_STEPS_Z) // Acceleration of a motor, steps / second ^ 2.
-#define SPEED_MANUAL_MOVE_Z (8 * MOTOR_STEPS_Z) // Maximum speed of a motor during manual move, steps / second.
+#define SPEED_MANUAL_MOVE_Z (7 * MOTOR_STEPS_Z) // Maximum speed of a motor during manual move, steps / second.
 #define INVERT_Z false // change (true/false) if the carriage moves e.g. "left" when you press "right".
 #define NEEDS_REST_Z false // Set to false for closed-loop drivers, true for open-loop.
 
 // Cross-slide lead screw (X) parameters.
-#define MOTOR_STEPS_X 1600.0
+#define MOTOR_STEPS_X 800.0
 #define SCREW_X_DU 4166.6 // 1.25mm lead screw with 3x reduction in deci-microns (10^-7) of a meter
 #define SPEED_START_X (2 * MOTOR_STEPS_X) // Initial speed of a motor, steps / second.
 #define ACCELERATION_X (20 * MOTOR_STEPS_X) // Acceleration of a motor, steps / second ^ 2.
-#define SPEED_MANUAL_MOVE_X (6 * MOTOR_STEPS_X) // Maximum speed of a motor during manual move, steps / second.
+#define SPEED_MANUAL_MOVE_X (5 * MOTOR_STEPS_X) // Maximum speed of a motor during manual move, steps / second.
 #define INVERT_X true // change (true/false) if the carriage moves e.g. "left" when you press "right".
 #define NEEDS_REST_X false // Set to false for all kinds of drivers or X will be unlocked when not moving.
+
+// Physical machine parameters
+#define MAX_TRAVEL_MM_Z 300 // Lathe bed doesn't allow to travel more than this in one go, 30cm / ~1 foot
+#define MAX_TRAVEL_MM_X 100 // Cross slide doesn't allow to travel more than this in one go, 10cm
 
 /* Changing anything below shouldn't be needed for basic use. */
 
@@ -134,6 +138,10 @@
 #define MEASURE_INCH 1
 #define MEASURE_TPI 2
 
+#define ESTOP_NONE 0
+#define ESTOP_KEY 1
+#define ESTOP_POS 2
+
 // For MEASURE_TPI, round TPI to the nearest integer if it's within this range of it.
 // E.g. 80.02tpi would be shown as 80tpi but 80.04tpi would be shown as-is.
 #define TPI_ROUND_EPSILON 0.03
@@ -180,7 +188,7 @@ int numpadIndex = 0;
 
 bool isOn = false;
 unsigned long resetMillis = 0;
-bool emergencyStop = false;
+int emergencyStop = 0;
 
 volatile long dupr = 0; // pitch, tenth of a micron per rotation
 long savedDupr = 0; // dupr saved in EEPROM
@@ -220,7 +228,7 @@ struct Axis {
   bool directionInitialized;
   unsigned long stepStartUs;
   int stepperEnableCounter;
-  bool isEnabled;
+  bool isManuallyDisabled;
 
   bool invertStepper; // change (true/false) if the carriage moves e.g. "left" when you press "right".
   bool needsRest; // set to false for closed-loop drivers, true for open-loop.
@@ -262,7 +270,7 @@ void initAxis(volatile Axis*  a, float motorSteps, float screwPitch, long speedS
   a->directionInitialized = false;
   a->stepStartUs = 0;
   a->stepperEnableCounter = 0;
-  a->isEnabled = !needsRest;
+  a->isManuallyDisabled = false;
   
   a->invertStepper = invertStepper;
   a->needsRest = needsRest;
@@ -394,8 +402,25 @@ int printAxisPos(volatile Axis* a) {
   return printMicrons(round((a->pos + a->originPos) * a->screwPitch / a->motorSteps), 3);
 }
 
+int printNoTrailing0(float value) {
+  long v = round(value * 100000);
+  int points = 0;
+  if ((v % 10) != 0) {
+    points = 5;
+  } else if ((v % 100) != 0) {
+    points = 4;
+  } else if ((v % 1000) != 0) {
+    points = 3;
+  } else if ((v % 10000) != 0) {
+    points = 2;
+  } else if ((v % 100000) != 0) {
+    points = 1;
+  }
+  return lcd.print(value, points);
+}
+
 void updateDisplay() {
-  if (emergencyStop) {
+  if (emergencyStop != ESTOP_NONE) {
     return;
   }
   int rpm = getApproxRpm();
@@ -462,19 +487,25 @@ void updateDisplay() {
 
   long zDisplayPos = z.pos + z.originPos;
   long xDisplayPos = x.pos + x.originPos;
-  long newHashLine2 = zDisplayPos + xDisplayPos + measure;
+  long newHashLine2 = zDisplayPos + xDisplayPos + measure + z.isManuallyDisabled + x.isManuallyDisabled;
   if (lcdHashLine2 != newHashLine2) {
     lcdHashLine2 = newHashLine2;
     charIndex = 0;
     lcd.setCursor(0, 2);
-    if (xDisplayPos == 0) {
-      charIndex += lcd.print("Position ");
-    }
-    charIndex += printAxisPos(&z);
-    if (xDisplayPos != 0) {
-      while (charIndex < 10) {
-        charIndex += lcd.print(" ");
+    if (z.isManuallyDisabled) {
+      charIndex += lcd.print("Z disable");
+    } else {
+      if (xDisplayPos == 0) {
+        charIndex += lcd.print("Position ");
       }
+      charIndex += printAxisPos(&z);
+    }
+    while (charIndex < 10) {
+      charIndex += lcd.print(" ");
+    }
+    if (x.isManuallyDisabled) {
+      charIndex += lcd.print("X disable");
+    } else if (xDisplayPos != 0) {
       charIndex += printAxisPos(&x);
     }
     printLcdSpaces(charIndex);
@@ -496,7 +527,7 @@ void updateDisplay() {
       charIndex += lcd.print("?");
     } else if (mode == MODE_CONE) {
       charIndex += lcd.print("Cone ratio ");
-      charIndex += lcd.print(coneRatio, 5);
+      charIndex += printNoTrailing0(coneRatio);
     } else if (showAngle) {
       charIndex += lcd.print("Angle ");
       charIndex += lcd.print(((spindlePos % (int) ENCODER_STEPS + (int) ENCODER_STEPS) % (int) ENCODER_STEPS) * 360 / ENCODER_STEPS, 2);
@@ -589,17 +620,19 @@ void setAsyncTimerEnable(bool value) {
 }
 
 void taskDisplay(void *param) {
-  while (true) {
+  while (emergencyStop == ESTOP_NONE) {
     updateDisplay();
     if (!stepperIsRunning(&z) && !stepperIsRunning(&x)) {
       saveIfChanged();
     }
     taskYIELD();
   }
+  reset();
+  saveIfChanged();
 }
 
 void taskKeypad(void *param) {
-  while (true) {
+  while (emergencyStop == ESTOP_NONE) {
     processKeypadEvents();
     taskYIELD();
   }
@@ -618,7 +651,7 @@ void waitForPendingPos0(volatile Axis* a) {
 }
 
 void taskMoveZ(void *param) {
-  while (true) {
+  while (emergencyStop == ESTOP_NONE) {
     bool left = buttonLeftPressed;
     bool right = buttonRightPressed;
     if (!left && !right) {
@@ -641,6 +674,7 @@ void taskMoveZ(void *param) {
       spindlePos += diff;
       interrupts();
       waitForPendingPosNear0(&z);
+      waitForPendingPosNear0(&x);
     } else if (isOn && dupr != 0) {
       // Move by moveStep in the desired direction but stay in the thread by possibly traveling a little more.
       int diff = ceil(moveStep * 1.0 / abs(dupr * starts)) * ENCODER_STEPS * sign * (dupr > 0 ? 1 : -1);
@@ -716,7 +750,7 @@ void taskMoveZ(void *param) {
 }
 
 void taskMoveX(void *param) {
-  while (true) {
+  while (emergencyStop == ESTOP_NONE) {
     bool up = buttonUpPressed;
     bool down = buttonDownPressed;
     if (!up && !down) {
@@ -762,6 +796,26 @@ void taskMoveX(void *param) {
     stepperEnable(&x, false);
 
     taskYIELD();
+  }
+}
+
+void setEmergencyStop(int kind) {
+  emergencyStop = kind;
+  setAsyncTimerEnable(false);
+  xSemaphoreTake(z.mutex, 10);
+  xSemaphoreTake(x.mutex, 10);
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  if (emergencyStop == ESTOP_KEY) {
+    lcd.print("Key down at power-up");
+    lcd.setCursor(0, 1);
+    lcd.print("Hardware failure?");
+  } else if (emergencyStop == ESTOP_POS) {
+    lcd.print("Requested position");
+    lcd.setCursor(0, 1);
+    lcd.print("outside machine");
+  } else {
+    lcd.print("Emergency stop");
   }
 }
 
@@ -852,13 +906,7 @@ void setup() {
 
   delay(100);
   if (keypad.available()) {
-    emergencyStop = true;
-    setAsyncTimerEnable(false);
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("Key down at power-up");
-    lcd.setCursor(0, 1);
-    lcd.print("Hardware failure?");
+    setEmergencyStop(ESTOP_KEY);
     return;
   }
 
@@ -1110,7 +1158,7 @@ void reset() {
   moveStep = MOVE_STEP_1;
   setMode(MODE_NORMAL);
   measure = MEASURE_METRIC;
-  splashScreen();
+  coneRatio = 1;
 }
 
 // Called when left/right stop restriction is removed while we're on it.
@@ -1200,6 +1248,7 @@ void setIsOn(bool on) {
 void buttonOffRelease() {
   if (millis() - resetMillis > 4000) {
     reset();
+    splashScreen();
   }
 }
 
@@ -1492,9 +1541,11 @@ void processKeypadEvents() {
     } else if (keyCode == B_Z) {
       markZ0();
     } else if (keyCode == B_A) {
-      // TODO.
+      x.isManuallyDisabled = !x.isManuallyDisabled;
+      updateEnable(&x);
     } else if (keyCode == B_B) {
-      // TODO.
+      z.isManuallyDisabled = !z.isManuallyDisabled;
+      updateEnable(&z);
     } else if (keyCode == B_STEP) {
       buttonMoveStepPress();
     } else if (keyCode == B_SETTINGS) {
@@ -1546,20 +1597,36 @@ void stepperEnable(volatile Axis* a, bool value) {
   if (!a->needsRest) {
     return;
   }
-
   if (value) {
     a->stepperEnableCounter++;
     if (value == 1) {
-      DHIGH(a->ena);
-      // Stepper driver needs some time before it will react to pulses.
-      DELAY(100);
+      updateEnable(a);
     }
   } else if (a->stepperEnableCounter > 0) {
     a->stepperEnableCounter--;
     if (a->stepperEnableCounter == 0) {
-      DLOW(a->ena);
+      updateEnable(a);
     }
   }
+}
+
+void updateEnable(volatile Axis* a) {
+  if (!a->isManuallyDisabled && (!a->needsRest || a->stepperEnableCounter > 0)) {
+    DHIGH(a->ena);
+    // Stepper driver needs some time before it will react to pulses.
+    DELAY(100);
+  } else {
+    DLOW(a->ena);
+  }
+}
+
+bool setPosEmergencyStop() {
+  if (abs(z.pendingPos) > MAX_TRAVEL_MM_Z * 10000 / z.screwPitch * z.motorSteps ||
+      abs(x.pendingPos) > MAX_TRAVEL_MM_X * 10000 / x.screwPitch * x.motorSteps) {
+    setEmergencyStop(ESTOP_POS);
+    return true;
+  }
+  return false;
 }
 
 void moveAxis(volatile Axis* a) {
@@ -1685,6 +1752,9 @@ void discountFullSpindleTurns() {
 }
 
 void loop() {
+  if (emergencyStop != ESTOP_NONE || setPosEmergencyStop()) {
+    return;
+  }
   moveAxis(&z);
   moveAxis(&x);
   if (xSemaphoreTake(duprMutex, 1) != pdTRUE) {
