@@ -1,7 +1,4 @@
-This software and instructions are provided as is, [without warranty of any kind](LICENSE).
-
-[🇷🇺 перевод на русский](https://translate.google.com/translate?hl=en&sl=en&tl=ru&u=https%3A%2F%2Fgithub.com%2Fkachurovskiy%2Fnanoels%2Fblob%2Fmain%2FREADME.md)
-[🇩🇪 Deutsche Übersetzung](https://translate.google.com/translate?hl=en&sl=en&tl=de&u=https%3A%2F%2Fgithub.com%2Fkachurovskiy%2Fnanoels%2Fblob%2Fmain%2FREADME.md)
+This software and instructions are [provided as is](LICENSE), without warranty of any kind. [🇷🇺 Перевод на русский](https://translate.google.com/translate?hl=en&sl=en&tl=ru&u=https%3A%2F%2Fgithub.com%2Fkachurovskiy%2Fnanoels%2Fblob%2Fmain%2FREADME.md), [🇩🇪 deutsche Übersetzung](https://translate.google.com/translate?hl=en&sl=en&tl=de&u=https%3A%2F%2Fgithub.com%2Fkachurovskiy%2Fnanoels%2Fblob%2Fmain%2FREADME.md)
 
 # NanoEls H2
 
@@ -13,21 +10,15 @@ No more greasy gear swapping! Control your metal lathe lead screw with a few cli
 - Soft limits for the carriage
 - Multi-start threads in 1 start of the spindle
 
-See [h2 folder](https://github.com/kachurovskiy/nanoels/blob/main/h2/) for more info.
+[See h2 folder for parts list, software, assembly and usage manual.](https://github.com/kachurovskiy/nanoels/blob/main/h2/)
 
 ## Hardware
 
-Controller can be built from [generally available components](https://github.com/kachurovskiy/nanoels/tree/main/h2#components):
-
-[![open-source-build](https://user-images.githubusercontent.com/517919/234090559-eb27d066-2bff-4de8-851b-6f3237757085.png)](https://github.com/kachurovskiy/nanoels/tree/main/h2#nanoels-h2)
-
-Or from the [official kit](https://kachurovskiy.com/):
+Controller can be built from [generally available components](https://github.com/kachurovskiy/nanoels/tree/main/h2#components) or from the [official kit](https://kachurovskiy.com/):
 
 [![kit](h2/kit.jpg)](https://kachurovskiy.com/)
 
-It's suggested to use STEPPERONLINE CL57T closed-loop driver with NEMA 23 3NM motor or stronger with 200 step resolution mode (full step).
-
-See [hardware.md](hardware.md) for more info.
+It's suggested to use STEPPERONLINE CL57T closed-loop driver with NEMA 23 3NM motor or stronger with 200 step resolution mode (full step) and a 600 PPR optical rotary encoder. [See hardware.md for more info.](hardware.md)
 
 ## Build examples
 
