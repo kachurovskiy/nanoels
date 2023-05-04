@@ -17,6 +17,7 @@
 #define SPEED_MANUAL_MOVE_Z (7 * MOTOR_STEPS_Z) // Maximum speed of a motor during manual move, steps / second.
 #define INVERT_Z false // change (true/false) if the carriage moves e.g. "left" when you press "right".
 #define NEEDS_REST_Z false // Set to false for closed-loop drivers, true for open-loop.
+#define MAX_TRAVEL_MM_Z 300 // Lathe bed doesn't allow to travel more than this in one go, 30cm / ~1 foot
 
 // Cross-slide lead screw (X) parameters.
 #define MOTOR_STEPS_X 800.0
@@ -26,9 +27,6 @@
 #define SPEED_MANUAL_MOVE_X (5 * MOTOR_STEPS_X) // Maximum speed of a motor during manual move, steps / second.
 #define INVERT_X true // change (true/false) if the carriage moves e.g. "left" when you press "right".
 #define NEEDS_REST_X false // Set to false for all kinds of drivers or X will be unlocked when not moving.
-
-// Physical machine parameters
-#define MAX_TRAVEL_MM_Z 300 // Lathe bed doesn't allow to travel more than this in one go, 30cm / ~1 foot
 #define MAX_TRAVEL_MM_X 100 // Cross slide doesn't allow to travel more than this in one go, 10cm
 
 /* Changing anything below shouldn't be needed for basic use. */
@@ -192,7 +190,8 @@ int emergencyStop = 0;
 
 volatile long dupr = 0; // pitch, tenth of a micron per rotation
 long savedDupr = 0; // dupr saved in EEPROM
-SemaphoreHandle_t duprMutex; // controls blocks of code where dupr should be unchanged
+
+SemaphoreHandle_t motionMutex; // controls blocks of code where variables affecting the motion loop() are changed
 
 int starts = 1; // number of starts in a multi-start thread
 int savedStarts = 0; // starts saved in EEPROM
@@ -233,13 +232,14 @@ struct Axis {
   bool invertStepper; // change (true/false) if the carriage moves e.g. "left" when you press "right".
   bool needsRest; // set to false for closed-loop drivers, true for open-loop.
   bool movingManually; // whether stepper is being moved by left/right buttons
+  long estopSteps; // amount of steps to exceed machine limits
 
   int ena; // Enable pin of this motor
   int dir; // Direction pin of this motor
   int step; // Step pin of this motor
 };
 
-void initAxis(volatile Axis*  a, float motorSteps, float screwPitch, long speedStart, long speedManualMove, long acceleration, bool invertStepper, bool needsRest, int ena, int dir, int step) {
+void initAxis(volatile Axis*  a, float motorSteps, float screwPitch, long speedStart, long speedManualMove, long acceleration, bool invertStepper, bool needsRest, long maxTravelMm, int ena, int dir, int step) {
   a->mutex = xSemaphoreCreateMutex();
 
   a->motorSteps = motorSteps;
@@ -275,6 +275,7 @@ void initAxis(volatile Axis*  a, float motorSteps, float screwPitch, long speedS
   a->invertStepper = invertStepper;
   a->needsRest = needsRest;
   a->movingManually = false;
+  a->estopSteps = maxTravelMm * 10000 / a->screwPitch * a->motorSteps;
 
   a->ena = ena;
   a->dir = dir;
@@ -850,12 +851,12 @@ void setup() {
     EEPROM.put(ADDR_CONE_RATIO, coneRatio);
   }
 
-  initAxis(&z, MOTOR_STEPS_Z, SCREW_Z_DU, SPEED_START_Z, SPEED_MANUAL_MOVE_Z, ACCELERATION_Z, INVERT_Z, NEEDS_REST_Z, Z_ENA, Z_DIR, Z_STEP);
-  initAxis(&x, MOTOR_STEPS_X, SCREW_X_DU, SPEED_START_X, SPEED_MANUAL_MOVE_X, ACCELERATION_X, INVERT_X, NEEDS_REST_X, X_ENA, X_DIR, X_STEP);
+  initAxis(&z, MOTOR_STEPS_Z, SCREW_Z_DU, SPEED_START_Z, SPEED_MANUAL_MOVE_Z, ACCELERATION_Z, INVERT_Z, NEEDS_REST_Z, MAX_TRAVEL_MM_Z, Z_ENA, Z_DIR, Z_STEP);
+  initAxis(&x, MOTOR_STEPS_X, SCREW_X_DU, SPEED_START_X, SPEED_MANUAL_MOVE_X, ACCELERATION_X, INVERT_X, NEEDS_REST_X, MAX_TRAVEL_MM_X, X_ENA, X_DIR, X_STEP);
 
   isOn = false;
   savedDupr = dupr = loadLong(ADDR_DUPR);
-  duprMutex = xSemaphoreCreateMutex();
+  motionMutex = xSemaphoreCreateMutex();
   savedStarts = starts = min(STARTS_MAX, max(1, loadInt(ADDR_STARTS)));
   z.savedPos = z.pos = loadLong(ADDR_POS_Z);
   z.savedOriginPos = z.originPos = loadLong(ADDR_ORIGIN_POS_Z);
@@ -1047,12 +1048,12 @@ void updateAsyncTimerSettings() {
 }
 
 void setDupr(long value) {
-  if (xSemaphoreTake(duprMutex, 10) != pdTRUE) {
+  if (xSemaphoreTake(motionMutex, 10) != pdTRUE) {
     return;
   }
   dupr = value;
   markOrigin();
-  xSemaphoreGive(duprMutex);
+  xSemaphoreGive(motionMutex);
   if (mode == MODE_ASYNC) {
     updateAsyncTimerSettings();
   }
@@ -1062,8 +1063,12 @@ void setStarts(int value) {
   if (starts == value) {
     return;
   }
+  if (xSemaphoreTake(motionMutex, 10) != pdTRUE) {
+    return;
+  }
   starts = value;
   markOrigin();
+  xSemaphoreGive(motionMutex);
 }
 
 void setMeasure(int value) {
@@ -1140,8 +1145,12 @@ void setMode(int value) {
 }
 
 void setConeRatio(float value) {
+  if (xSemaphoreTake(motionMutex, 10) != pdTRUE) {
+    return;
+  }
   coneRatio = value;
   markOrigin();
+  xSemaphoreGive(motionMutex);
 }
 
 void reset() {
@@ -1239,10 +1248,19 @@ void buttonOnOffPress(bool on) {
 }
 
 void setIsOn(bool on) {
-  isOn = on;
+  bool hasMutex = xSemaphoreTake(motionMutex, 10) == pdTRUE;
+  if (!on) {
+    isOn = false;
+  }
   stepperEnable(&z, on);
   stepperEnable(&x, on);
   markOrigin();
+  if (on) {
+    isOn = true;
+  }
+  if (hasMutex) {
+    xSemaphoreGive(motionMutex);
+  }
 }
 
 void buttonOffRelease() {
@@ -1621,8 +1639,7 @@ void updateEnable(volatile Axis* a) {
 }
 
 bool setPosEmergencyStop() {
-  if (abs(z.pendingPos) > MAX_TRAVEL_MM_Z * 10000 / z.screwPitch * z.motorSteps ||
-      abs(x.pendingPos) > MAX_TRAVEL_MM_X * 10000 / x.screwPitch * x.motorSteps) {
+  if (abs(z.pendingPos) > z.estopSteps || abs(x.pendingPos) > x.estopSteps) {
     setEmergencyStop(ESTOP_POS);
     return true;
   }
@@ -1755,11 +1772,11 @@ void loop() {
   if (emergencyStop != ESTOP_NONE || setPosEmergencyStop()) {
     return;
   }
-  moveAxis(&z);
-  moveAxis(&x);
-  if (xSemaphoreTake(duprMutex, 1) != pdTRUE) {
+  if (xSemaphoreTake(motionMutex, 1) != pdTRUE) {
     return;
   }
+  moveAxis(&z);
+  moveAxis(&x);
   discountFullSpindleTurns();
   if (!isOn || dupr == 0 || spindlePosSync != 0) {
     // None of the modes work.
@@ -1768,5 +1785,5 @@ void loop() {
   } else if (mode == MODE_CONE) {
     modeCone();
   }
-  xSemaphoreGive(duprMutex);
+  xSemaphoreGive(motionMutex);
 }
