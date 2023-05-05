@@ -131,6 +131,7 @@
 #define MODE_MULTISTART 1
 #define MODE_ASYNC 2
 #define MODE_CONE 3
+#define MODE_TURN 4
 
 #define MEASURE_METRIC 0
 #define MEASURE_INCH 1
@@ -443,6 +444,8 @@ void updateDisplay() {
       charIndex += lcd.print("ASY ");
     } else if (mode == MODE_CONE) {
       charIndex += lcd.print("CONE ");
+    } else if (mode == MODE_TURN) {
+      charIndex += lcd.print("TURN ");
     }
     charIndex += lcd.print(isOn ? "ON " : "off ");
     int beforeStops = charIndex;
@@ -1002,15 +1005,14 @@ void saveIfChanged() {
 
 void markAxisOrigin(volatile Axis* a) {
   bool hasSemaphore = xSemaphoreTake(a->mutex, 10) == pdTRUE;
-  long finalPos = a->pos + a->pendingPos;
   if (a->leftStop != LONG_MAX) {
-    a->leftStop -= finalPos;
+    a->leftStop -= a->pos;
   }
   if (a->rightStop != LONG_MIN) {
-    a->rightStop -= finalPos;
+    a->rightStop -= a->pos;
   }
-  a->originPos += finalPos;
-  a->pos = -a->pendingPos;
+  a->originPos += a->pos;
+  a->pos = 0;
   a->fractionalPos = 0;
   a->pendingPos = 0;
   if (hasSemaphore) {
@@ -1724,7 +1726,7 @@ void modeCone() {
     return;
   }
 
-  float zToXRatio = -coneRatio / z.motorSteps * x.motorSteps / x.screwPitch * z.screwPitch;
+  float zToXRatio = -coneRatio / 2 / z.motorSteps * x.motorSteps / x.screwPitch * z.screwPitch;
   if (zToXRatio == 0) {
     return;
   }
