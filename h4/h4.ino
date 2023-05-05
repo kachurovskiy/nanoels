@@ -1048,7 +1048,7 @@ void updateAsyncTimerSettings() {
 }
 
 void setDupr(long value) {
-  if (xSemaphoreTake(motionMutex, 10) != pdTRUE) {
+  if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
     return;
   }
   dupr = value;
@@ -1198,6 +1198,9 @@ long normalizePitch(long pitch) {
 }
 
 void buttonPlusMinusPress(bool plus) {
+  if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
+    return;
+  }
   bool minus = !plus;
   if (mode == MODE_MULTISTART) {
     if (minus && starts > 2) {
@@ -1240,6 +1243,7 @@ void buttonPlusMinusPress(bool plus) {
       }
     }
   }
+  xSemaphoreGive(motionMutex);
 }
 
 void buttonOnOffPress(bool on) {
@@ -1271,6 +1275,9 @@ void buttonOffRelease() {
 }
 
 void buttonLeftStopPress() {
+  if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
+    return;
+  }
   if (z.leftStop == LONG_MAX) {
     z.leftStop = z.pos;
   } else {
@@ -1281,9 +1288,17 @@ void buttonLeftStopPress() {
     }
     z.leftStop = LONG_MAX;
   }
+  if (mode == MODE_CONE) {
+    // To avoid X rushing to a far away position if standing on limit.
+    markOrigin();
+  }
+  xSemaphoreGive(motionMutex);
 }
 
 void buttonRightStopPress() {
+  if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
+    return;
+  }
   if (z.rightStop == LONG_MIN) {
     z.rightStop = z.pos;
   } else {
@@ -1294,22 +1309,43 @@ void buttonRightStopPress() {
     }
     z.rightStop = LONG_MIN;
   }
+  if (mode == MODE_CONE) {
+    // To avoid X rushing to a far away position if standing on limit.
+    markOrigin();
+  }
+  xSemaphoreGive(motionMutex);
 }
 
 void buttonUpStopPress() {
+  if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
+    return;
+  }
   if (x.leftStop == LONG_MAX) {
     x.leftStop = x.pos;
   } else {
     x.leftStop = LONG_MAX;
   }
+  if (mode == MODE_CONE) {
+    // To avoid X rushing to a far away position if standing on limit.
+    markOrigin();
+  }
+  xSemaphoreGive(motionMutex);
 }
 
 void buttonDownStopPress() {
+  if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
+    return;
+  }
   if (x.rightStop == LONG_MIN) {
     x.rightStop = x.pos;
   } else {
     x.rightStop = LONG_MIN;
   }
+  if (mode == MODE_CONE) {
+    // To avoid X rushing to a far away position if standing on limit.
+    markOrigin();
+  }
+  xSemaphoreGive(motionMutex);
 }
 
 bool allowMultiStartAdvance = false;
@@ -1698,25 +1734,25 @@ void modeCone() {
   long spindleMin = LONG_MIN;
   long spindleMax = LONG_MAX;
   if (z.leftStop != LONG_MAX) {
-    spindleMax = spindleFromPos(z.leftStop);
+    (dupr > 0 ? spindleMax : spindleMin) = spindleFromPos(z.leftStop);
   }
   if (z.rightStop != LONG_MIN) {
-    spindleMin = spindleFromPos(z.rightStop);
+    (dupr > 0 ? spindleMin: spindleMax) = spindleFromPos(z.rightStop);
   }
   if (x.leftStop != LONG_MAX) {
     long lim = spindleFromPos(round(x.leftStop / zToXRatio));
     if (zToXRatio < 0) {
-      spindleMin = lim;
+      (dupr > 0 ? spindleMin: spindleMax) = lim;
     } else {
-      spindleMax = lim;
+      (dupr > 0 ? spindleMax : spindleMin) = lim;
     }
   }
   if (x.rightStop != LONG_MIN) {
     long lim = spindleFromPos(round(x.rightStop / zToXRatio));
     if (zToXRatio < 0) {
-      spindleMax = lim;
+      (dupr > 0 ? spindleMax : spindleMin) = lim;
     } else {
-      spindleMin = lim;
+      (dupr > 0 ? spindleMin: spindleMax) = lim;
     }
   }
   if (spindle > spindleMax) {
