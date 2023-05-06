@@ -11,13 +11,14 @@
 
 // Main lead screw (Z) parameters.
 #define MOTOR_STEPS_Z 1600.0
-#define SCREW_Z_DU 20000.0 // 2mm lead screw in deci-microns (10^-7) of a meter
+#define SCREW_Z_DU 20000.0 // 2mm lead screw in deci-microns (10^-7 of a meter)
 #define SPEED_START_Z (2 * MOTOR_STEPS_Z) // Initial speed of a motor, steps / second.
-#define ACCELERATION_Z (30 * MOTOR_STEPS_Z) // Acceleration of a motor, steps / second ^ 2.
-#define SPEED_MANUAL_MOVE_Z (7 * MOTOR_STEPS_Z) // Maximum speed of a motor during manual move, steps / second.
+#define ACCELERATION_Z (40 * MOTOR_STEPS_Z) // Acceleration of a motor, steps / second ^ 2.
+#define SPEED_MANUAL_MOVE_Z (8 * MOTOR_STEPS_Z) // Maximum speed of a motor during manual move, steps / second.
 #define INVERT_Z false // change (true/false) if the carriage moves e.g. "left" when you press "right".
 #define NEEDS_REST_Z false // Set to false for closed-loop drivers, true for open-loop.
 #define MAX_TRAVEL_MM_Z 300 // Lathe bed doesn't allow to travel more than this in one go, 30cm / ~1 foot
+#define BACKLASH_DU_Z 6500 // 0.65mm backlash in deci-microns (10^-7 of a meter)
 
 // Cross-slide lead screw (X) parameters.
 #define MOTOR_STEPS_X 800.0
@@ -28,6 +29,7 @@
 #define INVERT_X true // change (true/false) if the carriage moves e.g. "left" when you press "right".
 #define NEEDS_REST_X false // Set to false for all kinds of drivers or X will be unlocked when not moving.
 #define MAX_TRAVEL_MM_X 100 // Cross slide doesn't allow to travel more than this in one go, 10cm
+#define BACKLASH_DU_X 1000 // 0.10mm backlash in deci-microns (10^-7 of a meter)
 
 /* Changing anything below shouldn't be needed for basic use. */
 
@@ -236,13 +238,14 @@ struct Axis {
   bool needsRest; // set to false for closed-loop drivers, true for open-loop.
   bool movingManually; // whether stepper is being moved by left/right buttons
   long estopSteps; // amount of steps to exceed machine limits
+  long backlashSteps; // amount of steps in reverse direction to re-engage the carriage
 
   int ena; // Enable pin of this motor
   int dir; // Direction pin of this motor
   int step; // Step pin of this motor
 };
 
-void initAxis(volatile Axis*  a, float motorSteps, float screwPitch, long speedStart, long speedManualMove, long acceleration, bool invertStepper, bool needsRest, long maxTravelMm, int ena, int dir, int step) {
+void initAxis(volatile Axis*  a, float motorSteps, float screwPitch, long speedStart, long speedManualMove, long acceleration, bool invertStepper, bool needsRest, long maxTravelMm, long backlashDu, int ena, int dir, int step) {
   a->mutex = xSemaphoreCreateMutex();
 
   a->motorSteps = motorSteps;
@@ -279,6 +282,7 @@ void initAxis(volatile Axis*  a, float motorSteps, float screwPitch, long speedS
   a->needsRest = needsRest;
   a->movingManually = false;
   a->estopSteps = maxTravelMm * 10000 / a->screwPitch * a->motorSteps;
+  a->backlashSteps = backlashDu * a->motorSteps / a->screwPitch;
 
   a->ena = ena;
   a->dir = dir;
@@ -507,7 +511,7 @@ void updateDisplay() {
     if (z.isManuallyDisabled) {
       charIndex += lcd.print("Z disable");
     } else {
-      if (xDisplayPos == 0) {
+      if (xDisplayPos == 0 && !x.isManuallyDisabled) {
         charIndex += lcd.print("Position ");
       }
       charIndex += printAxisPos(&z);
@@ -758,6 +762,9 @@ void taskMoveZ(void *param) {
     if (isOn) {
       waitForPendingPos0(&z);
       markOrigin();
+      if (mode == MODE_TURN) {
+        setIsOn(false);
+      }
     }
     z.movingManually = false;
     if (stepperOn) {
@@ -870,8 +877,8 @@ void setup() {
     EEPROM.put(ADDR_TURN_PASSES, turnPasses);
   }
 
-  initAxis(&z, MOTOR_STEPS_Z, SCREW_Z_DU, SPEED_START_Z, SPEED_MANUAL_MOVE_Z, ACCELERATION_Z, INVERT_Z, NEEDS_REST_Z, MAX_TRAVEL_MM_Z, Z_ENA, Z_DIR, Z_STEP);
-  initAxis(&x, MOTOR_STEPS_X, SCREW_X_DU, SPEED_START_X, SPEED_MANUAL_MOVE_X, ACCELERATION_X, INVERT_X, NEEDS_REST_X, MAX_TRAVEL_MM_X, X_ENA, X_DIR, X_STEP);
+  initAxis(&z, MOTOR_STEPS_Z, SCREW_Z_DU, SPEED_START_Z, SPEED_MANUAL_MOVE_Z, ACCELERATION_Z, INVERT_Z, NEEDS_REST_Z, MAX_TRAVEL_MM_Z, BACKLASH_DU_Z, Z_ENA, Z_DIR, Z_STEP);
+  initAxis(&x, MOTOR_STEPS_X, SCREW_X_DU, SPEED_START_X, SPEED_MANUAL_MOVE_X, ACCELERATION_X, INVERT_X, NEEDS_REST_X, MAX_TRAVEL_MM_X, BACKLASH_DU_X, X_ENA, X_DIR, X_STEP);
 
   isOn = false;
   savedDupr = dupr = loadLong(ADDR_DUPR);
@@ -920,7 +927,6 @@ void setup() {
     Serial.println("TCA8418 key controller not found");
   } else {
     keypad.matrix(7, 7);
-    keypad.enableDebounce();
     keypad.flush();
   }
 
@@ -1775,20 +1781,30 @@ void modeTurn() {
   x.speedMax = x.speedManualMove;
   long xPassInSteps = (x.leftStop - x.rightStop) / turnPasses;
   if (opIndex == 0) {
+    // Move to right-bottom limit, take out backlash.
     z.speedMax = z.speedManualMove;
-    stepTo(&z, z.rightStop);
-    stepTo(&x, x.rightStop);
-    if (z.pos == z.rightStop && x.pos == x.rightStop) {
-      opIndex = 1;
-      opSubIndex = 0;
+    long xPos = x.rightStop - (opSubIndex == 0 ? x.backlashSteps : 0);
+    long zPos = z.rightStop - (opSubIndex == 0 ? z.backlashSteps : 0);
+    stepTo(&z, zPos);
+    stepTo(&x, xPos);
+    if (z.pos == zPos && x.pos == xPos) {
+      if (opSubIndex == 0) {
+        opSubIndex = 1;
+      } else {
+        opIndex = 1;
+        opSubIndex = 0;
+      }
     }
   } else if (opIndex <= turnPasses) {
     // Bringing X to starting position.
     if (opSubIndex == 0) {
       long xPos = x.leftStop - xPassInSteps * (turnPasses - opIndex);
       stepTo(&x, xPos);
-      if (x.pos == xPos) {
-        markOrigin();
+      if (x.pos == xPos) { 
+        long base = round(spindleFromPos(z.pos) / ENCODER_STEPS) * ENCODER_STEPS + (dupr > 0 ? -1 : 1) * ENCODER_STEPS;
+        noInterrupts();
+        spindlePos = base + spindlePos % int(ENCODER_STEPS);
+        interrupts();
         opSubIndex = 1;
       }
     }
@@ -1802,29 +1818,45 @@ void modeTurn() {
     }
     // Retracting the tool
     if (opSubIndex == 2) {
-      long xPos = x.leftStop - xPassInSteps * (turnPasses - opIndex + 1);
+      long xPos = x.rightStop;
       stepTo(&x, xPos);
       if (x.pos == xPos) {
         opSubIndex = 3;
       }
     }
-    // Returning to start z.
+    // Returning to start z minus backlash.
     if (opSubIndex == 3) {
       z.speedMax = z.speedManualMove;
-      stepTo(&z, z.rightStop);
-      if (z.pos == z.rightStop) {
+      long zPos = z.rightStop - z.backlashSteps;
+      stepTo(&z, zPos);
+      if (z.pos == zPos) {
+        opSubIndex = 4;
+      }
+    }
+    // Returning to start z.
+    if (opSubIndex == 4) {
+      long zPos = z.rightStop;
+      stepTo(&z, zPos);
+      if (z.pos == zPos) {
         z.speedMax = LONG_MAX;
         opSubIndex = 0;
         opIndex++;
       }
     }
   } else {
+    // Move to right-bottom limit, take out backlash.
     z.speedMax = z.speedManualMove;
-    stepTo(&z, z.rightStop);
-    stepTo(&x, x.rightStop);
-    if (z.pos == z.rightStop && x.pos == x.rightStop) {
-      beep();
-      setIsOn(false);
+    long xPos = x.rightStop - (opSubIndex == 0 ? x.backlashSteps : 0);
+    long zPos = z.rightStop - (opSubIndex == 0 ? z.backlashSteps : 0);
+    stepTo(&z, zPos);
+    stepTo(&x, xPos);
+    if (z.pos == zPos && x.pos == xPos) {
+      if (opSubIndex == 0) {
+        opSubIndex = 1;
+      } else {
+        beep();
+        setIsOn(false);
+      }
     }
   }
 }
