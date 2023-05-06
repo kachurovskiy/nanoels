@@ -36,6 +36,7 @@
 
 #define DUPR_MAX long(254000) // 25.4mm
 #define STARTS_MAX 124 // No more than 124-start thread
+#define PASSES_MAX 999 // No more turn or face passes than this
 
 // Version of the EEPROM storage format, should be changed when non-backward-compatible
 // changes are made to the storage logic, resulting in EEPROM wipe on first start.
@@ -118,6 +119,7 @@
 #define ADDR_RIGHT_STOP_X 46 // takes 4 bytes
 #define ADDR_ORIGIN_POS_X 50 // takes 4 bytes
 #define ADDR_CONE_RATIO 54 // takes 4 bytes
+#define ADDR_TURN_PASSES 58 // takes 2 bytes
 
 #define MOVE_STEP_1 10000 // 1mm
 #define MOVE_STEP_2 1000 // 0.1mm
@@ -315,6 +317,12 @@ int savedMeasure = MEASURE_METRIC; // measure value saved in EEPROM
 
 float coneRatio = 1; // In cone mode, how much X moves for 1 step of Z
 float savedConeRatio = 0; // value of coneRatio saved in EEPROM
+
+int turnPasses = 3; // In turn mode, how many turn passes to make
+int savedTurnPasses = 0; // value of turnPasses saved in EEPROM
+
+long opIndex = 0; // Index of an automation operation
+long opSubIndex = 0; // Sub-index of an automation operation
 
 hw_timer_t *async_timer = timerBegin(0, 80, true);
 
@@ -516,19 +524,33 @@ void updateDisplay() {
   }
 
   long numpadResult = getNumpadResult();
-  long newHashLine3 = z.pos + (showAngle ? spindlePos : -1) + (showTacho ? rpm : -2) + measure + numpadResult + mode * 5 + round(coneRatio * 10000);
+  long newHashLine3 = z.pos + (showAngle ? spindlePos : -1) + (showTacho ? rpm : -2) + measure + (numpadResult > 0 ? numpadResult : -1) + mode * 5 +
+      (mode == MODE_CONE ? round(coneRatio * 10000) : 0) +
+      (mode == MODE_TURN ? turnPasses + z.leftStop - z.rightStop + x.leftStop - x.rightStop : 0);
   if (lcdHashLine3 != newHashLine3) {
     lcdHashLine3 = newHashLine3;
     charIndex = 0;
     lcd.setCursor(0, 3);
     if (numpadResult != 0) {
       charIndex += lcd.print("Use ");
-      if (mode == MODE_CONE) {
+      if (mode == MODE_TURN) {
+        long passes = min(long(PASSES_MAX), numpadResult);
+        charIndex += lcd.print(passes);
+        charIndex += lcd.print(" passes?");
+      } else if (mode == MODE_CONE) {
         charIndex += lcd.print(numpadToConeRatio(), 5);
+        charIndex += lcd.print("?");
       } else {
         charIndex += printDupr(numpadToDupr());
+        charIndex += lcd.print("?");
       }
-      charIndex += lcd.print("?");
+    } else if (mode == MODE_TURN) {
+      if (z.leftStop == LONG_MAX || z.rightStop == LONG_MIN || x.leftStop == LONG_MAX || x.rightStop == LONG_MIN) {
+        charIndex += lcd.print("Set all stops");
+      } else {
+        charIndex += lcd.print(turnPasses);
+        charIndex += lcd.print(" passes");
+      }
     } else if (mode == MODE_CONE) {
       charIndex += lcd.print("Cone ratio ");
       charIndex += printNoTrailing0(coneRatio);
@@ -672,14 +694,7 @@ void taskMoveZ(void *param) {
     stepperEnable(&z, true);
     z.speedMax = z.speedManualMove;
     z.movingManually = true;
-    if (isOn && dupr != 0 && mode == MODE_CONE) {
-      int diff = ceil(moveStep * 1.0 / abs(dupr)) * ENCODER_STEPS * sign * (dupr > 0 ? 1 : -1);
-      noInterrupts();
-      spindlePos += diff;
-      interrupts();
-      waitForPendingPosNear0(&z);
-      waitForPendingPosNear0(&x);
-    } else if (isOn && dupr != 0) {
+    if (isOn && dupr != 0) {
       // Move by moveStep in the desired direction but stay in the thread by possibly traveling a little more.
       int diff = ceil(moveStep * 1.0 / abs(dupr * starts)) * ENCODER_STEPS * sign * (dupr > 0 ? 1 : -1);
       long prevSpindlePos = spindlePos;
@@ -739,10 +754,10 @@ void taskMoveZ(void *param) {
           DELAY(500);
         }
       } while (delta != 0 && (left ? buttonLeftPressed : buttonRightPressed));
-      if (isOn) {
-        waitForPendingPos0(&z);
-        markOrigin();
-      }
+    }
+    if (isOn) {
+      waitForPendingPos0(&z);
+      markOrigin();
     }
     z.movingManually = false;
     if (stepperOn) {
@@ -852,6 +867,7 @@ void setup() {
     saveLong(ADDR_RIGHT_STOP_X, LONG_MIN);
     saveInt(ADDR_MOVE_STEP, MOVE_STEP_1);
     EEPROM.put(ADDR_CONE_RATIO, coneRatio);
+    EEPROM.put(ADDR_TURN_PASSES, turnPasses);
   }
 
   initAxis(&z, MOTOR_STEPS_Z, SCREW_Z_DU, SPEED_START_Z, SPEED_MANUAL_MOVE_Z, ACCELERATION_Z, INVERT_Z, NEEDS_REST_Z, MAX_TRAVEL_MM_Z, Z_ENA, Z_DIR, Z_STEP);
@@ -879,7 +895,7 @@ void setup() {
   savedMeasure = measure = loadInt(ADDR_MEASURE);
   setMode(savedMode);
   EEPROM.get(ADDR_CONE_RATIO, coneRatio);
-  savedConeRatio = coneRatio;
+  savedTurnPasses = turnPasses = loadInt(ADDR_TURN_PASSES);
 
   if (!z.needsRest) {
     DHIGH(Z_ENA);
@@ -995,8 +1011,12 @@ void saveIfChanged() {
     changed = true;
   }
   if (coneRatio != savedConeRatio) {
-    EEPROM.put(ADDR_CONE_RATIO, coneRatio);
-    savedConeRatio = coneRatio;
+    EEPROM.put(ADDR_CONE_RATIO, savedConeRatio = coneRatio);
+    changed = true;
+  }
+  if (turnPasses != savedTurnPasses) {
+    saveInt(ADDR_TURN_PASSES, savedTurnPasses = turnPasses);
+    changed = true;
   }
   if (changed) {
     EEPROM.commit();
@@ -1146,8 +1166,16 @@ void setMode(int value) {
   }
 }
 
+void setTurnPasses(int value) {
+  if (isOn) {
+    beep();
+  } else {
+    turnPasses = value;
+  }
+}
+
 void setConeRatio(float value) {
-  if (xSemaphoreTake(motionMutex, 10) != pdTRUE) {
+  if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
     return;
   }
   coneRatio = value;
@@ -1200,9 +1228,7 @@ long normalizePitch(long pitch) {
 }
 
 void buttonPlusMinusPress(bool plus) {
-  if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
-    return;
-  }
+  // Mutex is aquired in setDupr() and setStarts().
   bool minus = !plus;
   if (mode == MODE_MULTISTART) {
     if (minus && starts > 2) {
@@ -1245,7 +1271,12 @@ void buttonPlusMinusPress(bool plus) {
       }
     }
   }
-  xSemaphoreGive(motionMutex);
+}
+
+void beep() {
+  tone(BUZZ, 1000);
+  DELAY(500);
+  noTone(BUZZ);
 }
 
 void buttonOnOffPress(bool on) {
@@ -1254,6 +1285,13 @@ void buttonOnOffPress(bool on) {
 }
 
 void setIsOn(bool on) {
+  if (on && mode == MODE_TURN) {
+    if (z.leftStop == LONG_MAX || z.rightStop == LONG_MIN || x.leftStop == LONG_MAX || x.rightStop == LONG_MIN || turnPasses <= 0) {
+      beep();
+      return;
+    }
+  }
+
   bool hasMutex = xSemaphoreTake(motionMutex, 10) == pdTRUE;
   if (!on) {
     isOn = false;
@@ -1263,6 +1301,8 @@ void setIsOn(bool on) {
   markOrigin();
   if (on) {
     isOn = true;
+    opIndex = 0;
+    opSubIndex = 0;
   }
   if (hasMutex) {
     xSemaphoreGive(motionMutex);
@@ -1559,10 +1599,13 @@ void processKeypadEvents() {
       inNumpad = false;
       long newDupr = numpadToDupr();
       float newConeRatio = numpadToConeRatio();
+      long numpadResult = getNumpadResult();
       resetNumpad();
       // Ignore numpad input unless confirmed with ON.
       if (keyCode == B_ON) {
-        if (mode == MODE_CONE) {
+        if (mode == MODE_TURN) {
+          setTurnPasses(int(min(long(PASSES_MAX), numpadResult)));
+        } else if (mode == MODE_CONE) {
           setConeRatio(newConeRatio);
         } else {
           if (abs(newDupr) <= DUPR_MAX) {
@@ -1612,6 +1655,8 @@ void processKeypadEvents() {
       buttonMeasurePress();
     } else if (keyCode == B_MODE_GEARS) {
       setMode(MODE_NORMAL);
+    } else if (keyCode == B_MODE_TURN) {
+      setMode(MODE_TURN);
     } else if (keyCode == B_MODE_CONE) {
       setMode(MODE_CONE);
     }
@@ -1717,12 +1762,75 @@ void modeGearbox() {
   if (z.movingManually) {
     return;
   }
-
+  z.speedMax = LONG_MAX;
   stepTo(&z, posFromSpindle(spindlePos, true));
 }
 
+void modeTurn() {
+  if (z.movingManually || x.movingManually || turnPasses <= 0 ||
+      z.leftStop == LONG_MAX || z.rightStop == LONG_MIN ||
+      x.leftStop == LONG_MAX || x.rightStop == LONG_MIN) {
+    return;
+  }
+  x.speedMax = x.speedManualMove;
+  long xPassInSteps = (x.leftStop - x.rightStop) / turnPasses;
+  if (opIndex == 0) {
+    z.speedMax = z.speedManualMove;
+    stepTo(&z, z.rightStop);
+    stepTo(&x, x.rightStop);
+    if (z.pos == z.rightStop && x.pos == x.rightStop) {
+      opIndex = 1;
+      opSubIndex = 0;
+    }
+  } else if (opIndex <= turnPasses) {
+    // Bringing X to starting position.
+    if (opSubIndex == 0) {
+      long xPos = x.leftStop - xPassInSteps * (turnPasses - opIndex);
+      stepTo(&x, xPos);
+      if (x.pos == xPos) {
+        markOrigin();
+        opSubIndex = 1;
+      }
+    }
+    // Doing the pass cut.
+    if (opSubIndex == 1) {
+      z.speedMax = LONG_MAX;
+      stepTo(&z, posFromSpindle(spindlePos, true));
+      if (z.pos == z.leftStop) {
+        opSubIndex = 2;
+      }
+    }
+    // Retracting the tool
+    if (opSubIndex == 2) {
+      long xPos = x.leftStop - xPassInSteps * (turnPasses - opIndex + 1);
+      stepTo(&x, xPos);
+      if (x.pos == xPos) {
+        opSubIndex = 3;
+      }
+    }
+    // Returning to start z.
+    if (opSubIndex == 3) {
+      z.speedMax = z.speedManualMove;
+      stepTo(&z, z.rightStop);
+      if (z.pos == z.rightStop) {
+        z.speedMax = LONG_MAX;
+        opSubIndex = 0;
+        opIndex++;
+      }
+    }
+  } else {
+    z.speedMax = z.speedManualMove;
+    stepTo(&z, z.rightStop);
+    stepTo(&x, x.rightStop);
+    if (z.pos == z.rightStop && x.pos == x.rightStop) {
+      beep();
+      setIsOn(false);
+    }
+  }
+}
+
 void modeCone() {
-  if (x.movingManually || coneRatio == 0) {
+  if (z.movingManually || x.movingManually || coneRatio == 0) {
     return;
   }
 
@@ -1730,6 +1838,10 @@ void modeCone() {
   if (zToXRatio == 0) {
     return;
   }
+
+  // TODO: calculate maximum speeds and accelerations to avoid potential desync.
+  x.speedMax = LONG_MAX;
+  z.speedMax = LONG_MAX;
 
   // Respect limits of both axis by translating them into limits on spindlePos value.
   long spindle = spindlePos;
@@ -1820,6 +1932,8 @@ void loop() {
     // None of the modes work.
   } else if (mode == MODE_NORMAL || mode == MODE_MULTISTART) {
     modeGearbox();
+  } else if (mode == MODE_TURN) {
+    modeTurn();
   } else if (mode == MODE_CONE) {
     modeCone();
   }
