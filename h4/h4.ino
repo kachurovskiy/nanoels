@@ -277,7 +277,7 @@ void initAxis(volatile Axis*  a, float motorSteps, float screwPitch, long speedS
   a->stepStartUs = 0;
   a->stepperEnableCounter = 0;
   a->isManuallyDisabled = false;
-  
+
   a->invertStepper = invertStepper;
   a->needsRest = needsRest;
   a->movingManually = false;
@@ -296,7 +296,6 @@ volatile unsigned long spindleEncTime = 0; // micros() of the previous spindle u
 volatile unsigned long spindleEncTimeDiffBulk = 0; // micros() between RPM_BULK spindle updates
 volatile unsigned long spindleEncTimeAtIndex0 = 0; // micros() when spindleEncTimeIndex was 0
 volatile int spindleEncTimeIndex = 0; // counter going between 0 and RPM_BULK - 1
-volatile int spindleDeltaPrev = 0; // Previously detected spindle direction
 volatile long spindlePos = 0; // Spindle position
 long savedSpindlePos = 0; // spindlePos value saved in EEPROM
 
@@ -628,7 +627,6 @@ void spinEnc() {
   spindleEncTimeIndex = (spindleEncTimeIndex + 1) % int(RPM_BULK);
 
   int delta = DREAD(ENC_B) ? -1 : 1;
-  spindleDeltaPrev = delta;
   spindlePos += delta;
   spindleEncTime = microsNow;
 
@@ -652,7 +650,9 @@ void setAsyncTimerEnable(bool value) {
 void taskDisplay(void *param) {
   while (emergencyStop == ESTOP_NONE) {
     updateDisplay();
-    if (!stepperIsRunning(&z) && !stepperIsRunning(&x)) {
+    // Calling EEPROM.commit() blocks all interrupts for 30ms, don't call saveIfChanged() if
+    // encoder is likely to move soon.
+    if (!stepperIsRunning(&z) && !stepperIsRunning(&x) && (micros() > spindleEncTime + 1000000)) {
       saveIfChanged();
     }
     taskYIELD();
@@ -825,6 +825,12 @@ void taskMoveX(void *param) {
   }
 }
 
+void taskAttachInterrupts(void *param) {
+  // Attaching interrupt on core 0 to have more time on core 1 where axes are moved.
+  attachInterrupt(digitalPinToInterrupt(ENC_A), spinEnc, FALLING);
+  vTaskDelete(NULL);
+}
+
 void setEmergencyStop(int kind) {
   emergencyStop = kind;
   setAsyncTimerEnable(false);
@@ -936,13 +942,12 @@ void setup() {
     return;
   }
 
-  attachInterrupt(digitalPinToInterrupt(ENC_A), spinEnc, FALLING);
-
   // Non-time-sensitive tasks on core 0.
   xTaskCreatePinnedToCore(taskDisplay, "taskDisplay", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   xTaskCreatePinnedToCore(taskKeypad, "taskKeypad", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   xTaskCreatePinnedToCore(taskMoveZ, "taskMoveZ", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   xTaskCreatePinnedToCore(taskMoveX, "taskMoveX", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
+  xTaskCreatePinnedToCore(taskAttachInterrupts, "taskAttachInterrupts", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
 }
 
 // Saves all positions in EEPROM, should be called infrequently to reduce EEPROM wear.
@@ -1800,7 +1805,7 @@ void modeTurn() {
     if (opSubIndex == 0) {
       long xPos = x.leftStop - xPassInSteps * (turnPasses - opIndex);
       stepTo(&x, xPos);
-      if (x.pos == xPos) { 
+      if (x.pos == xPos) {
         long base = round(spindleFromPos(z.pos) / ENCODER_STEPS) * ENCODER_STEPS + (dupr > 0 ? -1 : 1) * ENCODER_STEPS;
         noInterrupts();
         spindlePos = base + spindlePos % int(ENCODER_STEPS);
