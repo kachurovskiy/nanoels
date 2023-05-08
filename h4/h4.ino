@@ -146,6 +146,7 @@
 #define ESTOP_NONE 0
 #define ESTOP_KEY 1
 #define ESTOP_POS 2
+#define ESTOP_MARK_ORIGIN 3
 
 // For MEASURE_TPI, round TPI to the nearest integer if it's within this range of it.
 // E.g. 80.02tpi would be shown as 80tpi but 80.04tpi would be shown as-is.
@@ -195,7 +196,7 @@ bool isOn = false;
 unsigned long resetMillis = 0;
 int emergencyStop = 0;
 
-volatile long dupr = 0; // pitch, tenth of a micron per rotation
+long dupr = 0; // pitch, tenth of a micron per rotation
 long savedDupr = 0; // dupr saved in EEPROM
 
 SemaphoreHandle_t motionMutex; // controls blocks of code where variables affecting the motion loop() are changed
@@ -294,14 +295,15 @@ void initAxis(Axis*  a, float motorSteps, float screwPitch, long speedStart, lon
 Axis z;
 Axis x;
 
-volatile unsigned long spindleEncTime = 0; // micros() of the previous spindle update
-volatile unsigned long spindleEncTimeDiffBulk = 0; // micros() between RPM_BULK spindle updates
-volatile unsigned long spindleEncTimeAtIndex0 = 0; // micros() when spindleEncTimeIndex was 0
-volatile int spindleEncTimeIndex = 0; // counter going between 0 and RPM_BULK - 1
-volatile long spindlePos = 0; // Spindle position
+unsigned long spindleEncTime = 0; // micros() of the previous spindle update
+unsigned long spindleEncTimeDiffBulk = 0; // micros() between RPM_BULK spindle updates
+unsigned long spindleEncTimeAtIndex0 = 0; // micros() when spindleEncTimeIndex was 0
+int spindleEncTimeIndex = 0; // counter going between 0 and RPM_BULK - 1
+long spindlePos = 0; // Spindle position
 long savedSpindlePos = 0; // spindlePos value saved in EEPROM
+volatile long spindlePosDelta = 0; // Unprocessed encoder ticks.
 
-volatile int spindlePosSync = 0;
+int spindlePosSync = 0;
 int savedSpindlePosSync = 0;
 
 bool showAngle = false; // Whether to show 0-359 spindle angle on screen
@@ -314,7 +316,7 @@ unsigned long shownRpmTime = 0; // micros() when shownRpm was set
 int moveStep = 0; // thousandth of a mm
 int savedMoveStep = 0; // moveStep saved in EEPROM
 
-volatile int mode = -1; // mode of operation (ELS, multi-start ELS, asynchronous)
+int mode = -1; // mode of operation (ELS, multi-start ELS, asynchronous)
 int savedMode = -1; // mode saved in EEPROM
 
 int measure = MEASURE_METRIC; // Whether to show distances in inches
@@ -658,26 +660,8 @@ long loadLong(int i) {
 }
 
 // Called on a FALLING interrupt for the spindle rotary encoder pin.
-// Keeps track of the spindle position.
-void spinEnc() {
-  unsigned long microsNow = micros();
-  if (spindleEncTimeIndex == 0) {
-    spindleEncTimeDiffBulk = microsNow - spindleEncTimeAtIndex0;
-    spindleEncTimeAtIndex0 = microsNow;
-  }
-  spindleEncTimeIndex = (spindleEncTimeIndex + 1) % int(RPM_BULK);
-
-  int delta = DREAD(ENC_B) ? -1 : 1;
-  spindlePos += delta;
-  spindleEncTime = microsNow;
-
-  if (spindlePosSync != 0) {
-    spindlePosSync += delta;
-    if (spindlePosSync == 0 || spindlePosSync == ENCODER_STEPS) {
-      spindlePosSync = 0;
-      spindlePos = spindleFromPos(&z, z.pos);
-    }
-  }
+void IRAM_ATTR spinEnc() {
+  spindlePosDelta += DREAD(ENC_B) ? -1 : 1;
 }
 
 void setAsyncTimerEnable(bool value) {
@@ -745,8 +729,7 @@ void taskMoveZ(void *param) {
       long prevSpindlePos = spindlePos;
       bool resting = false;
       do {
-        if (mode != MODE_ASYNC) {
-          noInterrupts();
+        if (mode != MODE_ASYNC && xSemaphoreTake(motionMutex, 100) == pdTRUE) {
           if (!resting) {
             spindlePos += diff;
           }
@@ -755,7 +738,7 @@ void taskMoveZ(void *param) {
             spindlePos += diff;
           };
           prevSpindlePos = spindlePos;
-          interrupts();
+          xSemaphoreGive(motionMutex);
         }
 
         long newPos = mode == MODE_ASYNC ? getAsyncMovePos(sign) : posFromSpindle(&z, prevSpindlePos, true);
@@ -765,7 +748,10 @@ void taskMoveZ(void *param) {
         } else if (z.pos == (left ? z.leftStop : z.rightStop)) {
           // We're standing on a stop with the L/R move button pressed.
           resting = true;
-          checkIfNextStart();
+          if (xSemaphoreTake(motionMutex, 100) == pdTRUE) {
+            checkIfNextStart();
+            xSemaphoreGive(motionMutex);
+          }
           if (stepperOn) {
             stepperEnable(&z, false);
             stepperOn = false;
@@ -802,7 +788,12 @@ void taskMoveZ(void *param) {
     }
     if (isOn) {
       waitForPendingPos0(&z);
-      markOrigin();
+      if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
+        setEmergencyStop(ESTOP_MARK_ORIGIN);
+      } else {
+        markOrigin();
+        xSemaphoreGive(motionMutex);
+      }
       if (isPassMode()) {
         setIsOn(false);
       }
@@ -890,6 +881,10 @@ void setEmergencyStop(int kind) {
     lcd.print("Requested position");
     lcd.setCursor(0, 1);
     lcd.print("outside machine");
+  } else if (emergencyStop == ESTOP_MARK_ORIGIN) {
+    lcd.print("Unable to");
+    lcd.setCursor(0, 1);
+    lcd.print("mark origin");
   } else {
     lcd.print("Emergency stop");
   }
@@ -1099,13 +1094,12 @@ void markAxisOrigin(Axis* a) {
 // encoder and stepper as a new 0. To be called when dupr changes
 // or ELS is turned on/off. Without this, changing dupr will
 // result in stepper rushing across the lathe to the new position.
+// Must be called while holding motionMutex.
 void markOrigin() {
   markAxisOrigin(&z);
   markAxisOrigin(&x);
-  noInterrupts();
   spindlePos = 0;
   spindlePosSync = 0;
-  interrupts();
 }
 
 void markZ0() {
@@ -1140,7 +1134,7 @@ void setStarts(int value) {
   if (starts == value) {
     return;
   }
-  if (xSemaphoreTake(motionMutex, 10) != pdTRUE) {
+  if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
     return;
   }
   starts = value;
@@ -1369,7 +1363,7 @@ void setIsOn(bool on) {
     }
   }
 
-  bool hasMutex = xSemaphoreTake(motionMutex, 10) == pdTRUE;
+  bool hasMutex = xSemaphoreTake(motionMutex, 100) == pdTRUE;
   if (!on) {
     isOn = false;
     setupIndex = 0;
@@ -1471,18 +1465,12 @@ void buttonDownStopPress() {
 
 bool allowMultiStartAdvance = false;
 
-void nextStart() {
-  noInterrupts();
-  spindlePos += round(1.0 * ENCODER_STEPS / starts) * (dupr > 0 ? -1 : 1);
-  interrupts();
-}
-
 void checkIfNextStart() {
   if (starts <= 1 || dupr == 0 || z.rightStop == LONG_MIN || z.leftStop == LONG_MAX) {
     return;
   }
   if (allowMultiStartAdvance && z.pos == (dupr > 0 ? z.rightStop : z.leftStop)) {
-    nextStart();
+    spindlePos += round(1.0 * ENCODER_STEPS / starts) * (dupr > 0 ? -1 : 1);
     allowMultiStartAdvance = false;
   } else if (z.pos == (dupr > 0 ? z.leftStop : z.rightStop)) {
     allowMultiStartAdvance = true;
@@ -1896,9 +1884,7 @@ void modeTurn(Axis* main, Axis* aux) {
       stepTo(aux, auxPos);
       if (aux->pos == auxPos) {
         long base = round(spindleFromPos(main, main->pos) / ENCODER_STEPS) * ENCODER_STEPS + (dupr > 0 ? -1 : 1) * ENCODER_STEPS;
-        noInterrupts();
         spindlePos = base + spindlePos % int(ENCODER_STEPS);
-        interrupts();
         opSubIndex = 1;
       }
     }
@@ -2026,10 +2012,8 @@ void modeCut() {
     // Set spindlePos and x.pos in sync.
     if (opSubIndex == 0) {
       markAxisOrigin(&x);
-      noInterrupts();
       spindlePos = 0;
       spindlePosSync = 0;
-      interrupts();
       opSubIndex = 1;
     }
     // Doing the pass cut.
@@ -2097,11 +2081,42 @@ void discountFullSpindleTurns() {
       }
     }
     if (spindlePosDiff != 0) {
-      noInterrupts();
       spindlePos += spindlePosDiff;
-      interrupts();
     }
     checkIfNextStart();
+  }
+}
+
+void processSpindlePosDelta() {
+  noInterrupts();
+  long delta = spindlePosDelta;
+  spindlePosDelta = 0;
+  interrupts();
+  if (delta == 0) {
+    return;
+  }
+
+  unsigned long microsNow = micros();
+  if (showTacho) {
+    if (spindleEncTimeIndex >= RPM_BULK) {
+      spindleEncTimeDiffBulk = microsNow - spindleEncTimeAtIndex0;
+      spindleEncTimeAtIndex0 = microsNow;
+      spindleEncTimeIndex = 0;
+    }
+    spindleEncTimeIndex += abs(delta);
+  } else {
+    spindleEncTimeDiffBulk = 0;
+  }
+
+  spindlePos += delta;
+  spindleEncTime = microsNow;
+
+  if (spindlePosSync != 0) {
+    spindlePosSync += delta;
+    if (spindlePosSync % int(ENCODER_STEPS) == 0) {
+      spindlePosSync = 0;
+      spindlePos = spindleFromPos(&z, z.pos);
+    }
   }
 }
 
@@ -2112,8 +2127,7 @@ void loop() {
   if (xSemaphoreTake(motionMutex, 1) != pdTRUE) {
     return;
   }
-  moveAxis(&z);
-  moveAxis(&x);
+  processSpindlePosDelta();
   discountFullSpindleTurns();
   if (!isOn || dupr == 0 || spindlePosSync != 0) {
     // None of the modes work.
@@ -2128,5 +2142,7 @@ void loop() {
   } else if (mode == MODE_CONE) {
     modeCone();
   }
+  moveAxis(&z);
+  moveAxis(&x);
   xSemaphoreGive(motionMutex);
 }
