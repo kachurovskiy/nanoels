@@ -136,6 +136,7 @@
 #define MODE_ASYNC 2
 #define MODE_CONE 3
 #define MODE_TURN 4
+#define MODE_FACE 5
 
 #define MEASURE_METRIC 0
 #define MEASURE_INCH 1
@@ -245,7 +246,7 @@ struct Axis {
   int step; // Step pin of this motor
 };
 
-void initAxis(volatile Axis*  a, float motorSteps, float screwPitch, long speedStart, long speedManualMove, long acceleration, bool invertStepper, bool needsRest, long maxTravelMm, long backlashDu, int ena, int dir, int step) {
+void initAxis(Axis*  a, float motorSteps, float screwPitch, long speedStart, long speedManualMove, long acceleration, bool invertStepper, bool needsRest, long maxTravelMm, long backlashDu, int ena, int dir, int step) {
   a->mutex = xSemaphoreCreateMutex();
 
   a->motorSteps = motorSteps;
@@ -289,8 +290,8 @@ void initAxis(volatile Axis*  a, float motorSteps, float screwPitch, long speedS
   a->step = step;
 }
 
-volatile Axis z;
-volatile Axis x;
+Axis z;
+Axis x;
 
 volatile unsigned long spindleEncTime = 0; // micros() of the previous spindle update
 volatile unsigned long spindleEncTimeDiffBulk = 0; // micros() between RPM_BULK spindle updates
@@ -355,7 +356,7 @@ int getApproxRpm() {
   return rpm;
 }
 
-bool stepperIsRunning(volatile Axis* a) {
+bool stepperIsRunning(Axis* a) {
   return micros() - a->stepStartUs < 10000;
 }
 
@@ -413,7 +414,7 @@ void printLcdSpaces(int charIndex) {
   }
 }
 
-int printAxisPos(volatile Axis* a) {
+int printAxisPos(Axis* a) {
   return printMicrons(round((a->pos + a->originPos) * a->screwPitch / a->motorSteps), 3);
 }
 
@@ -459,6 +460,8 @@ void updateDisplay() {
       charIndex += lcd.print("CONE ");
     } else if (mode == MODE_TURN) {
       charIndex += lcd.print("TURN ");
+    } else if (mode == MODE_FACE) {
+      charIndex += lcd.print("FACE ");
     }
     charIndex += lcd.print(isOn ? "ON " : "off ");
     int beforeStops = charIndex;
@@ -530,13 +533,14 @@ void updateDisplay() {
 
   long numpadResult = getNumpadResult();
   long newHashLine3 = z.pos + (showAngle ? spindlePos : -1) + (showTacho ? rpm : -2) + measure + (numpadResult > 0 ? numpadResult : -1) + mode * 5 +
-      (mode == MODE_CONE ? round(coneRatio * 10000) : 0) +
-      (mode == MODE_TURN ? turnPasses + z.leftStop - z.rightStop + x.leftStop - x.rightStop : 0) + opIndex + setupIndex + isOn * 4;
+      (mode == MODE_CONE ? round(coneRatio * 10000) : 0) + turnPasses + opIndex + setupIndex + isOn * 4 +
+      (z.leftStop == LONG_MAX ? 123 : z.leftStop) + (z.rightStop == LONG_MIN ? 1234 : z.rightStop) +
+      (x.leftStop == LONG_MAX ? 1235 : x.leftStop) + (x.rightStop == LONG_MIN ? 123456 : x.rightStop);
   if (lcdHashLine3 != newHashLine3) {
     lcdHashLine3 = newHashLine3;
     charIndex = 0;
     lcd.setCursor(0, 3);
-    if (mode == MODE_TURN) {
+    if (mode == MODE_TURN || mode == MODE_FACE) {
       if (z.leftStop == LONG_MAX || z.rightStop == LONG_MIN || x.leftStop == LONG_MAX || x.rightStop == LONG_MIN) {
         charIndex += lcd.print("Set all stops");
       } else if (numpadResult != 0 && setupIndex == 1) {
@@ -656,7 +660,7 @@ void spinEnc() {
     spindlePosSync += delta;
     if (spindlePosSync == 0 || spindlePosSync == ENCODER_STEPS) {
       spindlePosSync = 0;
-      spindlePos = spindleFromPos(z.pos);
+      spindlePos = spindleFromPos(&z, z.pos);
     }
   }
 }
@@ -690,13 +694,13 @@ void taskKeypad(void *param) {
   }
 }
 
-void waitForPendingPosNear0(volatile Axis* a) {
+void waitForPendingPosNear0(Axis* a) {
   while (abs(a->pendingPos) > a->motorSteps / 10) {
     taskYIELD();
   }
 }
 
-void waitForPendingPos0(volatile Axis* a) {
+void waitForPendingPos0(Axis* a) {
   while (a->pendingPos != 0) {
     taskYIELD();
   }
@@ -739,7 +743,7 @@ void taskMoveZ(void *param) {
           interrupts();
         }
 
-        long newPos = mode == MODE_ASYNC ? getAsyncMovePos(sign) : posFromSpindle(prevSpindlePos, true);
+        long newPos = mode == MODE_ASYNC ? getAsyncMovePos(sign) : posFromSpindle(&z, prevSpindlePos, true);
         if (newPos != z.pos) {
           stepTo(&z, newPos);
           waitForPendingPosNear0(&z);
@@ -784,7 +788,7 @@ void taskMoveZ(void *param) {
     if (isOn) {
       waitForPendingPos0(&z);
       markOrigin();
-      if (mode == MODE_TURN) {
+      if (mode == MODE_TURN || mode == MODE_FACE) {
         setIsOn(false);
       }
     }
@@ -838,7 +842,7 @@ void taskMoveX(void *param) {
     if (isOn) {
       waitForPendingPos0(&x);
       markOrigin();
-      if (mode == MODE_TURN) {
+      if (mode == MODE_TURN || mode == MODE_FACE) {
         setIsOn(false);
       }
     }
@@ -1059,7 +1063,7 @@ void saveIfChanged() {
   }
 }
 
-void markAxisOrigin(volatile Axis* a) {
+void markAxisOrigin(Axis* a) {
   bool hasSemaphore = xSemaphoreTake(a->mutex, 10) == pdTRUE;
   if (a->leftStop != LONG_MAX) {
     a->leftStop -= a->pos;
@@ -1244,7 +1248,7 @@ void setOutOfSync() {
   if (!isOn || mode == MODE_ASYNC) {
     return;
   }
-  spindlePosSync = ((spindlePos - spindleFromPos(z.pos)) % (int) ENCODER_STEPS + (int) ENCODER_STEPS) % (int) ENCODER_STEPS;
+  spindlePosSync = ((spindlePos - spindleFromPos(&z, z.pos)) % (int) ENCODER_STEPS + (int) ENCODER_STEPS) % (int) ENCODER_STEPS;
 #ifdef DEBUG
   Serial.print("spindlePosSync ");
   Serial.println(spindlePosSync);
@@ -1273,7 +1277,7 @@ void buttonPlusMinusPress(bool plus) {
     } else if (plus && starts < STARTS_MAX) {
       setStarts(starts + 1);
     }
-  } else if (mode == MODE_TURN && setupIndex == 1 && getNumpadResult() == 0) {
+  } else if ((mode == MODE_TURN || mode == MODE_FACE) && setupIndex == 1 && getNumpadResult() == 0) {
     if (minus && turnPasses > 1) {
       setTurnPasses(turnPasses - 1);
     } else if (plus && turnPasses < PASSES_MAX) {
@@ -1324,7 +1328,7 @@ void beep() {
 
 void buttonOnOffPress(bool on) {
   resetMillis = millis();
-  if (on && (mode == MODE_TURN || mode == MODE_CONE)) {
+  if (on && (mode == MODE_TURN || mode == MODE_FACE)) {
     if (setupIndex == 0) {
       // Passes / ratio entry step.
       setupIndex = 1;
@@ -1339,7 +1343,7 @@ void buttonOnOffPress(bool on) {
 }
 
 void setIsOn(bool on) {
-  if (on && mode == MODE_TURN) {
+  if (on && (mode == MODE_TURN || mode == MODE_FACE)) {
     if (z.leftStop == LONG_MAX || z.rightStop == LONG_MIN || x.leftStop == LONG_MAX || x.rightStop == LONG_MIN || turnPasses <= 0) {
       beep();
       return;
@@ -1358,6 +1362,7 @@ void setIsOn(bool on) {
     isOn = true;
     opIndex = 0;
     opSubIndex = 0;
+    setupIndex = 0;
   }
   if (hasMutex) {
     xSemaphoreGive(motionMutex);
@@ -1509,7 +1514,7 @@ void buttonMoveStepPress() {
   }
 }
 
-void setDir(volatile Axis* a, bool dir) {
+void setDir(Axis* a, bool dir) {
   // Start slow if direction changed.
   if (a->direction != dir || !a->directionInitialized) {
     a->speed = SPEED_START_Z;
@@ -1670,7 +1675,7 @@ void processKeypadEvents() {
       resetNumpad();
       // Ignore numpad input unless confirmed with ON.
       if (keyCode == B_ON) {
-        if (mode == MODE_TURN && setupIndex == 1) {
+        if ((mode == MODE_TURN || mode == MODE_FACE) && setupIndex == 1) {
           setTurnPasses(int(min(long(PASSES_MAX), numpadResult)));
         } else if (mode == MODE_CONE && setupIndex == 1) {
           setConeRatio(newConeRatio);
@@ -1724,6 +1729,8 @@ void processKeypadEvents() {
       setMode(MODE_NORMAL);
     } else if (keyCode == B_MODE_TURN) {
       setMode(MODE_TURN);
+    } else if (keyCode == B_MODE_FACE) {
+      setMode(MODE_FACE);
     } else if (keyCode == B_MODE_CONE) {
       setMode(MODE_CONE);
     }
@@ -1731,7 +1738,7 @@ void processKeypadEvents() {
 }
 
 // Moves the stepper.
-bool stepTo(volatile Axis* a, long newPos) {
+bool stepTo(Axis* a, long newPos) {
   if (xSemaphoreTake(a->mutex, 10) == pdTRUE) {
     a->pendingPos = newPos - a->pos;
     xSemaphoreGive(a->mutex);
@@ -1741,15 +1748,15 @@ bool stepTo(volatile Axis* a, long newPos) {
 }
 
 // Calculates stepper position from spindle position.
-long posFromSpindle(long s, bool respectStops) {
-  long newPos = s * MOTOR_STEPS_Z / SCREW_Z_DU / ENCODER_STEPS * dupr * starts;
+long posFromSpindle(Axis* a, long s, bool respectStops) {
+  long newPos = s * a->motorSteps / a->screwPitch / ENCODER_STEPS * dupr * starts;
 
   // Respect left/right stops.
   if (respectStops) {
-    if (z.rightStop != LONG_MIN && newPos < z.rightStop) {
-      newPos = z.rightStop;
-    } else if (z.leftStop != LONG_MAX && newPos > z.leftStop) {
-      newPos = z.leftStop;
+    if (newPos < a->rightStop) {
+      newPos = a->rightStop;
+    } else if (newPos > a->leftStop) {
+      newPos = a->leftStop;
     }
   }
 
@@ -1757,11 +1764,11 @@ long posFromSpindle(long s, bool respectStops) {
 }
 
 // Calculates spindle position from stepper position.
-long spindleFromPos(long p) {
-  return p * SCREW_Z_DU * ENCODER_STEPS / MOTOR_STEPS_Z / (dupr * starts);
+long spindleFromPos(Axis* a, long p) {
+  return p * a->screwPitch * ENCODER_STEPS / a->motorSteps / (dupr * starts);
 }
 
-void stepperEnable(volatile Axis* a, bool value) {
+void stepperEnable(Axis* a, bool value) {
   if (!a->needsRest) {
     return;
   }
@@ -1778,7 +1785,7 @@ void stepperEnable(volatile Axis* a, bool value) {
   }
 }
 
-void updateEnable(volatile Axis* a) {
+void updateEnable(Axis* a) {
   if (!a->isManuallyDisabled && (!a->needsRest || a->stepperEnableCounter > 0)) {
     DHIGH(a->ena);
     // Stepper driver needs some time before it will react to pulses.
@@ -1796,7 +1803,7 @@ bool setPosEmergencyStop() {
   return false;
 }
 
-void moveAxis(volatile Axis* a) {
+void moveAxis(Axis* a) {
   // Most of the time a step isn't needed.
   if (a->pendingPos == 0) {
     return;
@@ -1836,25 +1843,24 @@ void modeGearbox() {
     return;
   }
   z.speedMax = LONG_MAX;
-  stepTo(&z, posFromSpindle(spindlePos, true));
+  stepTo(&z, posFromSpindle(&z, spindlePos, true));
 }
 
-void modeTurn() {
-  if (z.movingManually || x.movingManually || turnPasses <= 0 ||
-      z.leftStop == LONG_MAX || z.rightStop == LONG_MIN ||
-      x.leftStop == LONG_MAX || x.rightStop == LONG_MIN) {
+void modeTurn(Axis* main, Axis* aux) {
+  if (main->movingManually || aux->movingManually || turnPasses <= 0 ||
+      main->leftStop == LONG_MAX || main->rightStop == LONG_MIN ||
+      aux->leftStop == LONG_MAX || aux->rightStop == LONG_MIN) {
     return;
   }
-  x.speedMax = x.speedManualMove;
-  long xPassInSteps = (x.leftStop - x.rightStop) / turnPasses;
+  aux->speedMax = aux->speedManualMove;
   if (opIndex == 0) {
     // Move to right-bottom limit, take out backlash.
-    z.speedMax = z.speedManualMove;
-    long xPos = x.rightStop - (opSubIndex == 0 ? x.backlashSteps : 0);
-    long zPos = z.rightStop - (opSubIndex == 0 ? z.backlashSteps : 0);
-    stepTo(&z, zPos);
-    stepTo(&x, xPos);
-    if (z.pos == zPos && x.pos == xPos) {
+    main->speedMax = main->speedManualMove;
+    long auxPos = aux->rightStop - (opSubIndex == 0 ? aux->backlashSteps : 0);
+    long mainPos = main->rightStop - (opSubIndex == 0 ? main->backlashSteps : 0);
+    stepTo(main, mainPos);
+    stepTo(aux, auxPos);
+    if (main->pos == mainPos && aux->pos == auxPos) {
       if (opSubIndex == 0) {
         opSubIndex = 1;
       } else {
@@ -1865,10 +1871,10 @@ void modeTurn() {
   } else if (opIndex <= turnPasses) {
     // Bringing X to starting position.
     if (opSubIndex == 0) {
-      long xPos = x.leftStop - xPassInSteps * (turnPasses - opIndex);
-      stepTo(&x, xPos);
-      if (x.pos == xPos) {
-        long base = round(spindleFromPos(z.pos) / ENCODER_STEPS) * ENCODER_STEPS + (dupr > 0 ? -1 : 1) * ENCODER_STEPS;
+      long auxPos = aux->leftStop - (aux->leftStop - aux->rightStop) / turnPasses * (turnPasses - opIndex);
+      stepTo(aux, auxPos);
+      if (aux->pos == auxPos) {
+        long base = round(spindleFromPos(main, main->pos) / ENCODER_STEPS) * ENCODER_STEPS + (dupr > 0 ? -1 : 1) * ENCODER_STEPS;
         noInterrupts();
         spindlePos = base + spindlePos % int(ENCODER_STEPS);
         interrupts();
@@ -1877,47 +1883,47 @@ void modeTurn() {
     }
     // Doing the pass cut.
     if (opSubIndex == 1) {
-      z.speedMax = LONG_MAX;
-      stepTo(&z, posFromSpindle(spindlePos, true));
-      if (z.pos == z.leftStop) {
+      main->speedMax = LONG_MAX;
+      stepTo(main, posFromSpindle(main, spindlePos, true));
+      if (main->pos == main->leftStop) {
         opSubIndex = 2;
       }
     }
     // Retracting the tool
     if (opSubIndex == 2) {
-      long xPos = x.rightStop;
-      stepTo(&x, xPos);
-      if (x.pos == xPos) {
+      long auxPos = aux->rightStop;
+      stepTo(aux, auxPos);
+      if (aux->pos == auxPos) {
         opSubIndex = 3;
       }
     }
     // Returning to start z minus backlash.
     if (opSubIndex == 3) {
-      z.speedMax = z.speedManualMove;
-      long zPos = z.rightStop - z.backlashSteps;
-      stepTo(&z, zPos);
-      if (z.pos == zPos) {
+      main->speedMax = main->speedManualMove;
+      long mainPos = main->rightStop - main->backlashSteps;
+      stepTo(main, mainPos);
+      if (main->pos == mainPos) {
         opSubIndex = 4;
       }
     }
-    // Returning to start z.
+    // Returning to start of main.
     if (opSubIndex == 4) {
-      long zPos = z.rightStop;
-      stepTo(&z, zPos);
-      if (z.pos == zPos) {
-        z.speedMax = LONG_MAX;
+      long mainPos = main->rightStop;
+      stepTo(main, mainPos);
+      if (main->pos == mainPos) {
+        main->speedMax = LONG_MAX;
         opSubIndex = 0;
         opIndex++;
       }
     }
   } else {
     // Move to right-bottom limit, take out backlash.
-    z.speedMax = z.speedManualMove;
-    long xPos = x.rightStop - (opSubIndex == 0 ? x.backlashSteps : 0);
-    long zPos = z.rightStop - (opSubIndex == 0 ? z.backlashSteps : 0);
-    stepTo(&z, zPos);
-    stepTo(&x, xPos);
-    if (z.pos == zPos && x.pos == xPos) {
+    main->speedMax = main->speedManualMove;
+    long auxPos = aux->rightStop - (opSubIndex == 0 ? aux->backlashSteps : 0);
+    long mainPos = main->rightStop - (opSubIndex == 0 ? main->backlashSteps : 0);
+    stepTo(main, mainPos);
+    stepTo(aux, auxPos);
+    if (main->pos == mainPos && aux->pos == auxPos) {
       if (opSubIndex == 0) {
         opSubIndex = 1;
       } else {
@@ -1947,13 +1953,13 @@ void modeCone() {
   long spindleMin = LONG_MIN;
   long spindleMax = LONG_MAX;
   if (z.leftStop != LONG_MAX) {
-    (dupr > 0 ? spindleMax : spindleMin) = spindleFromPos(z.leftStop);
+    (dupr > 0 ? spindleMax : spindleMin) = spindleFromPos(&z, z.leftStop);
   }
   if (z.rightStop != LONG_MIN) {
-    (dupr > 0 ? spindleMin: spindleMax) = spindleFromPos(z.rightStop);
+    (dupr > 0 ? spindleMin: spindleMax) = spindleFromPos(&z, z.rightStop);
   }
   if (x.leftStop != LONG_MAX) {
-    long lim = spindleFromPos(round(x.leftStop / zToXRatio));
+    long lim = spindleFromPos(&z, round(x.leftStop / zToXRatio));
     if (zToXRatio < 0) {
       (dupr > 0 ? spindleMin: spindleMax) = lim;
     } else {
@@ -1961,7 +1967,7 @@ void modeCone() {
     }
   }
   if (x.rightStop != LONG_MIN) {
-    long lim = spindleFromPos(round(x.rightStop / zToXRatio));
+    long lim = spindleFromPos(&z, round(x.rightStop / zToXRatio));
     if (zToXRatio < 0) {
       (dupr > 0 ? spindleMax : spindleMin) = lim;
     } else {
@@ -1974,7 +1980,7 @@ void modeCone() {
     spindle = spindleMin;
   }
 
-  stepTo(&z, posFromSpindle(spindle, true));
+  stepTo(&z, posFromSpindle(&z, spindle, true));
   stepTo(&x, round(z.pos * zToXRatio));
 }
 
@@ -1986,7 +1992,7 @@ void discountFullSpindleTurns() {
   if (dupr != 0 && !stepperIsRunning(&z)) {
     int spindlePosDiff = 0;
     if (z.pos == z.rightStop) {
-      long stopSpindlePos = spindleFromPos(z.rightStop);
+      long stopSpindlePos = spindleFromPos(&z, z.rightStop);
       if (dupr > 0) {
         if (spindlePos < stopSpindlePos - ENCODER_STEPS) {
           spindlePosDiff = ENCODER_STEPS;
@@ -1997,7 +2003,7 @@ void discountFullSpindleTurns() {
         }
       }
     } else if (z.pos == z.leftStop) {
-      long stopSpindlePos = spindleFromPos(z.leftStop);
+      long stopSpindlePos = spindleFromPos(&z, z.leftStop);
       if (dupr > 0) {
         if (spindlePos > stopSpindlePos + ENCODER_STEPS) {
           spindlePosDiff = -ENCODER_STEPS;
@@ -2032,7 +2038,9 @@ void loop() {
   } else if (mode == MODE_NORMAL || mode == MODE_MULTISTART) {
     modeGearbox();
   } else if (mode == MODE_TURN) {
-    modeTurn();
+    modeTurn(&z, &x);
+  } else if (mode == MODE_FACE) {
+    modeTurn(&x, &z);
   } else if (mode == MODE_CONE) {
     modeCone();
   }
