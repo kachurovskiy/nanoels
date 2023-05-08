@@ -137,6 +137,7 @@
 #define MODE_CONE 3
 #define MODE_TURN 4
 #define MODE_FACE 5
+#define MODE_CUT 6
 
 #define MEASURE_METRIC 0
 #define MEASURE_INCH 1
@@ -435,6 +436,14 @@ int printNoTrailing0(float value) {
   return lcd.print(value, points);
 }
 
+bool needZStops() {
+  return mode == MODE_TURN || mode == MODE_FACE;
+}
+
+bool isPassMode() {
+  return mode == MODE_TURN || mode == MODE_FACE || mode == MODE_CUT;
+}
+
 void updateDisplay() {
   if (emergencyStop != ESTOP_NONE) {
     return;
@@ -462,6 +471,8 @@ void updateDisplay() {
       charIndex += lcd.print("TURN ");
     } else if (mode == MODE_FACE) {
       charIndex += lcd.print("FACE ");
+    } else if (mode == MODE_CUT) {
+      charIndex += lcd.print("CUT ");
     }
     charIndex += lcd.print(isOn ? "ON " : "off ");
     int beforeStops = charIndex;
@@ -540,9 +551,9 @@ void updateDisplay() {
     lcdHashLine3 = newHashLine3;
     charIndex = 0;
     lcd.setCursor(0, 3);
-    if (mode == MODE_TURN || mode == MODE_FACE) {
-      if (z.leftStop == LONG_MAX || z.rightStop == LONG_MIN || x.leftStop == LONG_MAX || x.rightStop == LONG_MIN) {
-        charIndex += lcd.print("Set all stops");
+    if (isPassMode()) {
+      if (needZStops() && (z.leftStop == LONG_MAX || z.rightStop == LONG_MIN) || x.leftStop == LONG_MAX || x.rightStop == LONG_MIN) {
+        charIndex += lcd.print(needZStops() ? "Set all stops" : "Set X stops");
       } else if (numpadResult != 0 && setupIndex == 1) {
         long passes = min(long(PASSES_MAX), numpadResult);
         charIndex += lcd.print(passes);
@@ -788,7 +799,7 @@ void taskMoveZ(void *param) {
     if (isOn) {
       waitForPendingPos0(&z);
       markOrigin();
-      if (mode == MODE_TURN || mode == MODE_FACE) {
+      if (isPassMode()) {
         setIsOn(false);
       }
     }
@@ -842,7 +853,7 @@ void taskMoveX(void *param) {
     if (isOn) {
       waitForPendingPos0(&x);
       markOrigin();
-      if (mode == MODE_TURN || mode == MODE_FACE) {
+      if (isPassMode()) {
         setIsOn(false);
       }
     }
@@ -1277,7 +1288,7 @@ void buttonPlusMinusPress(bool plus) {
     } else if (plus && starts < STARTS_MAX) {
       setStarts(starts + 1);
     }
-  } else if ((mode == MODE_TURN || mode == MODE_FACE) && setupIndex == 1 && getNumpadResult() == 0) {
+  } else if (isPassMode() && setupIndex == 1 && getNumpadResult() == 0) {
     if (minus && turnPasses > 1) {
       setTurnPasses(turnPasses - 1);
     } else if (plus && turnPasses < PASSES_MAX) {
@@ -1328,7 +1339,7 @@ void beep() {
 
 void buttonOnOffPress(bool on) {
   resetMillis = millis();
-  if (on && (mode == MODE_TURN || mode == MODE_FACE)) {
+  if (on && isPassMode()) {
     if (setupIndex == 0) {
       // Passes / ratio entry step.
       setupIndex = 1;
@@ -1343,8 +1354,12 @@ void buttonOnOffPress(bool on) {
 }
 
 void setIsOn(bool on) {
-  if (on && (mode == MODE_TURN || mode == MODE_FACE)) {
-    if (z.leftStop == LONG_MAX || z.rightStop == LONG_MIN || x.leftStop == LONG_MAX || x.rightStop == LONG_MIN || turnPasses <= 0) {
+  if (isOn && on) {
+    return;
+  }
+
+  if (on && isPassMode()) {
+    if (needZStops() && (z.leftStop == LONG_MAX || z.rightStop == LONG_MIN) || x.leftStop == LONG_MAX || x.rightStop == LONG_MIN || turnPasses <= 0) {
       beep();
       return;
     }
@@ -1675,7 +1690,7 @@ void processKeypadEvents() {
       resetNumpad();
       // Ignore numpad input unless confirmed with ON.
       if (keyCode == B_ON) {
-        if ((mode == MODE_TURN || mode == MODE_FACE) && setupIndex == 1) {
+        if (isPassMode() && setupIndex == 1) {
           setTurnPasses(int(min(long(PASSES_MAX), numpadResult)));
         } else if (mode == MODE_CONE && setupIndex == 1) {
           setConeRatio(newConeRatio);
@@ -1733,6 +1748,8 @@ void processKeypadEvents() {
       setMode(MODE_FACE);
     } else if (keyCode == B_MODE_CONE) {
       setMode(MODE_CONE);
+    } else if (keyCode == B_MODE_CUT) {
+      setMode(MODE_CUT);
     }
   }
 }
@@ -1984,6 +2001,67 @@ void modeCone() {
   stepTo(&x, round(z.pos * zToXRatio));
 }
 
+void modeCut() {
+  if (x.movingManually || turnPasses <= 0 || x.leftStop == LONG_MAX || x.rightStop == LONG_MIN || dupr <= 0) {
+    return;
+  }
+  if (opIndex == 0) {
+    // Move to back limit, take out backlash.
+    x.speedMax = x.speedManualMove;
+    long xPos = x.rightStop - (opSubIndex == 0 ? x.backlashSteps : 0);
+    stepTo(&x, xPos);
+    if (x.pos == xPos) {
+      if (opSubIndex == 0) {
+        opSubIndex = 1;
+      } else {
+        opIndex = 1;
+        opSubIndex = 0;
+      }
+    }
+  } else if (opIndex <= turnPasses) {
+    // Set spindlePos and x.pos in sync.
+    if (opSubIndex == 0) {
+      markAxisOrigin(&x);
+      noInterrupts();
+      spindlePos = 0;
+      spindlePosSync = 0;
+      interrupts();
+      opSubIndex = 1;
+    }
+    // Doing the pass cut.
+    if (opSubIndex == 1) {
+      x.speedMax = LONG_MAX;
+      long maxPos = x.leftStop - (x.leftStop - x.rightStop) / turnPasses * (turnPasses - opIndex);
+      long xPos = min(maxPos, posFromSpindle(&x, spindlePos, true));
+      stepTo(&x, xPos);
+      if (x.pos == maxPos) {
+        opSubIndex = 2;
+      }
+    }
+    // Returning to start minus backlash.
+    if (opSubIndex == 2) {
+      x.speedMax = x.speedManualMove;
+      long xPos = x.rightStop - x.backlashSteps;
+      stepTo(&x, xPos);
+      if (x.pos == xPos) {
+        opSubIndex = 3;
+      }
+    }
+    // Returning to start.
+    if (opSubIndex == 3) {
+      long xPos = x.rightStop;
+      stepTo(&x, xPos);
+      if (x.pos == xPos) {
+        opSubIndex = 0;
+        opIndex++;
+      }
+    }
+  } else {
+    beep();
+    setIsOn(false);
+  }
+}
+
 void discountFullSpindleTurns() {
   // When standing at the stop, ignore full spindle turns.
   // This allows to avoid waiting when spindle direction reverses
@@ -2041,6 +2119,8 @@ void loop() {
     modeTurn(&z, &x);
   } else if (mode == MODE_FACE) {
     modeTurn(&x, &z);
+  } else if (mode == MODE_CUT) {
+    modeCut();
   } else if (mode == MODE_CONE) {
     modeCone();
   }
