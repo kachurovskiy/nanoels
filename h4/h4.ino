@@ -444,6 +444,10 @@ bool isPassMode() {
   return mode == MODE_TURN || mode == MODE_FACE || mode == MODE_CUT;
 }
 
+bool isSetupAndGoMode() {
+  return mode == MODE_TURN || mode == MODE_FACE || mode == MODE_CONE || mode == MODE_CUT;
+}
+
 void updateDisplay() {
   if (emergencyStop != ESTOP_NONE) {
     return;
@@ -1339,7 +1343,7 @@ void beep() {
 
 void buttonOnOffPress(bool on) {
   resetMillis = millis();
-  if (on && isPassMode()) {
+  if (on && isSetupAndGoMode()) {
     if (setupIndex == 0) {
       // Passes / ratio entry step.
       setupIndex = 1;
