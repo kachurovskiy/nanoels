@@ -364,7 +364,7 @@ bool stepperIsRunning(Axis* a) {
 }
 
 // Returns number of letters printed.
-int printMicrons(long deciMicrons, int precisionPointsMax) {
+int printDeciMicrons(long deciMicrons, int precisionPointsMax) {
   if (deciMicrons == 0) {
     return lcd.print("0");
   }
@@ -390,7 +390,7 @@ int printMicrons(long deciMicrons, int precisionPointsMax) {
 int printDupr(long value) {
   int count = 0;
   if (measure != MEASURE_TPI) {
-    count += printMicrons(value, 5);
+    count += printDeciMicrons(value, 5);
   } else {
     float tpi = 254000.0 / value;
     if (abs(tpi - round(tpi)) < TPI_ROUND_EPSILON) {
@@ -418,7 +418,7 @@ void printLcdSpaces(int charIndex) {
 }
 
 int printAxisPos(Axis* a) {
-  return printMicrons(round((a->pos + a->originPos) * a->screwPitch / a->motorSteps), 3);
+  return printDeciMicrons(round((a->pos + a->originPos) * a->screwPitch / a->motorSteps), 3);
 }
 
 int printNoTrailing0(float value) {
@@ -504,7 +504,7 @@ void updateDisplay() {
     if (mode == MODE_NORMAL && !spindlePosSync) {
       charIndex += lcd.print("step ");
     }
-    charIndex += printMicrons(moveStep, 5);
+    charIndex += printDeciMicrons(moveStep, 5);
     printLcdSpaces(charIndex);
   }
 
@@ -550,7 +550,7 @@ void updateDisplay() {
 
   long numpadResult = getNumpadResult();
   long newHashLine3 = z.pos + (showAngle ? spindlePos : -1) + (showTacho ? rpm : -2) + measure + (numpadResult > 0 ? numpadResult : -1) + mode * 5 +
-      (mode == MODE_CONE ? round(coneRatio * 10000) : 0) + turnPasses + opIndex + setupIndex + isOn * 4 +
+      (mode == MODE_CONE ? round(coneRatio * 10000) : 0) + turnPasses + opIndex + setupIndex + isOn * 4 + (inNumpad ? 10 : 0) +
       (z.leftStop == LONG_MAX ? 123 : z.leftStop) + (z.rightStop == LONG_MIN ? 1234 : z.rightStop) +
       (x.leftStop == LONG_MAX ? 1235 : x.leftStop) + (x.rightStop == LONG_MIN ? 123456 : x.rightStop);
   if (lcdHashLine3 != newHashLine3) {
@@ -558,7 +558,8 @@ void updateDisplay() {
     charIndex = 0;
     lcd.setCursor(0, 3);
     if (isPassMode()) {
-      if (needZStops() && (z.leftStop == LONG_MAX || z.rightStop == LONG_MIN) || x.leftStop == LONG_MAX || x.rightStop == LONG_MIN) {
+      bool missingStops = needZStops() && (z.leftStop == LONG_MAX || z.rightStop == LONG_MIN) || x.leftStop == LONG_MAX || x.rightStop == LONG_MIN;
+      if (!inNumpad && missingStops) {
         charIndex += lcd.print(needZStops() ? "Set all stops" : "Set X stops");
       } else if (numpadResult != 0 && setupIndex == 1) {
         long passes = min(long(PASSES_MAX), numpadResult);
@@ -592,9 +593,9 @@ void updateDisplay() {
       }
     }
 
-    if (charIndex == 0 && numpadResult != 0) {
+    if (charIndex == 0 && inNumpad) { // Also show for 0 input to allow setting limits to 0.
       charIndex += lcd.print("Use ");
-      charIndex += printDupr(numpadToDupr());
+      charIndex += printDupr(numpadToDeciMicrons());
       charIndex += lcd.print("?");
     }
 
@@ -1389,78 +1390,70 @@ void buttonOffRelease() {
   }
 }
 
-void buttonLeftStopPress() {
+bool setLeftStop(Axis* a, long value) {
   if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
-    return;
+    return false;
   }
-  if (z.leftStop == LONG_MAX) {
-    z.leftStop = z.pos;
-  } else {
-    if (z.pos == z.leftStop) {
-      // Spindle is most likely out of sync with the stepper because
-      // it was spinning while the lead screw was on the stop.
+  if (a->leftStop == value || a->pos > value) {
+    xSemaphoreGive(motionMutex);
+    return false;
+  }
+  bool onFormerStop = a->pos == a->leftStop;
+  a->leftStop = value;
+  if (onFormerStop) {
+    // Spindle is most likely out of sync with the stepper because
+    // it was spinning while the lead screw was on the stop.
+    if (&z == a) {
       setOutOfSync();
     }
-    z.leftStop = LONG_MAX;
-  }
-  if (mode == MODE_CONE) {
-    // To avoid X rushing to a far away position if standing on limit.
-    markOrigin();
+    if (mode == MODE_CONE) {
+      // To avoid X rushing to a far away position if standing on limit.
+      markOrigin();
+    }
   }
   xSemaphoreGive(motionMutex);
+  return true;
+}
+
+bool setRightStop(Axis* a, long value) {
+  if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
+    return false;
+  }
+  if (a->rightStop == value || a->pos < value) {
+    xSemaphoreGive(motionMutex);
+    return false;
+  }
+  bool onFormerStop = a->pos == a->rightStop;
+  a->rightStop = value;
+  if (onFormerStop) {
+    // Spindle is most likely out of sync with the stepper because
+    // it was spinning while the lead screw was on the stop.
+    if (&z == a) {
+      setOutOfSync();
+    }
+    if (mode == MODE_CONE) {
+      // To avoid X rushing to a far away position if standing on limit.
+      markOrigin();
+    }
+  }
+  xSemaphoreGive(motionMutex);
+  return true;
+}
+
+void buttonLeftStopPress() {
+  setLeftStop(&z, z.leftStop == LONG_MAX ? z.pos : LONG_MAX);
 }
 
 void buttonRightStopPress() {
-  if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
-    return;
-  }
-  if (z.rightStop == LONG_MIN) {
-    z.rightStop = z.pos;
-  } else {
-    if (z.pos == z.rightStop) {
-      // Spindle is most likely out of sync with the stepper because
-      // it was spinning while the lead screw was on the stop.
-      setOutOfSync();
-    }
-    z.rightStop = LONG_MIN;
-  }
-  if (mode == MODE_CONE) {
-    // To avoid X rushing to a far away position if standing on limit.
-    markOrigin();
-  }
-  xSemaphoreGive(motionMutex);
+  setRightStop(&z, z.rightStop == LONG_MIN ? z.pos : LONG_MIN);
 }
 
 void buttonUpStopPress() {
-  if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
-    return;
-  }
-  if (x.leftStop == LONG_MAX) {
-    x.leftStop = x.pos;
-  } else {
-    x.leftStop = LONG_MAX;
-  }
-  if (mode == MODE_CONE) {
-    // To avoid X rushing to a far away position if standing on limit.
-    markOrigin();
-  }
-  xSemaphoreGive(motionMutex);
+  setLeftStop(&x, x.leftStop == LONG_MAX ? x.pos : LONG_MAX);
 }
 
 void buttonDownStopPress() {
-  if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
-    return;
-  }
-  if (x.rightStop == LONG_MIN) {
-    x.rightStop = x.pos;
-  } else {
-    x.rightStop = LONG_MIN;
-  }
-  if (mode == MODE_CONE) {
-    // To avoid X rushing to a far away position if standing on limit.
-    markOrigin();
-  }
-  xSemaphoreGive(motionMutex);
+  setRightStop(&x, x.rightStop == LONG_MIN ? x.pos : LONG_MIN);
 }
 
 bool allowMultiStartAdvance = false;
@@ -1594,7 +1587,7 @@ void numpadPlusMinus(bool plus) {
   // TODO: implement going over 9 and below 1.
 }
 
-long numpadToDupr() {
+long numpadToDeciMicrons() {
   long result = getNumpadResult();
   if (result == 0) {
     return 0;
@@ -1676,7 +1669,7 @@ void processKeypadEvents() {
       continue;
     } else if (inNumpad) {
       inNumpad = false;
-      long newDupr = numpadToDupr();
+      long newDu = numpadToDeciMicrons();
       float newConeRatio = numpadToConeRatio();
       long numpadResult = getNumpadResult();
       resetNumpad();
@@ -1687,11 +1680,34 @@ void processKeypadEvents() {
         } else if (mode == MODE_CONE && setupIndex == 1) {
           setConeRatio(newConeRatio);
         } else {
-          if (abs(newDupr) <= DUPR_MAX) {
-            setDupr(newDupr);
+          if (abs(newDu) <= DUPR_MAX) {
+            setDupr(newDu);
           }
         }
         // Don't use this ON press for starting the motion.
+        continue;
+      }
+
+      // Potentially assign a new value to a limit.
+      Axis* a = (keyCode == B_STOPL || keyCode == B_STOPR) ? &z : &x;
+      long stop = newDu / a->screwPitch * a->motorSteps - a->originPos;
+      bool isStop = true;
+      bool stopSet = false;
+      if (keyCode == B_STOPL) {
+        stopSet = setLeftStop(&z, stop);
+      } else if (keyCode == B_STOPR) {
+        stopSet = setRightStop(&z, stop);
+      } else if (keyCode == B_STOPU) {
+        stopSet = setLeftStop(&x, stop);
+      } else if (keyCode == B_STOPD) {
+        stopSet = setRightStop(&x, stop);
+      } else {
+        isStop = false;
+      }
+      if (isStop) {
+        if (!stopSet) {
+          beep();
+        }
         continue;
       }
     }
