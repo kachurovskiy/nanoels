@@ -138,6 +138,7 @@
 #define MODE_TURN 4
 #define MODE_FACE 5
 #define MODE_CUT 6
+#define MODE_THREAD 7
 
 #define MEASURE_METRIC 0
 #define MEASURE_INCH 1
@@ -439,15 +440,15 @@ int printNoTrailing0(float value) {
 }
 
 bool needZStops() {
-  return mode == MODE_TURN || mode == MODE_FACE;
+  return mode == MODE_TURN || mode == MODE_FACE || mode == MODE_THREAD;
 }
 
 bool isPassMode() {
-  return mode == MODE_TURN || mode == MODE_FACE || mode == MODE_CUT;
+  return mode == MODE_TURN || mode == MODE_FACE || mode == MODE_CUT || mode == MODE_THREAD;
 }
 
 bool isSetupAndGoMode() {
-  return mode == MODE_TURN || mode == MODE_FACE || mode == MODE_CONE || mode == MODE_CUT;
+  return mode == MODE_TURN || mode == MODE_FACE || mode == MODE_CONE || mode == MODE_CUT || mode == MODE_THREAD;
 }
 
 void updateDisplay() {
@@ -479,6 +480,8 @@ void updateDisplay() {
       charIndex += lcd.print("FACE ");
     } else if (mode == MODE_CUT) {
       charIndex += lcd.print("CUT ");
+    } else if (mode == MODE_THREAD) {
+      charIndex += lcd.print("THRD ");
     }
     charIndex += lcd.print(isOn ? "ON " : "off ");
     int beforeStops = charIndex;
@@ -1758,6 +1761,8 @@ void processKeypadEvents() {
       setMode(MODE_CONE);
     } else if (keyCode == B_MODE_CUT) {
       setMode(MODE_CUT);
+    } else if (keyCode == B_MODE_THREAD) {
+      setMode(MODE_THREAD);
     }
   }
 }
@@ -2157,6 +2162,8 @@ void loop() {
     modeCut();
   } else if (mode == MODE_CONE) {
     modeCone();
+  } else if (mode == MODE_THREAD) {
+    modeTurn(&z, &x);
   }
   moveAxis(&z);
   moveAxis(&x);
