@@ -111,7 +111,6 @@
 #define ADDR_OUT_OF_SYNC 22 // takes 2 bytes
 #define ADDR_SHOW_ANGLE 24 // takes 1 byte
 #define ADDR_SHOW_TACHO 25 // takes 1 byte
-#define ADDR_MOVE_STEP 26 // takes 2 bytes
 #define ADDR_STARTS 28 // takes 2 bytes
 #define ADDR_MODE 30 // takes 2 bytes
 #define ADDR_MEASURE 32 // takes 2 bytes
@@ -122,6 +121,7 @@
 #define ADDR_ORIGIN_POS_X 50 // takes 4 bytes
 #define ADDR_CONE_RATIO 54 // takes 4 bytes
 #define ADDR_TURN_PASSES 58 // takes 2 bytes
+#define ADDR_MOVE_STEP 62 // takes 4 bytes
 
 #define MOVE_STEP_1 10000 // 1mm
 #define MOVE_STEP_2 1000 // 0.1mm
@@ -314,8 +314,8 @@ bool savedShowTacho = false; // showTacho value saved in EEPROM
 int shownRpm = 0;
 unsigned long shownRpmTime = 0; // micros() when shownRpm was set
 
-int moveStep = 0; // thousandth of a mm
-int savedMoveStep = 0; // moveStep saved in EEPROM
+long moveStep = 0; // thousandth of a mm
+long savedMoveStep = 0; // moveStep saved in EEPROM
 
 int mode = -1; // mode of operation (ELS, multi-start ELS, asynchronous)
 int savedMode = -1; // mode saved in EEPROM
@@ -921,7 +921,7 @@ void setup() {
     saveLong(ADDR_RIGHT_STOP_Z, LONG_MIN);
     saveLong(ADDR_LEFT_STOP_X, LONG_MAX);
     saveLong(ADDR_RIGHT_STOP_X, LONG_MIN);
-    saveInt(ADDR_MOVE_STEP, MOVE_STEP_1);
+    saveLong(ADDR_MOVE_STEP, MOVE_STEP_1);
     EEPROM.put(ADDR_CONE_RATIO, coneRatio);
     EEPROM.put(ADDR_TURN_PASSES, turnPasses);
   }
@@ -945,7 +945,7 @@ void setup() {
   savedSpindlePosSync = spindlePosSync = loadInt(ADDR_OUT_OF_SYNC);
   savedShowAngle = showAngle = EEPROM.read(ADDR_SHOW_ANGLE) == 1;
   savedShowTacho = showTacho = EEPROM.read(ADDR_SHOW_TACHO) == 1;
-  savedMoveStep = loadInt(ADDR_MOVE_STEP);
+  savedMoveStep = loadLong(ADDR_MOVE_STEP);
   moveStep = savedMoveStep > 0 ? savedMoveStep : MOVE_STEP_1;
   savedMode = loadInt(ADDR_MODE);
   savedMeasure = measure = loadInt(ADDR_MEASURE);
@@ -1037,7 +1037,7 @@ void saveIfChanged() {
     changed = true;
   }
   if (moveStep != savedMoveStep) {
-    saveInt(ADDR_MOVE_STEP, savedMoveStep = moveStep);
+    saveLong(ADDR_MOVE_STEP, savedMoveStep = moveStep);
     changed = true;
   }
   if (mode != savedMode) {
@@ -1733,6 +1733,15 @@ void processKeypadEvents() {
         }
         a->speedMax = a->speedManualMove;
         stepTo(a, pos);
+        continue;
+      }
+
+      if (keyCode == B_STEP) {
+        if (newDu > 0) {
+          moveStep = newDu;
+        } else {
+          beep();
+        }
         continue;
       }
     }
