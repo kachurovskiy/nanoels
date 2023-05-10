@@ -1618,14 +1618,16 @@ void processKeypadEvents() {
     if (keyCode == B_OFF) {
       buttonOffPressed = isPress;
       isPress ? buttonOnOffPress(false) : buttonOffRelease();
-    } else if (keyCode == B_LEFT) {
-      buttonLeftPressed = isPress;
-    } else if (keyCode == B_RIGHT) {
-      buttonRightPressed = isPress;
-    } else if (keyCode == B_UP) {
-      buttonUpPressed = isPress;
-    } else if (keyCode == B_DOWN) {
-      buttonDownPressed = isPress;
+    } else if (!inNumpad || !isPress) {
+      if (keyCode == B_LEFT) {
+        buttonLeftPressed = isPress;
+      } else if (keyCode == B_RIGHT) {
+        buttonRightPressed = isPress;
+      } else if (keyCode == B_UP) {
+        buttonUpPressed = isPress;
+      } else if (keyCode == B_DOWN) {
+        buttonDownPressed = isPress;
+      }
     }
 
     // For all other keys we have no "release" logic.
@@ -1691,19 +1693,21 @@ void processKeypadEvents() {
         continue;
       }
 
-      // Potentially assign a new value to a limit.
-      Axis* a = (keyCode == B_STOPL || keyCode == B_STOPR) ? &z : &x;
-      long stop = newDu / a->screwPitch * a->motorSteps - a->originPos;
+      // Shared piece for stops and moves.
+      Axis* a = (keyCode == B_STOPL || keyCode == B_STOPR || keyCode == B_LEFT || keyCode == B_RIGHT) ? &z : &x;
+      long pos = a->pos + newDu / a->screwPitch * a->motorSteps * ((keyCode == B_STOPL || keyCode == B_STOPU || keyCode == B_LEFT || keyCode == B_UP) ? 1 : -1);
+
+      // Potentially assign a new value to a limit. Treat newDu as a relative distance from current position.
       bool isStop = true;
       bool stopSet = false;
       if (keyCode == B_STOPL) {
-        stopSet = setLeftStop(&z, stop);
+        stopSet = setLeftStop(&z, pos);
       } else if (keyCode == B_STOPR) {
-        stopSet = setRightStop(&z, stop);
+        stopSet = setRightStop(&z, pos);
       } else if (keyCode == B_STOPU) {
-        stopSet = setLeftStop(&x, stop);
+        stopSet = setLeftStop(&x, pos);
       } else if (keyCode == B_STOPD) {
-        stopSet = setRightStop(&x, stop);
+        stopSet = setRightStop(&x, pos);
       } else {
         isStop = false;
       }
@@ -1711,6 +1715,24 @@ void processKeypadEvents() {
         if (!stopSet) {
           beep();
         }
+        continue;
+      }
+
+      // Potentially move by newDu in the given direction.
+      // We don't support precision manual moves when ON yet. Can't stay in the thread for most modes.
+      if (!isOn && (keyCode == B_LEFT || keyCode == B_RIGHT || keyCode == B_UP || keyCode == B_DOWN)) {
+        if (pos < a->rightStop) {
+          pos = a->rightStop;
+          beep();
+        } else if (pos > a->leftStop) {
+          pos = a->leftStop;
+          beep();
+        } else if (abs(pos - a->pos) > a->estopSteps) {
+          beep();
+          continue;
+        }
+        a->speedMax = a->speedManualMove;
+        stepTo(a, pos);
         continue;
       }
     }
