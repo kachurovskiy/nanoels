@@ -333,6 +333,7 @@ long setupIndex = 0; // Index of automation setup step
 
 long opIndex = 0; // Index of an automation operation
 long opSubIndex = 0; // Sub-index of an automation operation
+int opDuprSign = 1; // 1 if dupr was positive when operation started, -1 if negative
 
 hw_timer_t *async_timer = timerBegin(0, 80, true);
 
@@ -1123,7 +1124,7 @@ void updateAsyncTimerSettings() {
 }
 
 void setDupr(long value) {
-  if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
+  if (xSemaphoreTake(motionMutex, 1000) != pdTRUE) {
     return;
   }
   dupr = value;
@@ -1229,7 +1230,7 @@ void setTurnPasses(int value) {
 }
 
 void setConeRatio(float value) {
-  if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
+  if (xSemaphoreTake(motionMutex, 1000) != pdTRUE) {
     return;
   }
   coneRatio = value;
@@ -1367,7 +1368,7 @@ void setIsOn(bool on) {
     }
   }
 
-  bool hasMutex = xSemaphoreTake(motionMutex, 100) == pdTRUE;
+  bool hasMutex = xSemaphoreTake(motionMutex, 1000) == pdTRUE;
   if (!on) {
     isOn = false;
     setupIndex = 0;
@@ -1377,6 +1378,7 @@ void setIsOn(bool on) {
   markOrigin();
   if (on) {
     isOn = true;
+    opDuprSign = dupr >= 0 ? 1 : -1;
     opIndex = 0;
     opSubIndex = 0;
     setupIndex = 0;
@@ -1394,7 +1396,7 @@ void buttonOffRelease() {
 }
 
 bool setLeftStop(Axis* a, long value) {
-  if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
+  if (xSemaphoreTake(motionMutex, 1000) != pdTRUE) {
     return false;
   }
   if (a->leftStop == value || a->pos > value) {
@@ -1419,7 +1421,7 @@ bool setLeftStop(Axis* a, long value) {
 }
 
 bool setRightStop(Axis* a, long value) {
-  if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
+  if (xSemaphoreTake(motionMutex, 1000) != pdTRUE) {
     return false;
   }
   if (a->rightStop == value || a->pos < value) {
@@ -1910,15 +1912,27 @@ void modeGearbox() {
 void modeTurn(Axis* main, Axis* aux) {
   if (main->movingManually || aux->movingManually || turnPasses <= 0 ||
       main->leftStop == LONG_MAX || main->rightStop == LONG_MIN ||
-      aux->leftStop == LONG_MAX || aux->rightStop == LONG_MIN) {
+      aux->leftStop == LONG_MAX || aux->rightStop == LONG_MIN ||
+      dupr == 0 || (dupr * opDuprSign < 0)) {
     return;
   }
   aux->speedMax = aux->speedManualMove;
+
+  // Start from left or right depending on the pitch.
+  long mainStartStop = opDuprSign > 0 ? main->rightStop : main->leftStop;
+  long mainEndStop = opDuprSign > 0 ? main->leftStop : main->rightStop;
+  long mainBacklash = -opDuprSign * main->backlashSteps;
+
+  // Will vary for internal/external cuts.
+  long auxStartStop = aux->rightStop;
+  long auxEndStop = aux->leftStop;
+  long auxBacklash = -aux->backlashSteps;
+
   if (opIndex == 0) {
     // Move to right-bottom limit, take out backlash.
     main->speedMax = main->speedManualMove;
-    long auxPos = aux->rightStop - (opSubIndex == 0 ? aux->backlashSteps : 0);
-    long mainPos = main->rightStop - (opSubIndex == 0 ? main->backlashSteps : 0);
+    long auxPos = auxStartStop + (opSubIndex == 0 ? auxBacklash : 0);
+    long mainPos = mainStartStop + (opSubIndex == 0 ? mainBacklash : 0);
     stepTo(main, mainPos);
     stepTo(aux, auxPos);
     if (main->pos == mainPos && aux->pos == auxPos) {
@@ -1932,10 +1946,10 @@ void modeTurn(Axis* main, Axis* aux) {
   } else if (opIndex <= turnPasses) {
     // Bringing X to starting position.
     if (opSubIndex == 0) {
-      long auxPos = aux->leftStop - (aux->leftStop - aux->rightStop) / turnPasses * (turnPasses - opIndex);
+      long auxPos = auxEndStop - (auxEndStop - auxStartStop) / turnPasses * (turnPasses - opIndex);
       stepTo(aux, auxPos);
       if (aux->pos == auxPos) {
-        long base = round(spindleFromPos(main, main->pos) / ENCODER_STEPS) * ENCODER_STEPS + (dupr > 0 ? -1 : 1) * ENCODER_STEPS;
+        long base = round(spindleFromPos(main, main->pos) / ENCODER_STEPS) * ENCODER_STEPS - ENCODER_STEPS;
         spindlePos = base + spindlePos % int(ENCODER_STEPS);
         opSubIndex = 1;
       }
@@ -1944,22 +1958,22 @@ void modeTurn(Axis* main, Axis* aux) {
     if (opSubIndex == 1) {
       main->speedMax = LONG_MAX;
       stepTo(main, posFromSpindle(main, spindlePos, true));
-      if (main->pos == main->leftStop) {
+      if (main->pos == mainEndStop) {
         opSubIndex = 2;
       }
     }
     // Retracting the tool
     if (opSubIndex == 2) {
-      long auxPos = aux->rightStop;
+      long auxPos = auxStartStop;
       stepTo(aux, auxPos);
       if (aux->pos == auxPos) {
         opSubIndex = 3;
       }
     }
-    // Returning to start z minus backlash.
+    // Returning to start main minus backlash.
     if (opSubIndex == 3) {
       main->speedMax = main->speedManualMove;
-      long mainPos = main->rightStop - main->backlashSteps;
+      long mainPos = mainStartStop + mainBacklash;
       stepTo(main, mainPos);
       if (main->pos == mainPos) {
         opSubIndex = 4;
@@ -1967,7 +1981,7 @@ void modeTurn(Axis* main, Axis* aux) {
     }
     // Returning to start of main.
     if (opSubIndex == 4) {
-      long mainPos = main->rightStop;
+      long mainPos = mainStartStop;
       stepTo(main, mainPos);
       if (main->pos == mainPos) {
         main->speedMax = LONG_MAX;
@@ -1978,8 +1992,8 @@ void modeTurn(Axis* main, Axis* aux) {
   } else {
     // Move to right-bottom limit, take out backlash.
     main->speedMax = main->speedManualMove;
-    long auxPos = aux->rightStop - (opSubIndex == 0 ? aux->backlashSteps : 0);
-    long mainPos = main->rightStop - (opSubIndex == 0 ? main->backlashSteps : 0);
+    long auxPos = auxStartStop + (opSubIndex == 0 ? auxBacklash : 0);
+    long mainPos = mainStartStop + (opSubIndex == 0 ? mainBacklash : 0);
     stepTo(main, mainPos);
     stepTo(aux, auxPos);
     if (main->pos == mainPos && aux->pos == auxPos) {
