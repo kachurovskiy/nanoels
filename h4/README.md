@@ -6,9 +6,30 @@
 
 Controller itself is available for purchase on https://kachurovskiy.com/
 
-## DIY
+## Features
 
-For now there's no DIY option for H4 since ordering from Gerber would be prohibitevely expensive - at least $400 for a minimum order due to the large number of small SMD components. Once the project gets traction, we'll likely have a compatible DIY version of the boards but it would still cost close to the commercial hardware since 2 sizeable PCBs, several critical chips, connectors and terminals are required and they all ship from different suppliers.
+- Metric, inch and TPI support, cut any thread with utmost precision
+- Controls 2 axis - lead screw (Z) and cross-slide (X)
+- Manual movement of both axis: by eye, in precise steps or by a precise amount
+- Disabling/enabling of stepper motors allowing to switch to manual operations in 1 click
+- Soft limits allowing to cut e.g. close to the chuck
+- Automatic threads: just set length, depth, pitch and number of passes
+- Automatic multi-pass turning and facing
+- Cone mode to cut internal or external tapers
+- Cut-off mode allowing for smooth in-feed
+- RPM and angle indication
+- Internal/external and left-to-right versions of each automatic operation
+- Backlash compensation
+
+No computer or CAD software needed! Juts a few clicks and it's cutting, stop and you have your manual lathe again. Coming soon:
+
+- Automatic multi-start threads
+- Automatic conical threads
+- GRBL support over USB
+
+## DIY hardware
+
+For now there's no DIY for hardware for H4 yet since ordering from Gerber would be prohibitevely expensive - at least $400 for a minimum order due to 130+ small SMD components of 27 different types. Once the project gets traction, we'll likely have a compatible DIY version of the boards but it would still cost close to the commercial hardware since 2 sizeable PCBs, several critical chips, connectors and terminals are required and they all ship from different suppliers.
 
 ## Overview
 
