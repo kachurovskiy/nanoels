@@ -330,6 +330,7 @@ int turnPasses = 3; // In turn mode, how many turn passes to make
 int savedTurnPasses = 0; // value of turnPasses saved in EEPROM
 
 long setupIndex = 0; // Index of automation setup step
+bool auxForward = true; // True for external, false for external thread
 
 long opIndex = 0; // Index of an automation operation
 long opSubIndex = 0; // Sub-index of an automation operation
@@ -448,8 +449,11 @@ bool isPassMode() {
   return mode == MODE_TURN || mode == MODE_FACE || mode == MODE_CUT || mode == MODE_THREAD;
 }
 
-bool isSetupAndGoMode() {
-  return mode == MODE_TURN || mode == MODE_FACE || mode == MODE_CONE || mode == MODE_CUT || mode == MODE_THREAD;
+int getLastSetupIndex() {
+  if (mode == MODE_TURN || mode == MODE_FACE || mode == MODE_CONE || mode == MODE_CUT || mode == MODE_THREAD) {
+    return 3;
+  }
+  return 0;
 }
 
 void updateDisplay() {
@@ -553,8 +557,8 @@ void updateDisplay() {
   }
 
   long numpadResult = getNumpadResult();
-  long newHashLine3 = z.pos + (showAngle ? spindlePos : -1) + (showTacho ? rpm : -2) + measure + (numpadResult > 0 ? numpadResult : -1) + mode * 5 +
-      (mode == MODE_CONE ? round(coneRatio * 10000) : 0) + turnPasses + opIndex + setupIndex + isOn * 4 + (inNumpad ? 10 : 0) +
+  long newHashLine3 = z.pos + (showAngle ? spindlePos : -1) + (showTacho ? rpm : -2) + measure + (numpadResult > 0 ? numpadResult : -1) + mode * 5 + dupr +
+      (mode == MODE_CONE ? round(coneRatio * 10000) : 0) + turnPasses + opIndex + setupIndex + isOn * 4 + (inNumpad ? 10 : 0) + (auxForward ? 1 : 0) +
       (z.leftStop == LONG_MAX ? 123 : z.leftStop) + (z.rightStop == LONG_MIN ? 1234 : z.rightStop) +
       (x.leftStop == LONG_MAX ? 1235 : x.leftStop) + (x.rightStop == LONG_MIN ? 123456 : x.rightStop);
   if (lcdHashLine3 != newHashLine3) {
@@ -573,6 +577,14 @@ void updateDisplay() {
         charIndex += lcd.print(turnPasses);
         charIndex += lcd.print(" passes?");
       } else if (!isOn && setupIndex == 2) {
+        if (mode == MODE_FACE) {
+          charIndex += lcd.print(auxForward ? "Right to left?" : "Left to right?");
+        } else if (mode == MODE_CUT) {
+          charIndex += lcd.print(dupr >= 0 ? "Pitch > 0, external" : "Pitch < 0, internal");
+        } else {
+          charIndex += lcd.print(auxForward ? "External?" : "Internal?");
+        }
+      } else if (!isOn && setupIndex == 3) {
         charIndex += lcd.print("Go?");
       } else if (isOn && numpadResult == 0) {
         charIndex += lcd.print("Operation ");
@@ -590,6 +602,8 @@ void updateDisplay() {
         charIndex += printNoTrailing0(coneRatio);
         charIndex += lcd.print("?");
       } else if (!isOn && setupIndex == 2) {
+        charIndex += lcd.print(auxForward ? "External?" : "Internal?");
+      } else if (!isOn && setupIndex == 3) {
         charIndex += lcd.print("Go?");
       } else if (isOn && numpadResult == 0) {
         charIndex += lcd.print("Cone ratio ");
@@ -1342,18 +1356,14 @@ void beep() {
 
 void buttonOnOffPress(bool on) {
   resetMillis = millis();
-  if (on && isSetupAndGoMode()) {
-    if (setupIndex == 0) {
-      // Passes / ratio entry step.
-      setupIndex = 1;
-      return;
-    } else if (setupIndex == 1) {
-      // "Go?" step.
-      setupIndex = 2;
-      return;
-    } // else start.
+  if (on && isPassMode() && (needZStops() && (z.leftStop == LONG_MAX || z.rightStop == LONG_MIN) || x.leftStop == LONG_MAX || x.rightStop == LONG_MIN)) {
+    beep();
+  } else if (on && getLastSetupIndex() != 0 && setupIndex < getLastSetupIndex()) {
+    // Move to the next setup step.
+    setupIndex++;
+  } else {
+    setIsOn(on);
   }
-  setIsOn(on);
 }
 
 void setIsOn(bool on) {
@@ -1361,17 +1371,11 @@ void setIsOn(bool on) {
     return;
   }
 
-  if (on && isPassMode()) {
-    if (needZStops() && (z.leftStop == LONG_MAX || z.rightStop == LONG_MIN) || x.leftStop == LONG_MAX || x.rightStop == LONG_MIN || turnPasses <= 0) {
-      beep();
-      return;
-    }
-  }
-
   bool hasMutex = xSemaphoreTake(motionMutex, 1000) == pdTRUE;
   if (!on) {
     isOn = false;
     setupIndex = 0;
+    auxForward = true;
   }
   stepperEnable(&z, on);
   stepperEnable(&x, on);
@@ -1396,7 +1400,7 @@ void buttonOffRelease() {
 }
 
 bool setLeftStop(Axis* a, long value) {
-  if (xSemaphoreTake(motionMutex, 1000) != pdTRUE) {
+  if (xSemaphoreTake(motionMutex, 10000) != pdTRUE) {
     return false;
   }
   if (a->leftStop == value || a->pos > value) {
@@ -1421,7 +1425,7 @@ bool setLeftStop(Axis* a, long value) {
 }
 
 bool setRightStop(Axis* a, long value) {
-  if (xSemaphoreTake(motionMutex, 1000) != pdTRUE) {
+  if (xSemaphoreTake(motionMutex, 10000) != pdTRUE) {
     return false;
   }
   if (a->rightStop == value || a->pos < value) {
@@ -1611,25 +1615,156 @@ float numpadToConeRatio() {
   return getNumpadResult() / 100000.0;
 }
 
+bool processNumpad(int keyCode) {
+  if (keyCode == B_0) {
+    numpadPress(0);
+    inNumpad = true;
+  } else if (keyCode == B_1) {
+    numpadPress(1);
+    inNumpad = true;
+  } else if (keyCode == B_2) {
+    numpadPress(2);
+    inNumpad = true;
+  } else if (keyCode == B_3) {
+    numpadPress(3);
+    inNumpad = true;
+  } else if (keyCode == B_4) {
+    numpadPress(4);
+    inNumpad = true;
+  } else if (keyCode == B_5) {
+    numpadPress(5);
+    inNumpad = true;
+  } else if (keyCode == B_6) {
+    numpadPress(6);
+    inNumpad = true;
+  } else if (keyCode == B_7) {
+    numpadPress(7);
+    inNumpad = true;
+  } else if (keyCode == B_8) {
+    numpadPress(8);
+    inNumpad = true;
+  } else if (keyCode == B_9) {
+    numpadPress(9);
+    inNumpad = true;
+  } else if (keyCode == B_BACKSPACE) {
+    numpadBackspace();
+    inNumpad = true;
+  } else if (inNumpad && (keyCode == B_PLUS || keyCode == B_MINUS)) {
+    numpadPlusMinus(keyCode == B_PLUS);
+    return true;
+  } else if (inNumpad) {
+    inNumpad = false;
+    return processNumpadResult(keyCode);
+  }
+  return inNumpad;
+}
+
+bool processNumpadResult(int keyCode) {
+  long newDu = numpadToDeciMicrons();
+  float newConeRatio = numpadToConeRatio();
+  long numpadResult = getNumpadResult();
+  resetNumpad();
+  // Ignore numpad input unless confirmed with ON.
+  if (keyCode == B_ON) {
+    if (isPassMode() && setupIndex == 1) {
+      setTurnPasses(int(min(long(PASSES_MAX), numpadResult)));
+    } else if (mode == MODE_CONE && setupIndex == 1) {
+      setConeRatio(newConeRatio);
+    } else {
+      if (abs(newDu) <= DUPR_MAX) {
+        setDupr(newDu);
+      }
+    }
+    // Don't use this ON press for starting the motion.
+    return true;
+  }
+
+  // Shared piece for stops and moves.
+  Axis* a = (keyCode == B_STOPL || keyCode == B_STOPR || keyCode == B_LEFT || keyCode == B_RIGHT) ? &z : &x;
+  long pos = a->pos + newDu / a->screwPitch * a->motorSteps * ((keyCode == B_STOPL || keyCode == B_STOPU || keyCode == B_LEFT || keyCode == B_UP) ? 1 : -1);
+
+  // Potentially assign a new value to a limit. Treat newDu as a relative distance from current position.
+  bool isStop = true;
+  bool stopSet = false;
+  if (keyCode == B_STOPL) {
+    stopSet = setLeftStop(&z, pos);
+  } else if (keyCode == B_STOPR) {
+    stopSet = setRightStop(&z, pos);
+  } else if (keyCode == B_STOPU) {
+    stopSet = setLeftStop(&x, pos);
+  } else if (keyCode == B_STOPD) {
+    stopSet = setRightStop(&x, pos);
+  } else {
+    isStop = false;
+  }
+  if (isStop) {
+    if (!stopSet) {
+      beep();
+    }
+    return true;
+  }
+
+  // Potentially move by newDu in the given direction.
+  // We don't support precision manual moves when ON yet. Can't stay in the thread for most modes.
+  if (!isOn && (keyCode == B_LEFT || keyCode == B_RIGHT || keyCode == B_UP || keyCode == B_DOWN)) {
+    if (pos < a->rightStop) {
+      pos = a->rightStop;
+      beep();
+    } else if (pos > a->leftStop) {
+      pos = a->leftStop;
+      beep();
+    } else if (abs(pos - a->pos) > a->estopSteps) {
+      beep();
+      return true;
+    }
+    a->speedMax = a->speedManualMove;
+    stepTo(a, pos);
+    return true;
+  }
+
+  if (keyCode == B_STEP) {
+    if (newDu > 0) {
+      moveStep = newDu;
+    } else {
+      beep();
+    }
+    return true;
+  }
+
+  return false;
+}
+
 void processKeypadEvents() {
   while (keypad.available() > 0) {
     int event = keypad.getEvent();
     int keyCode = event;
     bitWrite(keyCode, 7, 0);
     bool isPress = bitRead(event, 7) == 1; // 1 - press, 0 - release
+
+    // Off button always gets handled.
     if (keyCode == B_OFF) {
       buttonOffPressed = isPress;
       isPress ? buttonOnOffPress(false) : buttonOffRelease();
-    } else if (!inNumpad || !isPress) {
-      if (keyCode == B_LEFT) {
-        buttonLeftPressed = isPress;
-      } else if (keyCode == B_RIGHT) {
-        buttonRightPressed = isPress;
-      } else if (keyCode == B_UP) {
-        buttonUpPressed = isPress;
-      } else if (keyCode == B_DOWN) {
-        buttonDownPressed = isPress;
+    }
+
+    // Releases don't matter in numpad but it has to run before LRUD since it might handle those keys.
+    if (isPress && processNumpad(keyCode)) {
+      continue;
+    }
+
+    // Setup wizard navigation.
+    if ((setupIndex == 2) && (keyCode == B_LEFT || keyCode == B_RIGHT)) {
+      if (isPress) {
+        auxForward = !auxForward;
       }
+    } else if (keyCode == B_LEFT) {
+      buttonLeftPressed = isPress;
+    } else if (keyCode == B_RIGHT) {
+      buttonRightPressed = isPress;
+    } else if (keyCode == B_UP) {
+      buttonUpPressed = isPress;
+    } else if (keyCode == B_DOWN) {
+      buttonDownPressed = isPress;
     }
 
     // For all other keys we have no "release" logic.
@@ -1637,117 +1772,7 @@ void processKeypadEvents() {
       continue;
     }
 
-    // Numpad separately to lower inNumpad when non-numeric key is pressed.
-    if (keyCode == B_0) {
-      numpadPress(0);
-      inNumpad = true;
-    } else if (keyCode == B_1) {
-      numpadPress(1);
-      inNumpad = true;
-    } else if (keyCode == B_2) {
-      numpadPress(2);
-      inNumpad = true;
-    } else if (keyCode == B_3) {
-      numpadPress(3);
-      inNumpad = true;
-    } else if (keyCode == B_4) {
-      numpadPress(4);
-      inNumpad = true;
-    } else if (keyCode == B_5) {
-      numpadPress(5);
-      inNumpad = true;
-    } else if (keyCode == B_6) {
-      numpadPress(6);
-      inNumpad = true;
-    } else if (keyCode == B_7) {
-      numpadPress(7);
-      inNumpad = true;
-    } else if (keyCode == B_8) {
-      numpadPress(8);
-      inNumpad = true;
-    } else if (keyCode == B_9) {
-      numpadPress(9);
-      inNumpad = true;
-    } else if (keyCode == B_BACKSPACE) {
-      numpadBackspace();
-      inNumpad = true;
-    } else if (inNumpad && (keyCode == B_PLUS || keyCode == B_MINUS)) {
-      numpadPlusMinus(keyCode == B_PLUS);
-      continue;
-    } else if (inNumpad) {
-      inNumpad = false;
-      long newDu = numpadToDeciMicrons();
-      float newConeRatio = numpadToConeRatio();
-      long numpadResult = getNumpadResult();
-      resetNumpad();
-      // Ignore numpad input unless confirmed with ON.
-      if (keyCode == B_ON) {
-        if (isPassMode() && setupIndex == 1) {
-          setTurnPasses(int(min(long(PASSES_MAX), numpadResult)));
-        } else if (mode == MODE_CONE && setupIndex == 1) {
-          setConeRatio(newConeRatio);
-        } else {
-          if (abs(newDu) <= DUPR_MAX) {
-            setDupr(newDu);
-          }
-        }
-        // Don't use this ON press for starting the motion.
-        continue;
-      }
-
-      // Shared piece for stops and moves.
-      Axis* a = (keyCode == B_STOPL || keyCode == B_STOPR || keyCode == B_LEFT || keyCode == B_RIGHT) ? &z : &x;
-      long pos = a->pos + newDu / a->screwPitch * a->motorSteps * ((keyCode == B_STOPL || keyCode == B_STOPU || keyCode == B_LEFT || keyCode == B_UP) ? 1 : -1);
-
-      // Potentially assign a new value to a limit. Treat newDu as a relative distance from current position.
-      bool isStop = true;
-      bool stopSet = false;
-      if (keyCode == B_STOPL) {
-        stopSet = setLeftStop(&z, pos);
-      } else if (keyCode == B_STOPR) {
-        stopSet = setRightStop(&z, pos);
-      } else if (keyCode == B_STOPU) {
-        stopSet = setLeftStop(&x, pos);
-      } else if (keyCode == B_STOPD) {
-        stopSet = setRightStop(&x, pos);
-      } else {
-        isStop = false;
-      }
-      if (isStop) {
-        if (!stopSet) {
-          beep();
-        }
-        continue;
-      }
-
-      // Potentially move by newDu in the given direction.
-      // We don't support precision manual moves when ON yet. Can't stay in the thread for most modes.
-      if (!isOn && (keyCode == B_LEFT || keyCode == B_RIGHT || keyCode == B_UP || keyCode == B_DOWN)) {
-        if (pos < a->rightStop) {
-          pos = a->rightStop;
-          beep();
-        } else if (pos > a->leftStop) {
-          pos = a->leftStop;
-          beep();
-        } else if (abs(pos - a->pos) > a->estopSteps) {
-          beep();
-          continue;
-        }
-        a->speedMax = a->speedManualMove;
-        stepTo(a, pos);
-        continue;
-      }
-
-      if (keyCode == B_STEP) {
-        if (newDu > 0) {
-          moveStep = newDu;
-        } else {
-          beep();
-        }
-        continue;
-      }
-    }
-
+    // Rest of the buttons.
     if (keyCode == B_PLUS) {
       buttonPlusMinusPress(true);
     } else if (keyCode == B_MINUS) {
@@ -1924,9 +1949,9 @@ void modeTurn(Axis* main, Axis* aux) {
   long mainBacklash = -opDuprSign * main->backlashSteps;
 
   // Will vary for internal/external cuts.
-  long auxStartStop = aux->rightStop;
-  long auxEndStop = aux->leftStop;
-  long auxBacklash = -aux->backlashSteps;
+  long auxStartStop = auxForward ? aux->rightStop : aux->leftStop;
+  long auxEndStop = auxForward ? aux->leftStop : aux->rightStop;
+  long auxBacklash = auxForward ? -aux->backlashSteps : aux->backlashSteps;
 
   if (opIndex == 0) {
     // Move to right-bottom limit, take out backlash.
@@ -1964,9 +1989,8 @@ void modeTurn(Axis* main, Axis* aux) {
     }
     // Retracting the tool
     if (opSubIndex == 2) {
-      long auxPos = auxStartStop;
-      stepTo(aux, auxPos);
-      if (aux->pos == auxPos) {
+      stepTo(aux, auxStartStop);
+      if (aux->pos == auxStartStop) {
         opSubIndex = 3;
       }
     }
@@ -1981,9 +2005,8 @@ void modeTurn(Axis* main, Axis* aux) {
     }
     // Returning to start of main.
     if (opSubIndex == 4) {
-      long mainPos = mainStartStop;
-      stepTo(main, mainPos);
-      if (main->pos == mainPos) {
+      stepTo(main, mainStartStop);
+      if (main->pos == mainStartStop) {
         main->speedMax = LONG_MAX;
         opSubIndex = 0;
         opIndex++;
@@ -2000,8 +2023,8 @@ void modeTurn(Axis* main, Axis* aux) {
       if (opSubIndex == 0) {
         opSubIndex = 1;
       } else {
-        beep();
         setIsOn(false);
+        beep();
       }
     }
   }
@@ -2012,7 +2035,7 @@ void modeCone() {
     return;
   }
 
-  float zToXRatio = -coneRatio / 2 / z.motorSteps * x.motorSteps / x.screwPitch * z.screwPitch;
+  float zToXRatio = -coneRatio / 2 / z.motorSteps * x.motorSteps / x.screwPitch * z.screwPitch * (auxForward ? 1 : -1);
   if (zToXRatio == 0) {
     return;
   }
@@ -2058,13 +2081,18 @@ void modeCone() {
 }
 
 void modeCut() {
-  if (x.movingManually || turnPasses <= 0 || x.leftStop == LONG_MAX || x.rightStop == LONG_MIN || dupr <= 0) {
+  if (x.movingManually || turnPasses <= 0 || x.leftStop == LONG_MAX || x.rightStop == LONG_MIN || dupr == 0 || dupr * opDuprSign < 0) {
     return;
   }
+
+  long startStop = opDuprSign > 0 ? x.rightStop : x.leftStop;
+  long endStop = opDuprSign > 0 ? x.leftStop : x.rightStop;
+  long backlash = -opDuprSign * x.backlashSteps;
+
   if (opIndex == 0) {
     // Move to back limit, take out backlash.
     x.speedMax = x.speedManualMove;
-    long xPos = x.rightStop - (opSubIndex == 0 ? x.backlashSteps : 0);
+    long xPos = startStop + (opSubIndex == 0 ? backlash : 0);
     stepTo(&x, xPos);
     if (x.pos == xPos) {
       if (opSubIndex == 0) {
@@ -2085,7 +2113,7 @@ void modeCut() {
     // Doing the pass cut.
     if (opSubIndex == 1) {
       x.speedMax = LONG_MAX;
-      long maxPos = x.leftStop - (x.leftStop - x.rightStop) / turnPasses * (turnPasses - opIndex);
+      long maxPos = endStop - (endStop - startStop) / turnPasses * (turnPasses - opIndex);
       long xPos = min(maxPos, posFromSpindle(&x, spindlePos, true));
       stepTo(&x, xPos);
       if (x.pos == maxPos) {
@@ -2095,7 +2123,7 @@ void modeCut() {
     // Returning to start minus backlash.
     if (opSubIndex == 2) {
       x.speedMax = x.speedManualMove;
-      long xPos = x.rightStop - x.backlashSteps;
+      long xPos = startStop + backlash;
       stepTo(&x, xPos);
       if (x.pos == xPos) {
         opSubIndex = 3;
@@ -2103,16 +2131,15 @@ void modeCut() {
     }
     // Returning to start.
     if (opSubIndex == 3) {
-      long xPos = x.rightStop;
-      stepTo(&x, xPos);
-      if (x.pos == xPos) {
+      stepTo(&x, startStop);
+      if (x.pos == startStop) {
         opSubIndex = 0;
         opIndex++;
       }
     }
   } else {
-    beep();
     setIsOn(false);
+    beep();
   }
 }
 
@@ -2121,7 +2148,7 @@ void discountFullSpindleTurns() {
   // This allows to avoid waiting when spindle direction reverses
   // and reduces the chance of the skipped stepper steps since
   // after a reverse the spindle starts slow.
-  if (dupr != 0 && !stepperIsRunning(&z)) {
+  if (dupr != 0 && !stepperIsRunning(&z) && mode != MODE_FACE) {
     int spindlePosDiff = 0;
     if (z.pos == z.rightStop) {
       long stopSpindlePos = spindleFromPos(&z, z.rightStop);
