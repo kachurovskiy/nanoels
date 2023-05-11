@@ -21,7 +21,7 @@ Controller itself is available for purchase on https://kachurovskiy.com/
 - Internal/external and left-to-right versions of each automatic operation
 - Backlash compensation
 
-No computer or CAD software needed! Juts a few clicks and it's cutting, stop and you have your manual lathe again. Coming soon:
+No computer or CAD software needed! Coming soon:
 
 - Automatic multi-start threads
 - Automatic conical threads
