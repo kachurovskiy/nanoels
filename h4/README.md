@@ -25,6 +25,7 @@ No computer or CAD software needed! Coming soon:
 
 - Automatic multi-start threads
 - Automatic conical threads
+- Spheres and curves
 - GRBL support over USB
 
 ## DIY hardware
