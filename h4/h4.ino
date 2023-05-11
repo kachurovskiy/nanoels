@@ -40,9 +40,10 @@
 #define STARTS_MAX 124 // No more than 124-start thread
 #define PASSES_MAX 999 // No more turn or face passes than this
 
-// Version of the EEPROM storage format, should be changed when non-backward-compatible
-// changes are made to the storage logic, resulting in EEPROM wipe on first start.
-#define EEPROM_VERSION 1
+// Version of the pref storage format, should be changed when non-backward-compatible
+// changes are made to the storage logic, resulting in Preferences wipe on first start.
+#define PREFERENCES_VERSION 1
+#define PREF_NAMESPACE "h4"
 
 // To be incremented whenever a measurable improvement is made.
 #define SOFTWARE_VERSION 1
@@ -102,26 +103,26 @@
 #define B_A 4
 #define B_B 63
 
-#define ADDR_EEPROM_VERSION 0 // takes 1 byte
-#define ADDR_DUPR 2 // takes 4 bytes
-#define ADDR_POS_Z 6 // takes 4 bytes
-#define ADDR_LEFT_STOP_Z 10 // takes 4 bytes
-#define ADDR_RIGHT_STOP_Z 14 // takes 4 bytes
-#define ADDR_SPINDLE_POS 18 // takes 4 bytes
-#define ADDR_OUT_OF_SYNC 22 // takes 2 bytes
-#define ADDR_SHOW_ANGLE 24 // takes 1 byte
-#define ADDR_SHOW_TACHO 25 // takes 1 byte
-#define ADDR_STARTS 28 // takes 2 bytes
-#define ADDR_MODE 30 // takes 2 bytes
-#define ADDR_MEASURE 32 // takes 2 bytes
-#define ADDR_ORIGIN_POS_Z 34 // takes 4 bytes
-#define ADDR_POS_X 38 // takes 4 bytes
-#define ADDR_LEFT_STOP_X 42 // takes 4 bytes
-#define ADDR_RIGHT_STOP_X 46 // takes 4 bytes
-#define ADDR_ORIGIN_POS_X 50 // takes 4 bytes
-#define ADDR_CONE_RATIO 54 // takes 4 bytes
-#define ADDR_TURN_PASSES 58 // takes 2 bytes
-#define ADDR_MOVE_STEP 62 // takes 4 bytes
+#define PREF_VERSION "v"
+#define PREF_DUPR "d"
+#define PREF_POS_Z "zp"
+#define PREF_LEFT_STOP_Z "zls"
+#define PREF_RIGHT_STOP_Z "zrs"
+#define PREF_ORIGIN_POS_Z "zpo"
+#define PREF_POS_X "xp"
+#define PREF_LEFT_STOP_X "xls"
+#define PREF_RIGHT_STOP_X "xrs"
+#define PREF_ORIGIN_POS_X "xpo"
+#define PREF_SPINDLE_POS "sp"
+#define PREF_OUT_OF_SYNC "oos"
+#define PREF_SHOW_ANGLE "ang"
+#define PREF_SHOW_TACHO "rpm"
+#define PREF_STARTS "sta"
+#define PREF_MODE "mod"
+#define PREF_MEASURE "mea"
+#define PREF_CONE_RATIO "cr"
+#define PREF_TURN_PASSES "tp"
+#define PREF_MOVE_STEP "ms"
 
 #define MOVE_STEP_1 10000 // 1mm
 #define MOVE_STEP_2 1000 // 0.1mm
@@ -176,7 +177,7 @@ long lcdHashLine1 = LCD_HASH_INITIAL;
 long lcdHashLine2 = LCD_HASH_INITIAL;
 long lcdHashLine3 = LCD_HASH_INITIAL;
 
-#include <EEPROM.h>
+#include <Preferences.h>
 
 #include <Adafruit_TCA8418.h>
 Adafruit_TCA8418 keypad;
@@ -198,12 +199,12 @@ unsigned long resetMillis = 0;
 int emergencyStop = 0;
 
 long dupr = 0; // pitch, tenth of a micron per rotation
-long savedDupr = 0; // dupr saved in EEPROM
+long savedDupr = 0; // dupr saved in Preferences
 
 SemaphoreHandle_t motionMutex; // controls blocks of code where variables affecting the motion loop() are changed
 
 int starts = 1; // number of starts in a multi-start thread
-int savedStarts = 0; // starts saved in EEPROM
+int savedStarts = 0; // starts saved in Preferences
 
 struct Axis {
   SemaphoreHandle_t mutex;
@@ -212,18 +213,18 @@ struct Axis {
   float screwPitch; // lead screw pitch in deci-microns (10^-7 of a meter)
 
   long pos; // relative position of the stepper motor, in steps
-  long savedPos; // value saved in EEPROM
+  long savedPos; // value saved in Preferences
   float fractionalPos; // fractional distance in steps that we meant to travel but couldn't
   long originPos; // relative position of the stepper motor to origin, in steps
-  long savedOriginPos; // originPos saved in EEPROM
+  long savedOriginPos; // originPos saved in Preferences
   int pendingPos; // steps of the stepper motor that we should make as soon as possible
 
   long leftStop; // left stop value of pos
-  long savedLeftStop; // value saved in EEPROM
+  long savedLeftStop; // value saved in Preferences
   bool leftStopFlag; // prevent toggling the stop while button is pressed.
 
   long rightStop; // right stop value of pos
-  long savedRightStop; // value saved in EEPROM
+  long savedRightStop; // value saved in Preferences
   bool rightStopFlag; // prevent toggling the stop while button is pressed.
 
   unsigned long speed; // motor speed in steps / second
@@ -301,7 +302,7 @@ unsigned long spindleEncTimeDiffBulk = 0; // micros() between RPM_BULK spindle u
 unsigned long spindleEncTimeAtIndex0 = 0; // micros() when spindleEncTimeIndex was 0
 int spindleEncTimeIndex = 0; // counter going between 0 and RPM_BULK - 1
 long spindlePos = 0; // Spindle position
-long savedSpindlePos = 0; // spindlePos value saved in EEPROM
+long savedSpindlePos = 0; // spindlePos value saved in Preferences
 volatile long spindlePosDelta = 0; // Unprocessed encoder ticks.
 
 int spindlePosSync = 0;
@@ -309,25 +310,25 @@ int savedSpindlePosSync = 0;
 
 bool showAngle = false; // Whether to show 0-359 spindle angle on screen
 bool showTacho = false; // Whether to show spindle RPM on screen
-bool savedShowAngle = false; // showAngle value saved in EEPROM
-bool savedShowTacho = false; // showTacho value saved in EEPROM
+bool savedShowAngle = false; // showAngle value saved in Preferences
+bool savedShowTacho = false; // showTacho value saved in Preferences
 int shownRpm = 0;
 unsigned long shownRpmTime = 0; // micros() when shownRpm was set
 
 long moveStep = 0; // thousandth of a mm
-long savedMoveStep = 0; // moveStep saved in EEPROM
+long savedMoveStep = 0; // moveStep saved in Preferences
 
 int mode = -1; // mode of operation (ELS, multi-start ELS, asynchronous)
-int savedMode = -1; // mode saved in EEPROM
+int savedMode = -1; // mode saved in Preferences
 
 int measure = MEASURE_METRIC; // Whether to show distances in inches
-int savedMeasure = MEASURE_METRIC; // measure value saved in EEPROM
+int savedMeasure = MEASURE_METRIC; // measure value saved in Preferences
 
 float coneRatio = 1; // In cone mode, how much X moves for 1 step of Z
-float savedConeRatio = 0; // value of coneRatio saved in EEPROM
+float savedConeRatio = 0; // value of coneRatio saved in Preferences
 
 int turnPasses = 3; // In turn mode, how many turn passes to make
-int savedTurnPasses = 0; // value of turnPasses saved in EEPROM
+int savedTurnPasses = 0; // value of turnPasses saved in Preferences
 
 long setupIndex = 0; // Index of automation setup step
 bool auxForward = true; // True for external, false for external thread
@@ -636,48 +637,6 @@ void updateDisplay() {
   }
 }
 
-void saveInt(int i, int v) {
-  // Can't concatenate all in one line due to compiler problems, same throughout the code.
-#ifdef DEBUG
-  Serial.print("Saving int at ");
-  Serial.print(i);
-  Serial.print(" = ");
-  Serial.println(v);
-#endif
-  EEPROM.write(i, v >> 8 & 0xFF);
-  EEPROM.write(i + 1, v & 0xFF);
-}
-int loadInt(int i) {
-  // 255 is the default value when nothing was written before.
-  if (EEPROM.read(i) == 255 && EEPROM.read(i + 1) == 255) {
-    return 0;
-  }
-  return (EEPROM.read(i) << 8) + EEPROM.read(i + 1);
-}
-void saveLong(int i, long v) {
-#ifdef DEBUG
-  Serial.print("Saving long at ");
-  Serial.print(i);
-  Serial.print(" = ");
-  Serial.println(v);
-#endif
-  EEPROM.write(i, v >> 24 & 0xFF);
-  EEPROM.write(i + 1, v >> 16 & 0xFF);
-  EEPROM.write(i + 2, v >> 8 & 0xFF);
-  EEPROM.write(i + 3, v & 0xFF);
-}
-long loadLong(int i) {
-  long p0 = EEPROM.read(i);
-  long p1 = EEPROM.read(i + 1);
-  long p2 = EEPROM.read(i + 2);
-  long p3 = EEPROM.read(i + 3);
-  // 255 is the default value when nothing was written before.
-  if (p0 == 255 && p1 == 255 && p2 == 255 && p3 == 255) {
-    return 0;
-  }
-  return (p0 << 24) + (p1 << 16) + (p2 << 8) + p3;
-}
-
 // Called on a FALLING interrupt for the spindle rotary encoder pin.
 void IRAM_ATTR spinEnc() {
   spindlePosDelta += DREAD(ENC_B) ? -1 : 1;
@@ -694,7 +653,7 @@ void setAsyncTimerEnable(bool value) {
 void taskDisplay(void *param) {
   while (emergencyStop == ESTOP_NONE) {
     updateDisplay();
-    // Calling EEPROM.commit() blocks all interrupts for 30ms, don't call saveIfChanged() if
+    // Calling Preferences.commit() blocks all interrupts for 30ms, don't call saveIfChanged() if
     // encoder is likely to move soon.
     if (!stepperIsRunning(&z) && !stepperIsRunning(&x) && (micros() > spindleEncTime + 1000000)) {
       saveIfChanged();
@@ -925,48 +884,38 @@ void setup() {
 
   pinMode(BUZZ, OUTPUT);
 
-  EEPROM.begin(256);
-  // Wipe EEPROM if this is the first start after uploading a new build.
-  if (EEPROM.read(ADDR_EEPROM_VERSION) != EEPROM_VERSION) {
-    for (int i = 0; i < 256; i++) {
-      EEPROM.write(i, 255); // 255 is the default value.
-    }
-    EEPROM.write(ADDR_EEPROM_VERSION, EEPROM_VERSION);
-    saveLong(ADDR_LEFT_STOP_Z, LONG_MAX);
-    saveLong(ADDR_RIGHT_STOP_Z, LONG_MIN);
-    saveLong(ADDR_LEFT_STOP_X, LONG_MAX);
-    saveLong(ADDR_RIGHT_STOP_X, LONG_MIN);
-    saveLong(ADDR_MOVE_STEP, MOVE_STEP_1);
-    EEPROM.put(ADDR_CONE_RATIO, coneRatio);
-    EEPROM.put(ADDR_TURN_PASSES, turnPasses);
+  Preferences pref;
+  pref.begin(PREF_NAMESPACE);
+  if (pref.getInt(PREF_VERSION) != PREFERENCES_VERSION) {
+    pref.clear();
+    pref.putInt(PREF_VERSION, PREFERENCES_VERSION);
   }
 
   initAxis(&z, MOTOR_STEPS_Z, SCREW_Z_DU, SPEED_START_Z, SPEED_MANUAL_MOVE_Z, ACCELERATION_Z, INVERT_Z, NEEDS_REST_Z, MAX_TRAVEL_MM_Z, BACKLASH_DU_Z, Z_ENA, Z_DIR, Z_STEP);
   initAxis(&x, MOTOR_STEPS_X, SCREW_X_DU, SPEED_START_X, SPEED_MANUAL_MOVE_X, ACCELERATION_X, INVERT_X, NEEDS_REST_X, MAX_TRAVEL_MM_X, BACKLASH_DU_X, X_ENA, X_DIR, X_STEP);
 
   isOn = false;
-  savedDupr = dupr = loadLong(ADDR_DUPR);
+  savedDupr = dupr = pref.getLong(PREF_DUPR);
   motionMutex = xSemaphoreCreateMutex();
-  savedStarts = starts = min(STARTS_MAX, max(1, loadInt(ADDR_STARTS)));
-  z.savedPos = z.pos = loadLong(ADDR_POS_Z);
-  z.savedOriginPos = z.originPos = loadLong(ADDR_ORIGIN_POS_Z);
-  z.savedLeftStop = z.leftStop = loadLong(ADDR_LEFT_STOP_Z);
-  z.savedRightStop = z.rightStop = loadLong(ADDR_RIGHT_STOP_Z);
-  x.savedPos = x.pos = loadLong(ADDR_POS_X);
-  x.savedOriginPos = x.originPos = loadLong(ADDR_ORIGIN_POS_X);
-  x.savedLeftStop = x.leftStop = loadLong(ADDR_LEFT_STOP_X);
-  x.savedRightStop = x.rightStop = loadLong(ADDR_RIGHT_STOP_X);
-  savedSpindlePos = spindlePos = loadLong(ADDR_SPINDLE_POS);
-  savedSpindlePosSync = spindlePosSync = loadInt(ADDR_OUT_OF_SYNC);
-  savedShowAngle = showAngle = EEPROM.read(ADDR_SHOW_ANGLE) == 1;
-  savedShowTacho = showTacho = EEPROM.read(ADDR_SHOW_TACHO) == 1;
-  savedMoveStep = loadLong(ADDR_MOVE_STEP);
-  moveStep = savedMoveStep > 0 ? savedMoveStep : MOVE_STEP_1;
-  savedMode = loadInt(ADDR_MODE);
-  savedMeasure = measure = loadInt(ADDR_MEASURE);
-  setMode(savedMode);
-  EEPROM.get(ADDR_CONE_RATIO, coneRatio);
-  savedTurnPasses = turnPasses = loadInt(ADDR_TURN_PASSES);
+  savedStarts = starts = min(STARTS_MAX, max(1, pref.getInt(PREF_STARTS)));
+  z.savedPos = z.pos = pref.getLong(PREF_POS_Z);
+  z.savedOriginPos = z.originPos = pref.getLong(PREF_ORIGIN_POS_Z);
+  z.savedLeftStop = z.leftStop = pref.getLong(PREF_LEFT_STOP_Z, LONG_MAX);
+  z.savedRightStop = z.rightStop = pref.getLong(PREF_RIGHT_STOP_Z, LONG_MIN);
+  x.savedPos = x.pos = pref.getLong(PREF_POS_X);
+  x.savedOriginPos = x.originPos = pref.getLong(PREF_ORIGIN_POS_X);
+  x.savedLeftStop = x.leftStop = pref.getLong(PREF_LEFT_STOP_X, LONG_MAX);
+  x.savedRightStop = x.rightStop = pref.getLong(PREF_RIGHT_STOP_X, LONG_MIN);
+  savedSpindlePos = spindlePos = pref.getLong(PREF_SPINDLE_POS);
+  savedSpindlePosSync = spindlePosSync = pref.getInt(PREF_OUT_OF_SYNC);
+  savedShowAngle = showAngle = pref.getBool(PREF_SHOW_ANGLE);
+  savedShowTacho = showTacho = pref.getBool(PREF_SHOW_TACHO);
+  savedMoveStep = moveStep = pref.getLong(PREF_MOVE_STEP, MOVE_STEP_1);
+  setMode(savedMode = pref.getInt(PREF_MODE));
+  savedMeasure = measure = pref.getInt(PREF_MEASURE);
+  savedConeRatio = coneRatio = pref.getFloat(PREF_CONE_RATIO, coneRatio);
+  savedTurnPasses = turnPasses = pref.getInt(PREF_TURN_PASSES, turnPasses);
+  pref.end();
 
   if (!z.needsRest) {
     DHIGH(Z_ENA);
@@ -1008,88 +957,35 @@ void setup() {
   xTaskCreatePinnedToCore(taskAttachInterrupts, "taskAttachInterrupts", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
 }
 
-// Saves all positions in EEPROM, should be called infrequently to reduce EEPROM wear.
 void saveIfChanged() {
-  bool changed = false;
-  if (dupr != savedDupr) {
-    saveLong(ADDR_DUPR, savedDupr = dupr);
-    changed = true;
-  }
-  if (starts != savedStarts) {
-    saveInt(ADDR_STARTS, savedStarts = starts);
-    changed = true;
-  }
-  if (z.pos != z.savedPos) {
-    saveLong(ADDR_POS_Z, z.savedPos = z.pos);
-    changed = true;
-  }
-  if (z.originPos != z.savedOriginPos) {
-    saveLong(ADDR_ORIGIN_POS_Z, z.savedOriginPos = z.originPos);
-    changed = true;
-  }
-  if (z.leftStop != z.savedLeftStop) {
-    saveLong(ADDR_LEFT_STOP_Z, z.savedLeftStop = z.leftStop);
-    changed = true;
-  }
-  if (z.rightStop != z.savedRightStop) {
-    saveLong(ADDR_RIGHT_STOP_Z, z.savedRightStop = z.rightStop);
-    changed = true;
-  }
-  if (spindlePos != savedSpindlePos) {
-    saveLong(ADDR_SPINDLE_POS, savedSpindlePos = spindlePos);
-    changed = true;
-  }
-  if (spindlePosSync != savedSpindlePosSync) {
-    saveInt(ADDR_OUT_OF_SYNC, savedSpindlePosSync = spindlePosSync);
-    changed = true;
-  }
-  if (showAngle != savedShowAngle) {
-    EEPROM.write(ADDR_SHOW_ANGLE, savedShowAngle = showAngle);
-    changed = true;
-  }
-  if (showTacho != savedShowTacho) {
-    EEPROM.write(ADDR_SHOW_TACHO, savedShowTacho = showTacho);
-    changed = true;
-  }
-  if (moveStep != savedMoveStep) {
-    saveLong(ADDR_MOVE_STEP, savedMoveStep = moveStep);
-    changed = true;
-  }
-  if (mode != savedMode) {
-    saveInt(ADDR_MODE, savedMode = mode);
-    changed = true;
-  }
-  if (measure != savedMeasure) {
-    saveInt(ADDR_MEASURE, savedMeasure = measure);
-    changed = true;
-  }
-  if (x.pos != x.savedPos) {
-    saveLong(ADDR_POS_X, x.savedPos = x.pos);
-    changed = true;
-  }
-  if (x.originPos != x.savedOriginPos) {
-    saveLong(ADDR_ORIGIN_POS_X, x.savedOriginPos = x.originPos);
-    changed = true;
-  }
-  if (x.leftStop != x.savedLeftStop) {
-    saveLong(ADDR_LEFT_STOP_X, x.savedLeftStop = x.leftStop);
-    changed = true;
-  }
-  if (x.rightStop != x.savedRightStop) {
-    saveLong(ADDR_RIGHT_STOP_X, x.savedRightStop = x.rightStop);
-    changed = true;
-  }
-  if (coneRatio != savedConeRatio) {
-    EEPROM.put(ADDR_CONE_RATIO, savedConeRatio = coneRatio);
-    changed = true;
-  }
-  if (turnPasses != savedTurnPasses) {
-    saveInt(ADDR_TURN_PASSES, savedTurnPasses = turnPasses);
-    changed = true;
-  }
-  if (changed) {
-    EEPROM.commit();
-  }
+  // Should avoid calling Preferences whenever possible to reduce memory wear and avoid ~20ms write delay that blocks interrupts.
+  if (dupr == savedDupr && starts == savedStarts && z.pos == z.savedPos && z.originPos == z.savedOriginPos && z.leftStop == z.savedLeftStop && z.rightStop == z.savedRightStop &&
+      spindlePos == savedSpindlePos && spindlePosSync == savedSpindlePosSync && showAngle == savedShowAngle && showTacho == savedShowTacho && moveStep == savedMoveStep &&
+      mode == savedMode && measure == savedMeasure && x.pos == x.savedPos && x.originPos == x.savedOriginPos && x.leftStop == x.savedLeftStop && x.rightStop == x.savedRightStop &&
+      coneRatio == savedConeRatio && turnPasses == savedTurnPasses) return;
+
+  Preferences pref;
+  pref.begin(PREF_NAMESPACE);
+  if (dupr != savedDupr) pref.putLong(PREF_DUPR, savedDupr = dupr);
+  if (starts != savedStarts) pref.putInt(PREF_STARTS, savedStarts = starts);
+  if (z.pos != z.savedPos) pref.putLong(PREF_POS_Z, z.savedPos = z.pos);
+  if (z.originPos != z.savedOriginPos) pref.putLong(PREF_ORIGIN_POS_Z, z.savedOriginPos = z.originPos);
+  if (z.leftStop != z.savedLeftStop) pref.putLong(PREF_LEFT_STOP_Z, z.savedLeftStop = z.leftStop);
+  if (z.rightStop != z.savedRightStop) pref.putLong(PREF_RIGHT_STOP_Z, z.savedRightStop = z.rightStop);
+  if (spindlePos != savedSpindlePos) pref.putLong(PREF_SPINDLE_POS, savedSpindlePos = spindlePos);
+  if (spindlePosSync != savedSpindlePosSync) pref.putInt(PREF_OUT_OF_SYNC, savedSpindlePosSync = spindlePosSync);
+  if (showAngle != savedShowAngle) pref.putBool(PREF_SHOW_ANGLE, savedShowAngle = showAngle);
+  if (showTacho != savedShowTacho) pref.putBool(PREF_SHOW_TACHO, savedShowTacho = showTacho);
+  if (moveStep != savedMoveStep) pref.putLong(PREF_MOVE_STEP, savedMoveStep = moveStep);
+  if (mode != savedMode) pref.putInt(PREF_MODE, savedMode = mode);
+  if (measure != savedMeasure) pref.putInt(PREF_MEASURE, savedMeasure = measure);
+  if (x.pos != x.savedPos) pref.putLong(PREF_POS_X, x.savedPos = x.pos);
+  if (x.originPos != x.savedOriginPos) pref.putLong(PREF_ORIGIN_POS_X, x.savedOriginPos = x.originPos);
+  if (x.leftStop != x.savedLeftStop) pref.putLong(PREF_LEFT_STOP_X, x.savedLeftStop = x.leftStop);
+  if (x.rightStop != x.savedRightStop) pref.putLong(PREF_RIGHT_STOP_X, x.savedRightStop = x.rightStop);
+  if (coneRatio != savedConeRatio) pref.putFloat(PREF_CONE_RATIO, savedConeRatio = coneRatio);
+  if (turnPasses != savedTurnPasses) pref.putInt(PREF_TURN_PASSES, savedTurnPasses = turnPasses);
+  pref.end();
 }
 
 void markAxisOrigin(Axis* a) {
