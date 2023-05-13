@@ -109,12 +109,15 @@
 #define PREF_LEFT_STOP_Z "zls"
 #define PREF_RIGHT_STOP_Z "zrs"
 #define PREF_ORIGIN_POS_Z "zpo"
+#define PREF_POS_GLOBAL_Z "zpg"
 #define PREF_POS_X "xp"
 #define PREF_LEFT_STOP_X "xls"
 #define PREF_RIGHT_STOP_X "xrs"
 #define PREF_ORIGIN_POS_X "xpo"
+#define PREF_POS_GLOBAL_X "xpg"
 #define PREF_SPINDLE_POS "sp"
 #define PREF_OUT_OF_SYNC "oos"
+#define PREF_SPINDLE_POS_GLOBAL "spg"
 #define PREF_SHOW_ANGLE "ang"
 #define PREF_SHOW_TACHO "rpm"
 #define PREF_STARTS "sta"
@@ -217,6 +220,8 @@ struct Axis {
   float fractionalPos; // fractional distance in steps that we meant to travel but couldn't
   long originPos; // relative position of the stepper motor to origin, in steps
   long savedOriginPos; // originPos saved in Preferences
+  long posGlobal; // global position of the motor in steps
+  long savedPosGlobal; // posGlobal saved in Preferences
   int pendingPos; // steps of the stepper motor that we should make as soon as possible
 
   long leftStop; // left stop value of pos
@@ -261,6 +266,8 @@ void initAxis(Axis*  a, float motorSteps, float screwPitch, long speedStart, lon
   a->fractionalPos = 0.0;
   a->originPos = 0;
   a->savedOriginPos = 0;
+  a->posGlobal = 0;
+  a->savedPosGlobal = 0;
   a->pendingPos = 0;
 
   a->leftStop = 0;
@@ -297,6 +304,7 @@ void initAxis(Axis*  a, float motorSteps, float screwPitch, long speedStart, lon
 Axis z;
 Axis x;
 
+unsigned long saveTime = 0; // micros() of the previous Prefs write
 unsigned long spindleEncTime = 0; // micros() of the previous spindle update
 unsigned long spindleEncTimeDiffBulk = 0; // micros() between RPM_BULK spindle updates
 unsigned long spindleEncTimeAtIndex0 = 0; // micros() when spindleEncTimeIndex was 0
@@ -304,9 +312,10 @@ int spindleEncTimeIndex = 0; // counter going between 0 and RPM_BULK - 1
 long spindlePos = 0; // Spindle position
 long savedSpindlePos = 0; // spindlePos value saved in Preferences
 volatile long spindlePosDelta = 0; // Unprocessed encoder ticks.
-
-int spindlePosSync = 0;
-int savedSpindlePosSync = 0;
+int spindlePosSync = 0; // Non-zero if gearbox is on and a soft limit was removed while axis was on it
+int savedSpindlePosSync = 0; // spindlePosSync saved in Preferences
+long spindlePosGlobal = 0; // global spindle position that is unaffected by e.g. zeroing
+long savedSpindlePosGlobal = 0; // spindlePosGlobal saved in Preferences
 
 bool showAngle = false; // Whether to show 0-359 spindle angle on screen
 bool showTacho = false; // Whether to show spindle RPM on screen
@@ -457,6 +466,10 @@ int getLastSetupIndex() {
   return 0;
 }
 
+Axis* getPitchAxis() {
+  return mode == MODE_FACE ? &x : &z;
+}
+
 void updateDisplay() {
   if (emergencyStop != ESTOP_NONE) {
     return;
@@ -507,7 +520,7 @@ void updateDisplay() {
       charIndex += lcd.print(" ");
     }
 
-    if (spindlePosSync) {
+    if (spindlePosSync && mode != MODE_TURN) {
       charIndex += lcd.print("SYN ");
     }
     if (mode == MODE_NORMAL && !spindlePosSync) {
@@ -622,7 +635,7 @@ void updateDisplay() {
       // No space for shared RPM/angle text.
     } else if (showAngle) {
       charIndex += lcd.print("Angle ");
-      charIndex += lcd.print(((spindlePos % (int) ENCODER_STEPS + (int) ENCODER_STEPS) % (int) ENCODER_STEPS) * 360 / ENCODER_STEPS, 2);
+      charIndex += lcd.print(spindleModulo(spindlePos) * 360 / ENCODER_STEPS, 2);
       charIndex += lcd.print(char(223));
     } else if (showTacho) {
       charIndex += lcd.print("Tacho ");
@@ -655,8 +668,11 @@ void taskDisplay(void *param) {
     updateDisplay();
     // Calling Preferences.commit() blocks all interrupts for 30ms, don't call saveIfChanged() if
     // encoder is likely to move soon.
-    if (!stepperIsRunning(&z) && !stepperIsRunning(&x) && (micros() > spindleEncTime + 1000000)) {
-      saveIfChanged();
+    unsigned long now = micros();
+    if (!stepperIsRunning(&z) && !stepperIsRunning(&x) && (now > spindleEncTime + 1000000) && (now > saveTime + 3000000)) {
+      if (saveIfChanged()) {
+        saveTime = now;
+      }
     }
     taskYIELD();
   }
@@ -899,15 +915,18 @@ void setup() {
   motionMutex = xSemaphoreCreateMutex();
   savedStarts = starts = min(STARTS_MAX, max(1, pref.getInt(PREF_STARTS)));
   z.savedPos = z.pos = pref.getLong(PREF_POS_Z);
+  z.savedPosGlobal = z.posGlobal = pref.getLong(PREF_POS_GLOBAL_Z);
   z.savedOriginPos = z.originPos = pref.getLong(PREF_ORIGIN_POS_Z);
   z.savedLeftStop = z.leftStop = pref.getLong(PREF_LEFT_STOP_Z, LONG_MAX);
   z.savedRightStop = z.rightStop = pref.getLong(PREF_RIGHT_STOP_Z, LONG_MIN);
   x.savedPos = x.pos = pref.getLong(PREF_POS_X);
+  x.savedPosGlobal = x.posGlobal = pref.getLong(PREF_POS_GLOBAL_X);
   x.savedOriginPos = x.originPos = pref.getLong(PREF_ORIGIN_POS_X);
   x.savedLeftStop = x.leftStop = pref.getLong(PREF_LEFT_STOP_X, LONG_MAX);
   x.savedRightStop = x.rightStop = pref.getLong(PREF_RIGHT_STOP_X, LONG_MIN);
   savedSpindlePos = spindlePos = pref.getLong(PREF_SPINDLE_POS);
   savedSpindlePosSync = spindlePosSync = pref.getInt(PREF_OUT_OF_SYNC);
+  savedSpindlePosGlobal = spindlePosGlobal = pref.getLong(PREF_SPINDLE_POS_GLOBAL);
   savedShowAngle = showAngle = pref.getBool(PREF_SHOW_ANGLE);
   savedShowTacho = showTacho = pref.getBool(PREF_SHOW_TACHO);
   savedMoveStep = moveStep = pref.getLong(PREF_MOVE_STEP, MOVE_STEP_1);
@@ -957,35 +976,39 @@ void setup() {
   xTaskCreatePinnedToCore(taskAttachInterrupts, "taskAttachInterrupts", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
 }
 
-void saveIfChanged() {
+bool saveIfChanged() {
   // Should avoid calling Preferences whenever possible to reduce memory wear and avoid ~20ms write delay that blocks interrupts.
-  if (dupr == savedDupr && starts == savedStarts && z.pos == z.savedPos && z.originPos == z.savedOriginPos && z.leftStop == z.savedLeftStop && z.rightStop == z.savedRightStop &&
-      spindlePos == savedSpindlePos && spindlePosSync == savedSpindlePosSync && showAngle == savedShowAngle && showTacho == savedShowTacho && moveStep == savedMoveStep &&
-      mode == savedMode && measure == savedMeasure && x.pos == x.savedPos && x.originPos == x.savedOriginPos && x.leftStop == x.savedLeftStop && x.rightStop == x.savedRightStop &&
-      coneRatio == savedConeRatio && turnPasses == savedTurnPasses) return;
+  if (dupr == savedDupr && starts == savedStarts && z.pos == z.savedPos && z.originPos == z.savedOriginPos && z.posGlobal == z.savedPosGlobal && z.leftStop == z.savedLeftStop && z.rightStop == z.savedRightStop &&
+      spindlePos == savedSpindlePos && spindlePosSync == savedSpindlePosSync && savedSpindlePosGlobal == spindlePosGlobal && showAngle == savedShowAngle && showTacho == savedShowTacho && moveStep == savedMoveStep &&
+      mode == savedMode && measure == savedMeasure && x.pos == x.savedPos && x.originPos == x.savedOriginPos && x.posGlobal == x.savedPosGlobal && x.leftStop == x.savedLeftStop && x.rightStop == x.savedRightStop &&
+      coneRatio == savedConeRatio && turnPasses == savedTurnPasses) return false;
 
   Preferences pref;
   pref.begin(PREF_NAMESPACE);
   if (dupr != savedDupr) pref.putLong(PREF_DUPR, savedDupr = dupr);
   if (starts != savedStarts) pref.putInt(PREF_STARTS, savedStarts = starts);
   if (z.pos != z.savedPos) pref.putLong(PREF_POS_Z, z.savedPos = z.pos);
+  if (z.posGlobal != z.savedPosGlobal) pref.putLong(PREF_POS_GLOBAL_Z, z.savedPosGlobal = z.posGlobal);
   if (z.originPos != z.savedOriginPos) pref.putLong(PREF_ORIGIN_POS_Z, z.savedOriginPos = z.originPos);
   if (z.leftStop != z.savedLeftStop) pref.putLong(PREF_LEFT_STOP_Z, z.savedLeftStop = z.leftStop);
   if (z.rightStop != z.savedRightStop) pref.putLong(PREF_RIGHT_STOP_Z, z.savedRightStop = z.rightStop);
   if (spindlePos != savedSpindlePos) pref.putLong(PREF_SPINDLE_POS, savedSpindlePos = spindlePos);
   if (spindlePosSync != savedSpindlePosSync) pref.putInt(PREF_OUT_OF_SYNC, savedSpindlePosSync = spindlePosSync);
+  if (spindlePosGlobal != savedSpindlePosGlobal) pref.putLong(PREF_SPINDLE_POS_GLOBAL, savedSpindlePosGlobal = spindlePosGlobal);
   if (showAngle != savedShowAngle) pref.putBool(PREF_SHOW_ANGLE, savedShowAngle = showAngle);
   if (showTacho != savedShowTacho) pref.putBool(PREF_SHOW_TACHO, savedShowTacho = showTacho);
   if (moveStep != savedMoveStep) pref.putLong(PREF_MOVE_STEP, savedMoveStep = moveStep);
   if (mode != savedMode) pref.putInt(PREF_MODE, savedMode = mode);
   if (measure != savedMeasure) pref.putInt(PREF_MEASURE, savedMeasure = measure);
   if (x.pos != x.savedPos) pref.putLong(PREF_POS_X, x.savedPos = x.pos);
+  if (x.posGlobal != x.savedPosGlobal) pref.putLong(PREF_POS_GLOBAL_X, x.savedPosGlobal = x.posGlobal);
   if (x.originPos != x.savedOriginPos) pref.putLong(PREF_ORIGIN_POS_X, x.savedOriginPos = x.originPos);
   if (x.leftStop != x.savedLeftStop) pref.putLong(PREF_LEFT_STOP_X, x.savedLeftStop = x.leftStop);
   if (x.rightStop != x.savedRightStop) pref.putLong(PREF_RIGHT_STOP_X, x.savedRightStop = x.rightStop);
   if (coneRatio != savedConeRatio) pref.putFloat(PREF_CONE_RATIO, savedConeRatio = coneRatio);
   if (turnPasses != savedTurnPasses) pref.putInt(PREF_TURN_PASSES, savedTurnPasses = turnPasses);
   pref.end();
+  return true;
 }
 
 void markAxisOrigin(Axis* a) {
@@ -1005,6 +1028,11 @@ void markAxisOrigin(Axis* a) {
   }
 }
 
+void zeroSpindlePos() {
+  spindlePos = 0;
+  spindlePosSync = 0;
+}
+
 // Loose the thread and mark current physical positions of
 // encoder and stepper as a new 0. To be called when dupr changes
 // or ELS is turned on/off. Without this, changing dupr will
@@ -1013,8 +1041,7 @@ void markAxisOrigin(Axis* a) {
 void markOrigin() {
   markAxisOrigin(&z);
   markAxisOrigin(&x);
-  spindlePos = 0;
-  spindlePosSync = 0;
+  zeroSpindlePos();
 }
 
 void markZ0() {
@@ -1034,7 +1061,10 @@ void updateAsyncTimerSettings() {
 }
 
 void setDupr(long value) {
-  if (xSemaphoreTake(motionMutex, 1000) != pdTRUE) {
+  if (dupr == value) {
+    return;
+  }
+  if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
     return;
   }
   dupr = value;
@@ -1094,8 +1124,10 @@ void IRAM_ATTR onAsyncTimer() {
     return;
   } else if (dupr > 0 && (z.leftStop == LONG_MAX || z.pos < z.leftStop)) {
     z.pos++;
+    z.posGlobal++;
   } else if (dupr < 0 && (z.rightStop == LONG_MIN || z.pos > z.rightStop)) {
     z.pos--;
+    z.posGlobal--;
   } else {
     return;
   }
@@ -1140,7 +1172,7 @@ void setTurnPasses(int value) {
 }
 
 void setConeRatio(float value) {
-  if (xSemaphoreTake(motionMutex, 1000) != pdTRUE) {
+  if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
     return;
   }
   coneRatio = value;
@@ -1152,10 +1184,12 @@ void reset() {
   z.leftStop = LONG_MAX;
   z.rightStop = LONG_MIN;
   z.originPos = 0;
+  z.posGlobal = 0;
   z.pendingPos = 0;
   x.leftStop = LONG_MAX;
   x.rightStop = LONG_MIN;
   x.originPos = 0;
+  x.posGlobal = 0;
   x.pendingPos = 0;
   setDupr(0);
   setStarts(1);
@@ -1168,11 +1202,11 @@ void reset() {
 // Called when left/right stop restriction is removed while we're on it.
 // Prevents stepper from rushing to a position far away by waiting for the right
 // spindle position and starting smoothly.
-void setOutOfSync() {
+void setOutOfSync(Axis* a) {
   if (!isOn || mode == MODE_ASYNC) {
     return;
   }
-  spindlePosSync = ((spindlePos - spindleFromPos(&z, z.pos)) % (int) ENCODER_STEPS + (int) ENCODER_STEPS) % (int) ENCODER_STEPS;
+  spindlePosSync = spindleModulo(spindlePos - spindleFromPos(a, a->pos));
 #ifdef DEBUG
   Serial.print("spindlePosSync ");
   Serial.println(spindlePosSync);
@@ -1267,7 +1301,7 @@ void setIsOn(bool on) {
     return;
   }
 
-  bool hasMutex = xSemaphoreTake(motionMutex, 1000) == pdTRUE;
+  bool hasMutex = xSemaphoreTake(motionMutex, 100) == pdTRUE;
   if (!on) {
     isOn = false;
     setupIndex = 0;
@@ -1308,8 +1342,8 @@ bool setLeftStop(Axis* a, long value) {
   if (onFormerStop) {
     // Spindle is most likely out of sync with the stepper because
     // it was spinning while the lead screw was on the stop.
-    if (&z == a) {
-      setOutOfSync();
+    if (a == getPitchAxis()) {
+      setOutOfSync(a);
     }
     if (mode == MODE_CONE) {
       // To avoid X rushing to a far away position if standing on limit.
@@ -1333,8 +1367,8 @@ bool setRightStop(Axis* a, long value) {
   if (onFormerStop) {
     // Spindle is most likely out of sync with the stepper because
     // it was spinning while the lead screw was on the stop.
-    if (&z == a) {
-      setOutOfSync();
+    if (a == getPitchAxis()) {
+      setOutOfSync(a);
     }
     if (mode == MODE_CONE) {
       // To avoid X rushing to a far away position if standing on limit.
@@ -1809,6 +1843,7 @@ void moveAxis(Axis* a) {
       setDir(a, dir);
       a->pendingPos += dir ? -1 : 1;
       a->pos += dir ? 1 : -1;
+      a->posGlobal += dir ? 1 : -1;
 
       a->speed += ACCELERATION_Z * delayUs / 1000000.0;
       if (a->speed > a->speedMax) {
@@ -1828,6 +1863,14 @@ void modeGearbox() {
   }
   z.speedMax = LONG_MAX;
   stepTo(&z, posFromSpindle(&z, spindlePos, true));
+}
+
+long spindleModulo(long value) {
+  value = value % int(ENCODER_STEPS);
+  if (value < 0) {
+    value += int(ENCODER_STEPS);
+  }
+  return value;
 }
 
 void modeTurn(Axis* main, Axis* aux) {
@@ -1870,9 +1913,9 @@ void modeTurn(Axis* main, Axis* aux) {
       long auxPos = auxEndStop - (auxEndStop - auxStartStop) / turnPasses * (turnPasses - opIndex);
       stepTo(aux, auxPos);
       if (aux->pos == auxPos) {
-        long base = round(spindleFromPos(main, main->pos) / ENCODER_STEPS) * ENCODER_STEPS - ENCODER_STEPS;
-        spindlePos = base + spindlePos % int(ENCODER_STEPS);
         opSubIndex = 1;
+        spindlePosSync = spindleModulo(spindlePosGlobal - spindleFromPos(main, main->posGlobal));
+        return; // Instead of jumping to the next step, let spindlePosSync get to 0 first.
       }
     }
     // Doing the pass cut.
@@ -2002,8 +2045,7 @@ void modeCut() {
     // Set spindlePos and x.pos in sync.
     if (opSubIndex == 0) {
       markAxisOrigin(&x);
-      spindlePos = 0;
-      spindlePosSync = 0;
+      zeroSpindlePos();
       opSubIndex = 1;
     }
     // Doing the pass cut.
@@ -2098,13 +2140,20 @@ void processSpindlePosDelta() {
   }
 
   spindlePos += delta;
+  spindlePosGlobal += delta;
+  if (spindlePosGlobal > int(ENCODER_STEPS)) {
+    spindlePosGlobal -= int(ENCODER_STEPS);
+  } else if (spindlePosGlobal < 0) {
+    spindlePosGlobal += int(ENCODER_STEPS);
+  }
   spindleEncTime = microsNow;
 
   if (spindlePosSync != 0) {
     spindlePosSync += delta;
     if (spindlePosSync % int(ENCODER_STEPS) == 0) {
       spindlePosSync = 0;
-      spindlePos = spindleFromPos(&z, z.pos);
+      Axis* a = getPitchAxis();
+      spindlePos = spindleFromPos(a, a->pos);
     }
   }
 }
