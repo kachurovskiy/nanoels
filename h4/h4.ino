@@ -615,7 +615,7 @@ void updateDisplay() {
         charIndex += lcd.print("Operation ");
         charIndex += lcd.print(opIndex);
         charIndex += lcd.print(" of ");
-        charIndex += lcd.print(turnPasses + 1);
+        charIndex += lcd.print(turnPasses * starts);
       }
     } else if (mode == MODE_CONE) {
       if (numpadResult != 0 && setupIndex == 1) {
