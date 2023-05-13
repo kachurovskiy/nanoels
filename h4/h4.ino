@@ -31,6 +31,10 @@
 #define MAX_TRAVEL_MM_X 100 // Cross slide doesn't allow to travel more than this in one go, 10cm
 #define BACKLASH_DU_X 1000 // 0.10mm backlash in deci-microns (10^-7 of a meter)
 
+// Manual stepping with left/right/up/down buttons. Only used when step isn't default continuous (1mm or 0.1").
+#define STEP_TIME_MS 500 // Time in milliseconds it should take to make 1 manual step.
+#define DELAY_BETWEEN_STEPS_MS 80 // Time in milliseconds to wait between steps.
+
 /* Changing anything below shouldn't be needed for basic use. */
 
 #define LONG_MIN long(-2147483648)
@@ -699,6 +703,25 @@ void waitForPendingPos0(Axis* a) {
   }
 }
 
+bool isContinuousStep() {
+  return moveStep == (measure == MEASURE_METRIC ? MOVE_STEP_1 : MOVE_STEP_IMP_1);
+}
+
+long getStepMaxSpeed(Axis* a) {
+  return isContinuousStep() ? a->speedManualMove : min(long(a->speedManualMove), abs(moveStep) * 1000 / STEP_TIME_MS);
+}
+
+void waitForStep(Axis* a) {
+  if (isContinuousStep()) {
+    // Move continuously for default step.
+    waitForPendingPosNear0(a);
+  } else {
+    // Move with tiny pauses allowing to stop precisely.
+    waitForPendingPos0(a);
+    DELAY(DELAY_BETWEEN_STEPS_MS);
+  }
+}
+
 void taskMoveZ(void *param) {
   while (emergencyStop == ESTOP_NONE) {
     bool left = buttonLeftPressed;
@@ -715,7 +738,7 @@ void taskMoveZ(void *param) {
     int sign = left ? 1 : -1;
     bool stepperOn = true;
     stepperEnable(&z, true);
-    z.speedMax = z.speedManualMove;
+    z.speedMax = getStepMaxSpeed(&z);
     z.movingManually = true;
     if (isOn && dupr != 0) {
       // Move by moveStep in the desired direction but stay in the thread by possibly traveling a little more.
@@ -738,7 +761,7 @@ void taskMoveZ(void *param) {
         long newPos = mode == MODE_ASYNC ? getAsyncMovePos(sign) : posFromSpindle(&z, prevSpindlePos, true);
         if (newPos != z.pos) {
           stepTo(&z, newPos);
-          waitForPendingPosNear0(&z);
+          waitForStep(&z);
         } else if (z.pos == (left ? z.leftStop : z.rightStop)) {
           // We're standing on a stop with the L/R move button pressed.
           resting = true;
@@ -773,15 +796,11 @@ void taskMoveZ(void *param) {
           delta = z.rightStop - posCopy;
         }
         stepTo(&z, posCopy + delta);
-        waitForPendingPosNear0(&z);
-
-        if (moveStep != (measure == MEASURE_METRIC ? MOVE_STEP_1 : MOVE_STEP_IMP_1)) {
-          DELAY(500);
-        }
+        waitForStep(&z);
       } while (delta != 0 && (left ? buttonLeftPressed : buttonRightPressed));
     }
+    waitForPendingPos0(&z);
     if (isOn) {
-      waitForPendingPos0(&z);
       if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
         setEmergencyStop(ESTOP_MARK_ORIGIN);
       } else {
@@ -810,7 +829,7 @@ void taskMoveX(void *param) {
       continue;
     }
     x.movingManually = true;
-    x.speedMax = x.speedManualMove;
+    x.speedMax = getStepMaxSpeed(&x);
     stepperEnable(&x, true);
 
     int delta = 0;
@@ -833,11 +852,7 @@ void taskMoveX(void *param) {
         delta = x.rightStop - posCopy;
       }
       stepTo(&x, posCopy + delta);
-      waitForPendingPosNear0(&x);
-
-      if (moveStep != (measure == MEASURE_METRIC ? MOVE_STEP_1 : MOVE_STEP_IMP_1)) {
-        DELAY(500);
-      }
+      waitForStep(&x);
     } while (delta != 0 && (up ? buttonUpPressed : buttonDownPressed));
     if (isOn) {
       waitForPendingPos0(&x);
