@@ -205,13 +205,19 @@ bool isOn = false;
 unsigned long resetMillis = 0;
 int emergencyStop = 0;
 
+bool beepFlag = false; // allows time-critical code to ask for a beep on another core
+
 long dupr = 0; // pitch, tenth of a micron per rotation
 long savedDupr = 0; // dupr saved in Preferences
+long nextDupr = dupr; // dupr value that should be applied asap
+bool nextDuprFlag = false; // whether nextDupr requires attention
 
 SemaphoreHandle_t motionMutex; // controls blocks of code where variables affecting the motion loop() are changed
 
 int starts = 1; // number of starts in a multi-start thread
 int savedStarts = 0; // starts saved in Preferences
+int nextStarts = starts; // number of starts that should be used asap
+bool nextStartsFlag = false; // whether nextStarts requires attention
 
 struct Axis {
   SemaphoreHandle_t mutex;
@@ -230,11 +236,13 @@ struct Axis {
 
   long leftStop; // left stop value of pos
   long savedLeftStop; // value saved in Preferences
-  bool leftStopFlag; // prevent toggling the stop while button is pressed.
+  long nextLeftStop; // left stop value that should be applied asap
+  bool nextLeftStopFlag; // whether nextLeftStop required attention
 
   long rightStop; // right stop value of pos
   long savedRightStop; // value saved in Preferences
-  bool rightStopFlag; // prevent toggling the stop while button is pressed.
+  long nextRightStop; // right stop value that should be applied asap
+  bool nextRightStopFlag; // whether nextRightStop requires attention
 
   unsigned long speed; // motor speed in steps / second
   unsigned long speedStart; // Initial speed of a motor, steps / second.
@@ -276,11 +284,11 @@ void initAxis(Axis*  a, float motorSteps, float screwPitch, long speedStart, lon
 
   a->leftStop = 0;
   a->savedLeftStop = 0;
-  a->leftStopFlag = true;
+  a->nextLeftStopFlag = false;
 
   a->rightStop = 0;
   a->savedRightStop = 0;
-  a->rightStopFlag = true;
+  a->nextRightStopFlag = false;
 
   a->speed = speedStart;
   a->speedStart = speedStart;
@@ -339,6 +347,8 @@ int savedMeasure = MEASURE_METRIC; // measure value saved in Preferences
 
 float coneRatio = 1; // In cone mode, how much X moves for 1 step of Z
 float savedConeRatio = 0; // value of coneRatio saved in Preferences
+float nextConeRatio = 0; // coneRatio that should be applied asap
+bool nextConeRatioFlag = false; // whether nextConeRatio requires attention
 
 int turnPasses = 3; // In turn mode, how many turn passes to make
 int savedTurnPasses = 0; // value of turnPasses saved in Preferences
@@ -677,6 +687,10 @@ void taskDisplay(void *param) {
       if (saveIfChanged()) {
         saveTime = now;
       }
+    }
+    if (beepFlag) {
+      beepFlag = false;
+      beep();
     }
     taskYIELD();
   }
@@ -1076,30 +1090,36 @@ void updateAsyncTimerSettings() {
 }
 
 void setDupr(long value) {
-  if (dupr == value) {
+  // Can't apply changes right away since we might be in the middle of motion logic.
+  nextDupr = value;
+  nextDuprFlag = true;
+}
+
+// Must be called while holding motionMutex.
+void applyDupr() {
+  if (nextDupr == dupr) {
     return;
   }
-  if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
-    return;
-  }
-  dupr = value;
+  dupr = nextDupr;
   markOrigin();
-  xSemaphoreGive(motionMutex);
   if (mode == MODE_ASYNC) {
     updateAsyncTimerSettings();
   }
 }
 
 void setStarts(int value) {
-  if (starts == value) {
+  // Can't apply changes right away since we might be in the middle of motion logic.
+  nextStarts = value;
+  nextStartsFlag = true;
+}
+
+// Must be called while holding motionMutex.
+void applyStarts() {
+  if (starts == nextStarts) {
     return;
   }
-  if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
-    return;
-  }
-  starts = value;
+  starts = nextStarts;
   markOrigin();
-  xSemaphoreGive(motionMutex);
 }
 
 void setMeasure(int value) {
@@ -1187,22 +1207,31 @@ void setTurnPasses(int value) {
 }
 
 void setConeRatio(float value) {
-  if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
+  // Can't apply changes right away since we might be in the middle of motion logic.
+  nextConeRatio = value;
+  nextConeRatioFlag = true;
+}
+
+void applyConeRatio() {
+  if (nextConeRatio == coneRatio) {
     return;
   }
-  coneRatio = value;
+  coneRatio = nextConeRatio;
   markOrigin();
-  xSemaphoreGive(motionMutex);
 }
 
 void reset() {
   z.leftStop = LONG_MAX;
+  z.nextLeftStopFlag = false;
   z.rightStop = LONG_MIN;
+  z.nextRightStopFlag = false;
   z.originPos = 0;
   z.posGlobal = 0;
   z.pendingPos = 0;
   x.leftStop = LONG_MAX;
+  x.nextLeftStopFlag = false;
   x.rightStop = LONG_MIN;
+  x.nextRightStopFlag = false;
   x.originPos = 0;
   x.posGlobal = 0;
   x.pendingPos = 0;
@@ -1211,7 +1240,7 @@ void reset() {
   moveStep = MOVE_STEP_1;
   setMode(MODE_NORMAL);
   measure = MEASURE_METRIC;
-  coneRatio = 1;
+  setConeRatio(1);
 }
 
 // Called when left/right stop restriction is removed while we're on it.
@@ -1294,9 +1323,7 @@ void buttonPlusMinusPress(bool plus) {
 }
 
 void beep() {
-  tone(BUZZ, 1000);
-  DELAY(500);
-  noTone(BUZZ);
+  tone(BUZZ, 1000, 500);
 }
 
 void buttonOnOffPress(bool on) {
@@ -1316,7 +1343,7 @@ void setIsOn(bool on) {
     return;
   }
 
-  bool hasMutex = xSemaphoreTake(motionMutex, 100) == pdTRUE;
+  bool hasMutex = xSemaphoreTake(motionMutex, 10) == pdTRUE;
   if (!on) {
     isOn = false;
     setupIndex = 0;
@@ -1344,16 +1371,21 @@ void buttonOffRelease() {
   }
 }
 
-bool setLeftStop(Axis* a, long value) {
-  if (xSemaphoreTake(motionMutex, 10000) != pdTRUE) {
-    return false;
+void setLeftStop(Axis* a, long value) {
+  // Can't apply changes right away since we might be in the middle of motion logic.
+  a->nextLeftStop = value;
+  a->nextLeftStopFlag = true;
+}
+
+bool applyLeftStop(Axis* a) {
+  if (a->leftStop == a->nextLeftStop) {
+    return true;
   }
-  if (a->leftStop == value || a->pos > value) {
-    xSemaphoreGive(motionMutex);
+  if (a->pos > a->nextLeftStop) {
     return false;
   }
   bool onFormerStop = a->pos == a->leftStop;
-  a->leftStop = value;
+  a->leftStop = a->nextLeftStop;
   if (onFormerStop) {
     // Spindle is most likely out of sync with the stepper because
     // it was spinning while the lead screw was on the stop.
@@ -1365,20 +1397,24 @@ bool setLeftStop(Axis* a, long value) {
       markOrigin();
     }
   }
-  xSemaphoreGive(motionMutex);
   return true;
 }
 
-bool setRightStop(Axis* a, long value) {
-  if (xSemaphoreTake(motionMutex, 10000) != pdTRUE) {
-    return false;
+void setRightStop(Axis* a, long value) {
+  // Can't apply changes right away since we might be in the middle of motion logic.
+  a->nextRightStop = value;
+  a->nextRightStopFlag = true;
+}
+
+bool applyRightStop(Axis* a) {
+  if (a->rightStop == a->nextRightStop) {
+    return true;
   }
-  if (a->rightStop == value || a->pos < value) {
-    xSemaphoreGive(motionMutex);
+  if (a->pos < a->nextRightStop) {
     return false;
   }
   bool onFormerStop = a->pos == a->rightStop;
-  a->rightStop = value;
+  a->rightStop = a->nextRightStop;
   if (onFormerStop) {
     // Spindle is most likely out of sync with the stepper because
     // it was spinning while the lead screw was on the stop.
@@ -1390,7 +1426,6 @@ bool setRightStop(Axis* a, long value) {
       markOrigin();
     }
   }
-  xSemaphoreGive(motionMutex);
   return true;
 }
 
@@ -1629,23 +1664,17 @@ bool processNumpadResult(int keyCode) {
   long pos = a->pos + newDu / a->screwPitch * a->motorSteps * ((keyCode == B_STOPL || keyCode == B_STOPU || keyCode == B_LEFT || keyCode == B_UP) ? 1 : -1);
 
   // Potentially assign a new value to a limit. Treat newDu as a relative distance from current position.
-  bool isStop = true;
-  bool stopSet = false;
   if (keyCode == B_STOPL) {
-    stopSet = setLeftStop(&z, pos);
+    setLeftStop(&z, pos);
+    return true;
   } else if (keyCode == B_STOPR) {
-    stopSet = setRightStop(&z, pos);
+    setRightStop(&z, pos);
+    return true;
   } else if (keyCode == B_STOPU) {
-    stopSet = setLeftStop(&x, pos);
+    setLeftStop(&x, pos);
+    return true;
   } else if (keyCode == B_STOPD) {
-    stopSet = setRightStop(&x, pos);
-  } else {
-    isStop = false;
-  }
-  if (isStop) {
-    if (!stopSet) {
-      beep();
-    }
+    setRightStop(&x, pos);
     return true;
   }
 
@@ -2173,6 +2202,38 @@ void processSpindlePosDelta() {
   }
 }
 
+// Apply changes requested by the keyboard thread.
+void applySettings() {
+  if (nextDuprFlag) {
+    applyDupr();
+    nextDuprFlag = false;
+  }
+  if (nextStartsFlag) {
+    applyStarts();
+    nextStartsFlag = false;
+  }
+  if (z.nextLeftStopFlag) {
+    beepFlag |= !applyLeftStop(&z);
+    z.nextLeftStopFlag = false;
+  }
+  if (z.nextRightStopFlag) {
+    beepFlag |= !applyRightStop(&z);
+    z.nextRightStopFlag = false;
+  }
+  if (x.nextLeftStopFlag) {
+    beepFlag |= !applyLeftStop(&x);
+    x.nextLeftStopFlag = false;
+  }
+  if (x.nextRightStopFlag) {
+    beepFlag |= !applyRightStop(&x);
+    x.nextRightStopFlag = false;
+  }
+  if (nextConeRatioFlag) {
+    applyConeRatio();
+    nextConeRatioFlag = false;
+  }
+}
+
 void loop() {
   if (emergencyStop != ESTOP_NONE || setPosEmergencyStop()) {
     return;
@@ -2180,6 +2241,7 @@ void loop() {
   if (xSemaphoreTake(motionMutex, 1) != pdTRUE) {
     return;
   }
+  applySettings();
   processSpindlePosDelta();
   discountFullSpindleTurns();
   if (!isOn || dupr == 0 || spindlePosSync != 0) {
