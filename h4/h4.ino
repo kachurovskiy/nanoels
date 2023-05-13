@@ -1042,6 +1042,9 @@ bool saveIfChanged() {
 
 void markAxisOrigin(Axis* a) {
   bool hasSemaphore = xSemaphoreTake(a->mutex, 10) == pdTRUE;
+  if (!hasSemaphore) {
+    beepFlag = true;
+  }
   if (a->leftStop != LONG_MAX) {
     a->leftStop -= a->pos;
   }
@@ -1377,6 +1380,22 @@ void setLeftStop(Axis* a, long value) {
   a->nextLeftStopFlag = true;
 }
 
+void leaveStop(Axis* a) {
+  if (mode == MODE_CONE) {
+    // To avoid rushing to a far away position if standing on limit.
+    markOrigin();
+  } else if (a == getPitchAxis()) {
+    // Spindle is most likely out of sync with the stepper because
+    // it was spinning while the lead screw was on the stop.
+    setOutOfSync(a);
+  }
+}
+
+int getStopEpsilon() {
+  // In cone mode it's possible that pos won't reach the stop completely.
+  return mode == MODE_CONE? 10 : 0;
+}
+
 bool applyLeftStop(Axis* a) {
   if (a->leftStop == a->nextLeftStop) {
     return true;
@@ -1384,18 +1403,10 @@ bool applyLeftStop(Axis* a) {
   if (a->pos > a->nextLeftStop) {
     return false;
   }
-  bool onFormerStop = a->pos == a->leftStop;
+  bool onFormerStop = abs(a->pos - a->leftStop) <= getStopEpsilon();
   a->leftStop = a->nextLeftStop;
   if (onFormerStop) {
-    // Spindle is most likely out of sync with the stepper because
-    // it was spinning while the lead screw was on the stop.
-    if (a == getPitchAxis()) {
-      setOutOfSync(a);
-    }
-    if (mode == MODE_CONE) {
-      // To avoid X rushing to a far away position if standing on limit.
-      markOrigin();
-    }
+    leaveStop(a);
   }
   return true;
 }
@@ -1413,18 +1424,11 @@ bool applyRightStop(Axis* a) {
   if (a->pos < a->nextRightStop) {
     return false;
   }
-  bool onFormerStop = a->pos == a->rightStop;
+  // In cone mode it's possible that pos won't reach the stop completely.
+  bool onFormerStop = abs(a->pos == a->rightStop) <= getStopEpsilon();
   a->rightStop = a->nextRightStop;
   if (onFormerStop) {
-    // Spindle is most likely out of sync with the stepper because
-    // it was spinning while the lead screw was on the stop.
-    if (a == getPitchAxis()) {
-      setOutOfSync(a);
-    }
-    if (mode == MODE_CONE) {
-      // To avoid X rushing to a far away position if standing on limit.
-      markOrigin();
-    }
+    leaveStop(a);
   }
   return true;
 }
