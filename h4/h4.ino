@@ -534,7 +534,7 @@ void updateDisplay() {
       charIndex += lcd.print(" ");
     }
 
-    if (spindlePosSync && mode != MODE_TURN) {
+    if (spindlePosSync && !isPassMode()) {
       charIndex += lcd.print("SYN ");
     }
     if (mode == MODE_NORMAL && !spindlePosSync) {
