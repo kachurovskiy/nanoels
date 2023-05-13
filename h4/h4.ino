@@ -13,7 +13,7 @@
 #define MOTOR_STEPS_Z 1600.0
 #define SCREW_Z_DU 20000.0 // 2mm lead screw in deci-microns (10^-7 of a meter)
 #define SPEED_START_Z (2 * MOTOR_STEPS_Z) // Initial speed of a motor, steps / second.
-#define ACCELERATION_Z (30 * MOTOR_STEPS_Z) // Acceleration of a motor, steps / second ^ 2.
+#define ACCELERATION_Z (40 * MOTOR_STEPS_Z) // Acceleration of a motor, steps / second ^ 2.
 #define SPEED_MANUAL_MOVE_Z (7 * MOTOR_STEPS_Z) // Maximum speed of a motor during manual move, steps / second.
 #define INVERT_Z false // change (true/false) if the carriage moves e.g. "left" when you press "right".
 #define NEEDS_REST_Z false // Set to false for closed-loop drivers, true for open-loop.
@@ -140,7 +140,6 @@
 #define MOVE_STEP_IMP_3 254 // 1/1000" also known as 1 thou
 
 #define MODE_NORMAL 0
-#define MODE_MULTISTART 1
 #define MODE_ASYNC 2
 #define MODE_CONE 3
 #define MODE_TURN 4
@@ -501,9 +500,7 @@ void updateDisplay() {
     lcdHashLine0 = newHashLine0;
     charIndex = 0;
     lcd.setCursor(0, 0);
-    if (mode == MODE_MULTISTART) {
-      charIndex += lcd.print("MUL ");
-    } else if (mode == MODE_ASYNC) {
+    if (mode == MODE_ASYNC) {
       charIndex += lcd.print("ASY ");
     } else if (mode == MODE_CONE) {
       charIndex += lcd.print("CONE ");
@@ -779,10 +776,6 @@ void taskMoveZ(void *param) {
         } else if (z.pos == (left ? z.leftStop : z.rightStop)) {
           // We're standing on a stop with the L/R move button pressed.
           resting = true;
-          if (xSemaphoreTake(motionMutex, 100) == pdTRUE) {
-            checkIfNextStart();
-            xSemaphoreGive(motionMutex);
-          }
           if (stepperOn) {
             stepperEnable(&z, false);
             stepperOn = false;
@@ -809,6 +802,7 @@ void taskMoveZ(void *param) {
         } else if (z.rightStop != LONG_MIN && posCopy + delta < z.rightStop) {
           delta = z.rightStop - posCopy;
         }
+        z.speedMax = getStepMaxSpeed(&z);
         stepTo(&z, posCopy + delta);
         waitForStep(&z);
       } while (delta != 0 && (left ? buttonLeftPressed : buttonRightPressed));
@@ -1183,7 +1177,7 @@ void setMode(int value) {
   if (isOn) {
     setIsOn(false);
   }
-  if (mode == MODE_MULTISTART) {
+  if (mode == MODE_THREAD) {
     setStarts(1);
   } else if (mode == MODE_ASYNC) {
     setAsyncTimerEnable(false);
@@ -1194,10 +1188,6 @@ void setMode(int value) {
     timerAttachInterrupt(async_timer, &onAsyncTimer, true);
     updateAsyncTimerSettings();
     setAsyncTimerEnable(true);
-  } else if (mode == MODE_MULTISTART) {
-    if (starts < 2) {
-      setStarts(2);
-    }
   }
 }
 
@@ -1276,7 +1266,7 @@ long normalizePitch(long pitch) {
 void buttonPlusMinusPress(bool plus) {
   // Mutex is aquired in setDupr() and setStarts().
   bool minus = !plus;
-  if (mode == MODE_MULTISTART) {
+  if (mode == MODE_THREAD && setupIndex == 2) {
     if (minus && starts > 2) {
       setStarts(starts - 1);
     } else if (plus && starts < STARTS_MAX) {
@@ -1451,18 +1441,6 @@ void buttonDownStopPress() {
 
 bool allowMultiStartAdvance = false;
 
-void checkIfNextStart() {
-  if (starts <= 1 || dupr == 0 || z.rightStop == LONG_MIN || z.leftStop == LONG_MAX) {
-    return;
-  }
-  if (allowMultiStartAdvance && z.pos == (dupr > 0 ? z.rightStop : z.leftStop)) {
-    spindlePos += round(1.0 * ENCODER_STEPS / starts) * (dupr > 0 ? -1 : 1);
-    allowMultiStartAdvance = false;
-  } else if (z.pos == (dupr > 0 ? z.leftStop : z.rightStop)) {
-    allowMultiStartAdvance = true;
-  }
-}
-
 long getAsyncMovePos(int sign) {
   long posDiff = sign * MOTOR_STEPS_Z * abs(dupr) / SCREW_Z_DU / 5;
   long posCopy = z.pos;
@@ -1510,7 +1488,7 @@ void buttonMoveStepPress() {
 void setDir(Axis* a, bool dir) {
   // Start slow if direction changed.
   if (a->direction != dir || !a->directionInitialized) {
-    a->speed = SPEED_START_Z;
+    a->speed = a->speedStart;
     a->direction = dir;
     a->directionInitialized = true;
     DWRITE(a->dir, dir ^ a->invertStepper);
@@ -1519,8 +1497,6 @@ void setDir(Axis* a, bool dir) {
 
 void buttonModePress() {
   if (mode == MODE_NORMAL) {
-    setMode(MODE_MULTISTART);
-  } else if (mode == MODE_MULTISTART) {
     setMode(MODE_ASYNC);
   } else {
     setMode(MODE_NORMAL);
@@ -1893,7 +1869,7 @@ void moveAxis(Axis* a) {
       a->pos += dir ? 1 : -1;
       a->posGlobal += dir ? 1 : -1;
 
-      a->speed += ACCELERATION_Z * delayUs / 1000000.0;
+      a->speed += a->acceleration * delayUs / 1000000.0;
       if (a->speed > a->speedMax) {
         a->speed = a->speedMax;
       }
@@ -1925,7 +1901,7 @@ void modeTurn(Axis* main, Axis* aux) {
   if (main->movingManually || aux->movingManually || turnPasses <= 0 ||
       main->leftStop == LONG_MAX || main->rightStop == LONG_MIN ||
       aux->leftStop == LONG_MAX || aux->rightStop == LONG_MIN ||
-      dupr == 0 || (dupr * opDuprSign < 0)) {
+      dupr == 0 || (dupr * opDuprSign < 0) || starts < 1) {
     return;
   }
   aux->speedMax = aux->speedManualMove;
@@ -1939,6 +1915,8 @@ void modeTurn(Axis* main, Axis* aux) {
   long auxStartStop = auxForward ? aux->rightStop : aux->leftStop;
   long auxEndStop = auxForward ? aux->leftStop : aux->rightStop;
   long auxBacklash = auxForward ? -aux->backlashSteps : aux->backlashSteps;
+
+  long startOffset = starts == 1 ? 0 : round(1.0 * ENCODER_STEPS / starts) * (dupr > 0 ? -1 : 1);
 
   if (opIndex == 0) {
     // Move to right-bottom limit, take out backlash.
@@ -1955,14 +1933,14 @@ void modeTurn(Axis* main, Axis* aux) {
         opSubIndex = 0;
       }
     }
-  } else if (opIndex <= turnPasses) {
+  } else if (opIndex <= turnPasses * starts) {
     // Bringing X to starting position.
     if (opSubIndex == 0) {
-      long auxPos = auxEndStop - (auxEndStop - auxStartStop) / turnPasses * (turnPasses - opIndex);
+      long auxPos = auxEndStop - (auxEndStop - auxStartStop) / turnPasses * (turnPasses - ceil(opIndex / float(starts)));
       stepTo(aux, auxPos);
       if (aux->pos == auxPos) {
         opSubIndex = 1;
-        spindlePosSync = spindleModulo(spindlePosGlobal - spindleFromPos(main, main->posGlobal));
+        spindlePosSync = spindleModulo(spindlePosGlobal - spindleFromPos(main, main->posGlobal) - startOffset * opIndex);
         return; // Instead of jumping to the next step, let spindlePosSync get to 0 first.
       }
     }
@@ -2162,7 +2140,6 @@ void discountFullSpindleTurns() {
     if (spindlePosDiff != 0) {
       spindlePos += spindlePosDiff;
     }
-    checkIfNextStart();
   }
 }
 
@@ -2250,7 +2227,7 @@ void loop() {
   discountFullSpindleTurns();
   if (!isOn || dupr == 0 || spindlePosSync != 0) {
     // None of the modes work.
-  } else if (mode == MODE_NORMAL || mode == MODE_MULTISTART) {
+  } else if (mode == MODE_NORMAL) {
     modeGearbox();
   } else if (mode == MODE_TURN) {
     modeTurn(&z, &x);
