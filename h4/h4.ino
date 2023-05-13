@@ -10,10 +10,10 @@
 #define ENC_B 15
 
 // Main lead screw (Z) parameters.
-#define MOTOR_STEPS_Z 1600.0
+#define MOTOR_STEPS_Z 800.0
 #define SCREW_Z_DU 20000.0 // 2mm lead screw in deci-microns (10^-7 of a meter)
 #define SPEED_START_Z (2 * MOTOR_STEPS_Z) // Initial speed of a motor, steps / second.
-#define ACCELERATION_Z (40 * MOTOR_STEPS_Z) // Acceleration of a motor, steps / second ^ 2.
+#define ACCELERATION_Z (60 * MOTOR_STEPS_Z) // Acceleration of a motor, steps / second ^ 2.
 #define SPEED_MANUAL_MOVE_Z (7 * MOTOR_STEPS_Z) // Maximum speed of a motor during manual move, steps / second.
 #define INVERT_Z false // change (true/false) if the carriage moves e.g. "left" when you press "right".
 #define NEEDS_REST_Z false // Set to false for closed-loop drivers, true for open-loop.
@@ -24,8 +24,8 @@
 #define MOTOR_STEPS_X 800.0
 #define SCREW_X_DU 4166.6 // 1.25mm lead screw with 3x reduction in deci-microns (10^-7) of a meter
 #define SPEED_START_X (2 * MOTOR_STEPS_X) // Initial speed of a motor, steps / second.
-#define ACCELERATION_X (20 * MOTOR_STEPS_X) // Acceleration of a motor, steps / second ^ 2.
-#define SPEED_MANUAL_MOVE_X (5 * MOTOR_STEPS_X) // Maximum speed of a motor during manual move, steps / second.
+#define ACCELERATION_X (50 * MOTOR_STEPS_X) // Acceleration of a motor, steps / second ^ 2.
+#define SPEED_MANUAL_MOVE_X (6 * MOTOR_STEPS_X) // Maximum speed of a motor during manual move, steps / second.
 #define INVERT_X true // change (true/false) if the carriage moves e.g. "left" when you press "right".
 #define NEEDS_REST_X false // Set to false for all kinds of drivers or X will be unlocked when not moving.
 #define MAX_TRAVEL_MM_X 100 // Cross slide doesn't allow to travel more than this in one go, 10cm
@@ -386,7 +386,7 @@ int getApproxRpm() {
 }
 
 bool stepperIsRunning(Axis* a) {
-  return micros() - a->stepStartUs < 10000;
+  return micros() - a->stepStartUs < 20000;
 }
 
 // Returns number of letters printed.
