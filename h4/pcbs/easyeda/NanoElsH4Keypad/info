@@ -1,0 +1,50 @@
+{
+  "uuid": "8cdebc65cfd193dda6458f067cbfa0cf",
+  "path": "Offline/NanoElsH4Keypad",
+  "name": "NanoElsH4Keypad",
+  "content": "",
+  "created_at": "2023-03-07 23:02:27",
+  "updated_at": "2023-05-01 20:41:52",
+  "stick": "",
+  "documents": [
+    {
+      "uuid": "e202a6432100e445a2614a5e13017bb0",
+      "title": "H4Keypad",
+      "description": "",
+      "docType": "1",
+      "master": "",
+      "thumb": "/images/thumb-default.png",
+      "updateTime": 1680855483,
+      "createTime": 1680855483,
+      "histories": [],
+      "created_at": "2023-04-07 10:18:03",
+      "updated_at": "2023-04-07 10:18:03"
+    },
+    {
+      "uuid": "c6af41ba35315a2a2d1c9022f1d609fb",
+      "title": "PCB_H4Keypad",
+      "filename": "PCB_H4Keypad.json",
+      "description": "",
+      "docType": "3",
+      "master": "",
+      "thumb": "/images/thumb-default.png",
+      "updateTime": 1682966512,
+      "createTime": 1680868849,
+      "histories": [],
+      "created_at": "2023-04-07 14:00:49",
+      "updated_at": "2023-05-01 20:41:52",
+      "components": {
+        "cc638d081ceb44958ffa5d84502694df": 2,
+        "fe7f3765743b44ec9b6aae9df968e7ba": 39
+      }
+    }
+  ],
+  "sort": [
+    "ca5a6675797634f6d9a4c080fd1e8d0b",
+    "e202a6432100e445a2614a5e13017bb0"
+  ],
+  "title": "NanoElsH4Keypad",
+  "foldername": "NanoElsH4Keypad",
+  "schfilename": "NanoElsH3ModuleKeypad.json",
+  "schfilemtime": 1682965900561
+}
