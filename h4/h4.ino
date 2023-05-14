@@ -13,8 +13,8 @@
 #define MOTOR_STEPS_Z 800.0
 #define SCREW_Z_DU 20000.0 // 2mm lead screw in deci-microns (10^-7 of a meter)
 #define SPEED_START_Z (2 * MOTOR_STEPS_Z) // Initial speed of a motor, steps / second.
-#define ACCELERATION_Z (60 * MOTOR_STEPS_Z) // Acceleration of a motor, steps / second ^ 2.
-#define SPEED_MANUAL_MOVE_Z (7 * MOTOR_STEPS_Z) // Maximum speed of a motor during manual move, steps / second.
+#define ACCELERATION_Z (40 * MOTOR_STEPS_Z) // Acceleration of a motor, steps / second ^ 2.
+#define SPEED_MANUAL_MOVE_Z (6 * MOTOR_STEPS_Z) // Maximum speed of a motor during manual move, steps / second.
 #define INVERT_Z false // change (true/false) if the carriage moves e.g. "left" when you press "right".
 #define NEEDS_REST_Z false // Set to false for closed-loop drivers, true for open-loop.
 #define MAX_TRAVEL_MM_Z 300 // Lathe bed doesn't allow to travel more than this in one go, 30cm / ~1 foot
@@ -24,7 +24,7 @@
 #define MOTOR_STEPS_X 800.0
 #define SCREW_X_DU 4166.6 // 1.25mm lead screw with 3x reduction in deci-microns (10^-7) of a meter
 #define SPEED_START_X (2 * MOTOR_STEPS_X) // Initial speed of a motor, steps / second.
-#define ACCELERATION_X (50 * MOTOR_STEPS_X) // Acceleration of a motor, steps / second ^ 2.
+#define ACCELERATION_X (40 * MOTOR_STEPS_X) // Acceleration of a motor, steps / second ^ 2.
 #define SPEED_MANUAL_MOVE_X (6 * MOTOR_STEPS_X) // Maximum speed of a motor during manual move, steps / second.
 #define INVERT_X true // change (true/false) if the carriage moves e.g. "left" when you press "right".
 #define NEEDS_REST_X false // Set to false for all kinds of drivers or X will be unlocked when not moving.
@@ -146,6 +146,7 @@
 #define MODE_FACE 5
 #define MODE_CUT 6
 #define MODE_THREAD 7
+#define MODE_ELLIPSE 8
 
 #define MEASURE_METRIC 0
 #define MEASURE_INCH 1
@@ -266,7 +267,7 @@ struct Axis {
   int step; // Step pin of this motor
 };
 
-void initAxis(Axis*  a, float motorSteps, float screwPitch, long speedStart, long speedManualMove, long acceleration, bool invertStepper, bool needsRest, long maxTravelMm, long backlashDu, int ena, int dir, int step) {
+void initAxis(Axis* a, float motorSteps, float screwPitch, long speedStart, long speedManualMove, long acceleration, bool invertStepper, bool needsRest, long maxTravelMm, long backlashDu, int ena, int dir, int step) {
   a->mutex = xSemaphoreCreateMutex();
 
   a->motorSteps = motorSteps;
@@ -465,15 +466,15 @@ int printNoTrailing0(float value) {
 }
 
 bool needZStops() {
-  return mode == MODE_TURN || mode == MODE_FACE || mode == MODE_THREAD;
+  return mode == MODE_TURN || mode == MODE_FACE || mode == MODE_THREAD || mode == MODE_ELLIPSE;
 }
 
 bool isPassMode() {
-  return mode == MODE_TURN || mode == MODE_FACE || mode == MODE_CUT || mode == MODE_THREAD;
+  return mode == MODE_TURN || mode == MODE_FACE || mode == MODE_CUT || mode == MODE_THREAD || mode == MODE_ELLIPSE;
 }
 
 int getLastSetupIndex() {
-  if (mode == MODE_TURN || mode == MODE_FACE || mode == MODE_CONE || mode == MODE_CUT || mode == MODE_THREAD) {
+  if (mode == MODE_TURN || mode == MODE_FACE || mode == MODE_CONE || mode == MODE_CUT || mode == MODE_THREAD || mode == MODE_ELLIPSE) {
     return 3;
   }
   return 0;
@@ -512,6 +513,8 @@ void updateDisplay() {
       charIndex += lcd.print("CUT ");
     } else if (mode == MODE_THREAD) {
       charIndex += lcd.print("THRD ");
+    } else if (mode == MODE_ELLIPSE) {
+      charIndex += lcd.print("ELLI ");
     }
     charIndex += lcd.print(isOn ? "ON " : "off ");
     int beforeStops = charIndex;
@@ -1497,6 +1500,8 @@ void setDir(Axis* a, bool dir) {
 
 void buttonModePress() {
   if (mode == MODE_NORMAL) {
+    setMode(MODE_ELLIPSE);
+  } else if (mode == MODE_ELLIPSE) {
     setMode(MODE_ASYNC);
   } else {
     setMode(MODE_NORMAL);
@@ -2107,12 +2112,84 @@ void modeCut() {
   }
 }
 
+void modeEllipse(Axis* main, Axis* aux) {
+  if (main->movingManually || aux->movingManually || turnPasses <= 0 ||
+      main->leftStop == LONG_MAX || main->rightStop == LONG_MIN ||
+      aux->leftStop == LONG_MAX || aux->rightStop == LONG_MIN ||
+      main->leftStop == main->rightStop ||
+      aux->leftStop == aux->rightStop ||
+      dupr == 0 || (dupr * opDuprSign < 0)) {
+    return;
+  }
+
+  // Start from left or right depending on the pitch.
+  long mainStartStop = opDuprSign > 0 ? main->rightStop : main->leftStop;
+  long mainEndStop = opDuprSign > 0 ? main->leftStop : main->rightStop;
+  long mainBacklash = -opDuprSign * main->backlashSteps;
+
+  // Will vary for internal/external cuts.
+  long auxStartStop = auxForward ? aux->rightStop : aux->leftStop;
+  long auxEndStop = auxForward ? aux->leftStop : aux->rightStop;
+  long auxBacklash = auxForward ? -aux->backlashSteps : aux->backlashSteps;
+
+  main->speedMax = main->speedManualMove;
+  aux->speedMax = aux->speedManualMove;
+
+  if (opIndex == 0) {
+    opIndex = 1;
+    opSubIndex = 0;
+    spindlePos = 0;
+  } else if (opIndex <= turnPasses) {
+    float pass0to1 = opIndex / float(turnPasses);
+    long mainDelta = round(pass0to1 * (mainEndStop - mainStartStop));
+    long auxDelta = round(pass0to1 * (auxEndStop - auxStartStop));
+    long spindleDelta = spindleFromPos(main, mainDelta);
+
+    // Move to starting position, take out backlash.
+    if (opSubIndex == 0) {
+      long auxPos = auxStartStop + auxBacklash;
+      stepTo(aux, auxPos);
+      if (aux->pos == auxPos) {
+        opSubIndex = 1;
+      }
+    } else if (opSubIndex == 1) {
+      long mainPos = mainEndStop - mainDelta + mainBacklash;
+      stepTo(main, mainPos);
+      if (main->pos == mainPos) {
+        opSubIndex = 2;
+        spindlePos = 0;
+      }
+    } else if (opSubIndex == 2) {
+      float progress0to1 = 0;
+      if ((spindleDelta > 0 && spindlePos >= spindleDelta) || (spindleDelta < 0 && spindlePos <= spindleDelta)) {
+        progress0to1 = 1;
+      } else {
+        progress0to1 = spindlePos / float(spindleDelta);
+      }
+      long mainPos = mainEndStop - mainDelta + round(mainDelta * cos(HALF_PI * (3 + progress0to1)));
+      long auxPos = auxStartStop + round(auxDelta * (1 + sin(HALF_PI * (3 + progress0to1))));
+      stepTo(main, mainPos);
+      stepTo(aux, auxPos);
+      if (progress0to1 == 1 && main->pos == mainPos && aux->pos == auxPos) {
+        opIndex++;
+        opSubIndex = 0;
+      }
+    }
+  } else if (opIndex == turnPasses + 1) {
+    stepTo(aux, auxStartStop);
+    if (aux->pos == auxStartStop) {
+      setIsOn(false);
+      beep();
+    }
+  }
+}
+
 void discountFullSpindleTurns() {
   // When standing at the stop, ignore full spindle turns.
   // This allows to avoid waiting when spindle direction reverses
   // and reduces the chance of the skipped stepper steps since
   // after a reverse the spindle starts slow.
-  if (dupr != 0 && !stepperIsRunning(&z) && mode != MODE_FACE) {
+  if (dupr != 0 && !stepperIsRunning(&z) && mode != MODE_FACE && mode != MODE_ELLIPSE) {
     int spindlePosDiff = 0;
     if (z.pos == z.rightStop) {
       long stopSpindlePos = spindleFromPos(&z, z.rightStop);
@@ -2239,6 +2316,8 @@ void loop() {
     modeCone();
   } else if (mode == MODE_THREAD) {
     modeTurn(&z, &x);
+  } else if (mode == MODE_ELLIPSE) {
+    modeEllipse(&z, &x);
   }
   moveAxis(&z);
   moveAxis(&x);
