@@ -4,7 +4,7 @@
 
 [![h4-600px](https://user-images.githubusercontent.com/517919/235074149-307f8b7f-a9d5-4ade-b29a-13809ba81e75.JPG)](https://kachurovskiy.com/)
 
-Controller itself is available for purchase on https://kachurovskiy.com/
+Controller itself is available for purchase on https://kachurovskiy.com/ or you can DIY with the hardware design files provided.
 
 ## Features
 
@@ -27,10 +27,6 @@ No computer or CAD software needed! Coming soon:
 - Automatic conical threads
 - Spheres and curves
 - GRBL support over USB
-
-## DIY hardware
-
-For now there's no DIY for hardware for H4 yet since ordering from Gerber would be prohibitevely expensive - at least $400 for a minimum order due to 130+ small SMD components of 27 different types. Once the project gets traction, we'll likely have a compatible DIY version of the boards but it would still cost close to the commercial hardware since 2 sizeable PCBs, several critical chips, connectors and terminals are required and they all ship from different suppliers.
 
 ## Overview
 
