@@ -15,6 +15,8 @@ Controller itself is available for purchase on https://kachurovskiy.com/ or you 
 - Soft limits allowing to cut e.g. close to the chuck
 - Automatic threads: just set length, depth, pitch and number of passes
 - Automatic multi-pass turning and facing
+- Automatic multi-start threads
+- Automatic half-spheres and ellipses
 - Cone mode to cut internal or external tapers
 - Cut-off mode allowing for smooth in-feed
 - RPM and angle indication
@@ -23,7 +25,6 @@ Controller itself is available for purchase on https://kachurovskiy.com/ or you 
 
 No computer or CAD software needed! Coming soon:
 
-- Automatic multi-start threads
 - Automatic conical threads
 - Spheres and curves
 - GRBL support over USB
