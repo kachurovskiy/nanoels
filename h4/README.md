@@ -47,7 +47,7 @@ Ensure that your emergency stop button stops all motion and it can't automatical
 
 ## GCode
 
-Commands can be issued e.g. over Arduino IDE serial monitor while connected over USB. The following commands are currently implemented:
+Commands can be sent to device e.g. using [our Web-based GCode sender](https://kachurovskiy.github.io/nanoels/h4/sender.html) while connected over USB. The following commands are currently implemented:
 
 - G0, G1 - linear move
 - G20, G21 - inch or metric mode
