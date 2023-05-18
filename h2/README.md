@@ -98,7 +98,7 @@ Stepper terminal:
 - Download [this repository](https://github.com/kachurovskiy/nanoels/archive/refs/heads/main.zip), unzip, go to `h2` directory and open `h2.ino` file in Arduino IDE
 - Check the top constants (e.g. encoder steps, motor steps, display offset) and adjust if needed
 - Upload the sketch to your Arduino Nano
-- Spindle direction: show angle on screen using top-right button. Rotate the chuck forward manually - angle should increment. If it decrements, swap `ENC_A` and `ENC_B` values in the code, re-upload the sketch
+- Spindle direction: show angle on screen using top-right button. Rotate the chuck forward manually - angle should increase. If it decreases, swap `ENC_A` and `ENC_B` values in the code, re-upload the sketch
 - Motor direction: try `LEFT` and `RIGHT` buttons - if motor is moving in the wrong direction, change the value of `INVERT_STEPPER` in the code, re-upload the sketch
 
 # Operating the ELS
