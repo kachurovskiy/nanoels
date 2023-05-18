@@ -22,12 +22,12 @@ Controller itself is available for purchase on https://kachurovskiy.com/ or you 
 - RPM and angle indication
 - Internal/external and left-to-right versions of each automatic operation
 - Backlash compensation
+- GCode over USB
 
 No computer or CAD software needed! Coming soon:
 
 - Automatic conical threads
 - Spheres and curves
-- GRBL support over USB
 
 ## Overview
 
@@ -44,6 +44,19 @@ In [h4.ino](https://github.com/kachurovskiy/nanoels/blob/main/h4/h4.ino) you can
 If controller is used as a part of machinery, ensure that resulting machine complies with all applicable laws and regulations. Controller is not a safety device. Do not use the controller if it's damaged or is not working normally. Unplug all connections before disassembly, protect internal components from static electricity when disassembled.
 
 Ensure that your emergency stop button stops all motion and it can't automatically restart when emergency stop is lifted.
+
+## GCode
+
+Commands can be issued e.g. over Arduino IDE serial monitor while connected over USB. The following commands are currently implemented:
+
+- G0, G1 - linear move
+- G20, G21 - inch or metric mode
+- F - setting feed as mm/min or inch/min
+- X, Z - single axis move
+- G90, G91 - absolute or relative positioning
+- G18 - ZX plane
+
+Sample command `G1 X5 Z2 F100` will move the cutter to X=5mm, Z=2mm at 100 mm/sec in absolute metric mode.
 
 ## Case
 

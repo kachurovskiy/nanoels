@@ -49,6 +49,10 @@
 #define PREFERENCES_VERSION 1
 #define PREF_NAMESPACE "h4"
 
+// GCode-related constants.
+#define LINEAR_INTERPOLATION_PRECISION 0.1 // 0 < x <= 1, smaller values make for quicker G0 and G1 moves
+#define GCODE_WAIT_EPSILON_STEPS 10
+
 // To be incremented whenever a measurable improvement is made.
 #define SOFTWARE_VERSION 1
 
@@ -149,6 +153,7 @@
 #define MODE_CUT 6
 #define MODE_THREAD 7
 #define MODE_ELLIPSE 8
+#define MODE_GCODE 9
 
 #define MEASURE_METRIC 0
 #define MEASURE_INCH 1
@@ -266,6 +271,7 @@ struct Axis {
   bool movingManually; // whether stepper is being moved by left/right buttons
   long estopSteps; // amount of steps to exceed machine limits
   long backlashSteps; // amount of steps in reverse direction to re-engage the carriage
+  long gcodeRelativePos; // absolute position in steps that relative GCode refers to
 
   int ena; // Enable pin of this motor
   int dir; // Direction pin of this motor
@@ -315,6 +321,7 @@ void initAxis(Axis* a, char name, float motorSteps, float screwPitch, long speed
   a->movingManually = false;
   a->estopSteps = maxTravelMm * 10000 / a->screwPitch * a->motorSteps;
   a->backlashSteps = backlashDu * a->motorSteps / a->screwPitch;
+  a->gcodeRelativePos = 0;
 
   a->ena = ena;
   a->dir = dir;
@@ -367,6 +374,11 @@ bool auxForward = true; // True for external, false for external thread
 long opIndex = 0; // Index of an automation operation
 long opSubIndex = 0; // Sub-index of an automation operation
 int opDuprSign = 1; // 1 if dupr was positive when operation started, -1 if negative
+
+String gcodeCommand = "";
+long gcodeFeedDuPerSec = 0;
+bool gcodeInitialized = false;
+bool gcodeAbsolutePositioning = true;
 
 hw_timer_t *async_timer = timerBegin(0, 80, true);
 
@@ -452,8 +464,12 @@ void printLcdSpaces(int charIndex) {
   }
 }
 
+long getAxisPosDu(Axis* a) {
+  return round((a->pos + a->originPos) * a->screwPitch / a->motorSteps);
+}
+
 int printAxisPos(Axis* a) {
-  return printDeciMicrons(round((a->pos + a->originPos) * a->screwPitch / a->motorSteps), 3);
+  return printDeciMicrons(getAxisPosDu(a), 3);
 }
 
 int printNoTrailing0(float value) {
@@ -526,6 +542,8 @@ void updateDisplay() {
       charIndex += lcd.print("THRD ");
     } else if (mode == MODE_ELLIPSE) {
       charIndex += lcd.print("ELLI ");
+    } else if (mode == MODE_GCODE) {
+      charIndex += lcd.print("GCODE ");
     }
     charIndex += lcd.print(isOn ? "ON " : "off ");
     int beforeStops = charIndex;
@@ -596,15 +614,21 @@ void updateDisplay() {
   }
 
   long numpadResult = getNumpadResult();
+  long gcodeCommandHash = 0;
+  for (int i = 0; i < gcodeCommand.length(); i++) {
+    gcodeCommandHash += gcodeCommand.charAt(i);
+  }
   long newHashLine3 = z.pos + (showAngle ? spindlePos : -1) + (showTacho ? rpm : -2) + measure + (numpadResult > 0 ? numpadResult : -1) + mode * 5 + dupr +
       (mode == MODE_CONE ? round(coneRatio * 10000) : 0) + turnPasses + opIndex + setupIndex + isOn * 4 + (inNumpad ? 10 : 0) + (auxForward ? 1 : 0) +
       (z.leftStop == LONG_MAX ? 123 : z.leftStop) + (z.rightStop == LONG_MIN ? 1234 : z.rightStop) +
-      (x.leftStop == LONG_MAX ? 1235 : x.leftStop) + (x.rightStop == LONG_MIN ? 123456 : x.rightStop);
+      (x.leftStop == LONG_MAX ? 1235 : x.leftStop) + (x.rightStop == LONG_MIN ? 123456 : x.rightStop) + gcodeCommandHash;
   if (lcdHashLine3 != newHashLine3) {
     lcdHashLine3 = newHashLine3;
     charIndex = 0;
     lcd.setCursor(0, 3);
-    if (isPassMode()) {
+    if (mode == MODE_GCODE) {
+      charIndex += lcd.print(gcodeCommand.substring(0, 20));
+    } else if (isPassMode()) {
       bool missingStops = needZStops() && (z.leftStop == LONG_MAX || z.rightStop == LONG_MIN) || x.leftStop == LONG_MAX || x.rightStop == LONG_MIN;
       if (!inNumpad && missingStops) {
         charIndex += lcd.print(needZStops() ? "Set all stops" : "Set X stops");
@@ -891,6 +915,34 @@ void taskMoveX(void *param) {
   }
 }
 
+void taskGcode(void *param) {
+  while (emergencyStop == ESTOP_NONE) {
+    if (!isOn) {
+      gcodeInitialized = false;
+      gcodeCommand = "";
+      taskYIELD();
+      continue;
+    }
+    if (!gcodeInitialized) {
+      gcodeInitialized = true;
+      gcodeAbsolutePositioning = true;
+    }
+    if (Serial.available() > 0) {
+      char receivedChar = Serial.read();
+      int charCode = int(receivedChar);
+      if (charCode < 32 && gcodeCommand.length() > 1) {
+        handleGcodeCommand(gcodeCommand);
+        gcodeCommand = "";
+      } else if (charCode < 32) {
+        gcodeCommand = "";
+      } else if (charCode >= 32) {
+        gcodeCommand += receivedChar;
+      }
+    }
+    taskYIELD();
+  }
+}
+
 void taskAttachInterrupts(void *param) {
   // Attaching interrupt on core 0 to have more time on core 1 where axes are moved.
   attachInterrupt(digitalPinToInterrupt(ENC_A), spinEnc, FALLING);
@@ -1013,6 +1065,7 @@ void setup() {
   xTaskCreatePinnedToCore(taskMoveZ, "taskMoveZ", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   xTaskCreatePinnedToCore(taskMoveX, "taskMoveX", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   xTaskCreatePinnedToCore(taskAttachInterrupts, "taskAttachInterrupts", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
+  xTaskCreatePinnedToCore(taskGcode, "taskGcode", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
 }
 
 bool saveIfChanged() {
@@ -1506,6 +1559,8 @@ void buttonModePress() {
   if (mode == MODE_NORMAL) {
     setMode(MODE_ELLIPSE);
   } else if (mode == MODE_ELLIPSE) {
+    setMode(MODE_GCODE);
+  } else if (mode == MODE_GCODE) {
     setMode(MODE_ASYNC);
   } else {
     setMode(MODE_NORMAL);
@@ -1708,6 +1763,12 @@ void processKeypadEvents() {
     if (keyCode == B_OFF) {
       buttonOffPressed = isPress;
       isPress ? buttonOnOffPress(false) : buttonOffRelease();
+    }
+
+    if (mode == MODE_GCODE && isOn) {
+      // Not allowed to interfere other than turn off.
+      if (isPress && keyCode != B_OFF) beep();
+      return;
     }
 
     // Releases don't matter in numpad but it has to run before LRUD since it might handle those keys.
@@ -2159,6 +2220,159 @@ void modeEllipse(Axis* main, Axis* aux) {
       beep();
     }
   }
+}
+
+long mmOrInchToAbsolutePos(Axis* a, float mmOrInch) {
+  long scaleToDu = measure == MEASURE_METRIC ? 10000 : 254000;
+  long part1 = a->gcodeRelativePos;
+  long part2 = round(mmOrInch * scaleToDu / a->screwPitch * a->motorSteps);
+  return part1 + part2;
+}
+
+void stepToRelativeMmOrInch(Axis* a, float mmOrInch) {
+  stepTo(a, mmOrInchToAbsolutePos(a, mmOrInch));
+}
+
+String getValueString(const String& command, char letter) {
+  int index = command.indexOf(letter);
+  if (index == -1) {
+    return "";
+  }
+  String valueString;
+  for (int i = index + 1; i < command.length(); i++) {
+    char c = command.charAt(i);
+    if (isDigit(c) || c == '.' || c == '-') {
+      valueString += c;
+    } else {
+      break;
+    }
+  }
+  return valueString;
+}
+
+float getFloat(const String& command, char letter) {
+  return getValueString(command, letter).toFloat();
+}
+
+int getInt(const String& command, char letter) {
+  return getValueString(command, letter).toInt();
+}
+
+void updateAxisSpeeds(long diffX, long diffZ) {
+  if (diffX == 0 && diffZ == 0) return;
+  long absX = abs(diffX);
+  long absZ = abs(diffZ);
+  float maxStepsPerSecX = gcodeFeedDuPerSec / x.screwPitch * x.motorSteps;
+  if (maxStepsPerSecX > x.speedManualMove || maxStepsPerSecX < 1) maxStepsPerSecX = x.speedManualMove;
+  float maxStepsPerSecZ = gcodeFeedDuPerSec / z.screwPitch * z.motorSteps;
+  if (maxStepsPerSecZ > z.speedManualMove || maxStepsPerSecZ < 1) maxStepsPerSecZ = z.speedManualMove;
+  float secX = absX / maxStepsPerSecX;
+  float secZ = absZ / maxStepsPerSecZ;
+  float sec = max(secX, secZ);
+  x.speedMax = sec > 0 ? absX / sec : x.speedManualMove;
+  z.speedMax = sec > 0 ? absZ / sec : z.speedManualMove;
+}
+
+void setFeedRate(const String& command) {
+  float feed = getFloat(command, 'F');
+  if (feed <= 0) return;
+  gcodeFeedDuPerSec = round(feed * (measure == MEASURE_METRIC ? 10000 : 254000) / 60.0);
+}
+
+void gcodeWaitEpsilon(int epsilon) {
+  while (abs(x.pendingPos) > epsilon || abs(z.pendingPos) > epsilon) {
+    taskYIELD();
+  }
+}
+
+void gcodeWaitNear() {
+  gcodeWaitEpsilon(GCODE_WAIT_EPSILON_STEPS);
+}
+
+void gcodeWaitStop() {
+  gcodeWaitEpsilon(0);
+}
+
+// Rapid positioning and linear interpolation.
+void G00_01(const String& command) {
+  long xStart = x.pos;
+  long zStart = z.pos;
+  long xEnd = mmOrInchToAbsolutePos(&x, getFloat(command, 'X'));
+  long zEnd = mmOrInchToAbsolutePos(&z, getFloat(command, 'Z'));
+  long xDiff = xEnd - xStart;
+  long zDiff = zEnd - zStart;
+  updateAxisSpeeds(xDiff, zDiff);
+  long chunks = round(max(abs(xDiff), abs(zDiff)) * LINEAR_INTERPOLATION_PRECISION);
+  for (long i = 0; i < chunks; i++) {
+    if (!isOn) return;
+    float scale = i / float(chunks);
+    stepTo(&x, xStart + xDiff * scale);
+    stepTo(&z, zStart + zDiff * scale);
+    gcodeWaitNear();
+  }
+  // To avoid any rounding error, move to precise position.
+  stepTo(&x, xEnd);
+  stepTo(&z, zEnd);
+  gcodeWaitStop();
+}
+
+void handleGcode(const String& command) {
+  int op = getInt(command, 'G');
+  if (op == 0 || op == 1) {
+    G00_01(command);
+  } else if (op == 20 || op == 21) {
+    setMeasure(op == 20 ? MEASURE_INCH : MEASURE_METRIC);
+  } else if (op == 90 || op == 91) {
+    gcodeAbsolutePositioning = op == 90;
+  } else if (op == 18) {
+    /* no-op ZX plane selection */
+  } else {
+    Serial.print("Unsupported G-code command ");
+    Serial.println(op);
+  }
+}
+
+void handleAxisMove(Axis* a, float mmOrInch) {
+  stepToRelativeMmOrInch(&x, mmOrInch);
+  updateAxisSpeeds(x.pendingPos, z.pendingPos);
+  gcodeWaitStop();
+}
+
+void handleGcodeCommand(String command) {
+  // Trim trailing comment.
+  int commentIndex = command.indexOf(';');
+  if (commentIndex == -1) commentIndex = command.indexOf('(');
+  if (commentIndex > 0) command = command.substring(0, commentIndex);
+
+  // Trim N.. prefix.
+  char code = command.charAt(0);
+  int spaceIndex = command.indexOf(' ');
+  if (code == 'N' && spaceIndex > 0) {
+    command = command.substring(spaceIndex + 1);
+    code = command.charAt(0);
+  }
+
+  // Update position for relative calculations right before performing them.
+  z.gcodeRelativePos = (gcodeAbsolutePositioning ? 0 : z.pos) - z.originPos;
+  x.gcodeRelativePos = (gcodeAbsolutePositioning ? 0 : x.pos) - x.originPos;
+
+  float value = command.substring(1).toFloat();
+  Serial.print("Starting processing ");
+  Serial.println(command);
+  setFeedRate(command);
+  switch (code) {
+    case 'G': handleGcode(command); break;
+    case 'X': handleAxisMove(&z, value); break;
+    case 'Z': handleAxisMove(&z, value); break;
+    case 'F': /* feed already handled above */ break;
+    case 'M':
+    case 'S':
+    case '(':
+    case 'T':
+    case ';': /* no-op */ break;
+    default: Serial.println("Unsupported G-code"); break;
+  }
+  Serial.println("Finished processing");
 }
 
 void discountFullSpindleTurns() {
