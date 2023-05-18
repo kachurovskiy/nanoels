@@ -2324,6 +2324,8 @@ void handleGcode(const String& command) {
     setMeasure(op == 20 ? MEASURE_INCH : MEASURE_METRIC);
   } else if (op == 90 || op == 91) {
     gcodeAbsolutePositioning = op == 90;
+  } else if (op == 94) {
+    /* no-op feed per minute */
   } else if (op == 18) {
     /* no-op ZX plane selection */
   } else {
@@ -2357,12 +2359,12 @@ void handleGcodeCommand(String command) {
   x.gcodeRelativePos = (gcodeAbsolutePositioning ? 0 : x.pos) - x.originPos;
 
   float value = command.substring(1).toFloat();
-  Serial.print("Starting processing ");
+  Serial.print("Performing ");
   Serial.println(command);
   setFeedRate(command);
   switch (code) {
     case 'G': handleGcode(command); break;
-    case 'X': handleAxisMove(&z, value); break;
+    case 'X': handleAxisMove(&x, value); break;
     case 'Z': handleAxisMove(&z, value); break;
     case 'F': /* feed already handled above */ break;
     case 'M':
@@ -2372,7 +2374,6 @@ void handleGcodeCommand(String command) {
     case ';': /* no-op */ break;
     default: Serial.println("Unsupported G-code"); break;
   }
-  Serial.println("Finished processing");
 }
 
 void discountFullSpindleTurns() {

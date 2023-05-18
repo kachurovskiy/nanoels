@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>GCode Sender</title>
+  <style>
+    body {
+      font-family: Roboto;
+      background-color: #212121;
+      color: #fff;
+      max-width: 1000px;
+      margin: auto 20px;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      color: #fff;
+    }
+    a {
+      color: #fff;
+    }
+    .container {
+      background-color: #333;
+      color: #fff;
+      padding: 20px;
+      border-radius: 5px;
+    }
+    button {
+      background-color: #444;
+      color: #fff;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      margin: 10px 0;
+    }
+    input[type="text"], textarea {
+      background-color: #555;
+      color: #fff;
+      border: none;
+      padding: 10px;
+      border-radius: 3px;
+    }
+    textarea {
+      width: -webkit-fill-available;
+      height: 150px;
+    }
+    .active-device {
+      margin-bottom: 10px;
+    }
+    .log {
+      height: 200px;
+      overflow: auto;
+      border: 1px solid #ccc;
+      padding: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>GCode Sender</h1>
+  <div id="deviceSelection">
+    <p>Works in Google Chrome and Microsoft Edge, doesn't work in Firefox.</p>
+    <button id="selectDeviceButton" onclick="selectPort()">Select Device</button>
+  </div>
+  <div id="mainContent" style="display: none;">
+    <h2>Enter text to send</h2>
+    <textarea id="gcodeTextArea" rows="10" onkeydown="textAreaKeyDown(event)"></textarea><br>
+    <button id="sendButton" onclick="sendGcode()">Send (Ctrl + Enter)</button>
+    <div id="hint" style="display: none;">If nothing is happening, make sure H4 is in GCODE mode and is ON</div>
+    <div id="logContainer" style="display: none;">
+      <h2>Device responses</h2>
+      <pre id="logBlock" class="log container"></pre>
+    </div>
+    <div id="historyContainer" style="display: none;">
+      <h2>Past transmissions</h2>
+      <div id="historyBlock"></div>
+    </div>
+  </div>
+</body>
+<script>
+const deviceSelection = document.getElementById("deviceSelection");
+const mainContent = document.getElementById("mainContent");
+const gcodeTextArea = document.getElementById("gcodeTextArea");
+const logBlock = document.getElementById("logBlock");
+const logContainer = document.getElementById("logContainer");
+const historyContainer = document.getElementById("historyContainer");
+const historyBlock = document.getElementById("historyBlock");
+
+let port = null;
+let readInterval = 0;
+let reader = null;
+let writer = null;
+
+function getHistory() {
+  const historyString = localStorage.getItem('history');
+  if (!historyString) return [];
+  try {
+    return JSON.parse(historyString).history || [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function updateHistory() {
+  const history = getHistory();
+  const children = ['<button onclick="clearHistory()">Clear history</button>'];
+  for (let i = 0; i < history.length; i++) {
+    const title = history[i].replace(/\s+/g, ' ').substring(0, 40);
+    children.push(`<button class="historyButton" onclick="historyButtonClick(event)" data-index="${i}">${title}</button>`);
+  }
+  historyBlock.innerHTML = children.reverse().join('\n');
+  historyContainer.style.display = history.length ? 'block' : 'none';
+}
+
+function showHint(value) {
+  hint.style.display = value ? 'block' : 'none';
+}
+
+function historyButtonClick(event) {
+  let history = getHistory();
+  let text = history[Number(event.target.dataset.index)];
+  if (text) {
+    gcodeTextArea.value = text;
+    gcodeTextArea.focus();
+  }
+}
+
+function clearHistory() {
+  localStorage.setItem('history', '');
+  updateHistory();
+}
+
+async function sendGcode() {
+  if (!port.writable) {
+    log('Port is not writable, try reconnecting the USB and turning GCODE mode ON.');
+    return;
+  }
+  if (!writer) {
+    try {
+      const textEncoder = new TextEncoderStream();
+      const writableStreamClosed = textEncoder.readable.pipeTo(port.writable);
+      writer = textEncoder.writable.getWriter();
+    } catch (e) {
+      log('Failed to write: ' + e);
+      return;
+    }
+  }
+  let value = gcodeTextArea.value;
+  await writer.write(value + '\n');
+
+  value = value.trim();
+  let history = getHistory();
+  if (history.indexOf(value) == -1) {
+    history.push(value);
+    localStorage.setItem('history', JSON.stringify({history}));
+    updateHistory();
+  }
+
+  if (!logBlock.innerText.trim()) {
+    showHint(true);
+  }
+};
+
+function textAreaKeyDown(event) {
+  if (event.keyCode == 13 && event.ctrlKey) {
+    sendGcode();
+  }
+}
+
+function updateUi() {
+  deviceSelection.style.display = port ? 'none' : 'block';
+  mainContent.style.display = port ? 'block' : 'none';
+  updateHistory();
+}
+
+function log(value) {
+  if (!value) return;
+  logBlock.innerText += value;
+  logBlock.scrollTop = logBlock.scrollHeight;
+  logContainer.style.display = 'block';
+}
+
+async function selectPort() {
+  if (port) {
+    closePort();
+  }
+  port = await navigator.serial.requestPort();
+  if (port) {
+    openPort();
+  }
+  updateUi();
+}
+
+async function openPort() {
+  await port.open({ baudRate: 115200 });
+  readInterval = setInterval(readFromPort, 500);
+}
+
+async function readFromPort() {
+  if (!port.readable) return;
+  if (!reader) {
+    const textDecoder = new TextDecoderStream();
+    port.readable.pipeTo(textDecoder.writable);
+    reader = textDecoder.readable.getReader();
+  }
+  const { value, done } = await reader.read();
+  log(value);
+  showHint(false);
+}
+
+async function closePort() {
+  if (!port) return;
+  clearInterval(readInterval);
+  readInterval = 0;
+  if (reader) {
+    reader.releaseLock();
+    reader = null;
+  }
+  if (writer) {
+    writer.releaseLock();
+    writer = null;
+  }
+  await port.close();
+  port = null;
+}
+
+async function init() {
+  const ports = await navigator.serial.getPorts();
+  if (ports.length > 0 && ports[0].readable && ports[0].writable) {
+    port = ports[0];
+    openPort();
+    updateUi();
+  }
+}
+init();
+
+</script>
+</html>
