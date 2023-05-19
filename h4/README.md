@@ -57,6 +57,10 @@ Adjust the desired pitch using ![IconMinus](https://github.com/kachurovskiy/nano
 
 Use negative pitch values e.g. `-2mm` to cut left-to-right threads. To change the pitch sign, press ![IconReverse](https://github.com/kachurovskiy/nanoels/assets/517919/8eee528a-b628-4207-99b1-6f61b85c8be7).
 
+### Work in progress
+
+Instructions for other modes and features are coming soon.
+
 ### GCode
 
 Commands can be sent to device e.g. using [our Web-based GCode sender](https://kachurovskiy.github.io/nanoels/h4/sender.html) while connected over USB. The following commands are currently implemented:
