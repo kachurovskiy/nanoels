@@ -83,13 +83,27 @@ When `off`, use numpad buttons ![Icon0](https://github.com/kachurovskiy/nanoels/
 
 ### Soft limits / automatic stops
 
-Soft limits delimit the working area of the lathe and prevent the carriage and cross-slide from going outside of the desired dimensions. Soft limits allow to cut close to the lathe chuck, part shoulder or rear support. They also allow to easily return to the starting point of an operation since manual moves are limited by them.
+Soft limits allow to cut close to the lathe chuck, part shoulder or rear support without hitting them.
 
 One way to set a soft limit is to move the carriage or cross-slide to the desired position and press one of the ![IconLimitLeft](https://github.com/kachurovskiy/nanoels/assets/517919/0e3d005e-b917-4389-84b3-76bddbd989a4) ![IconLimitRight](https://github.com/kachurovskiy/nanoels/assets/517919/9890c846-c7af-4082-a862-39bb0a1ffcd7) ![IconArrowUp](https://github.com/kachurovskiy/nanoels/assets/517919/0a1320df-5ec8-4f6d-93f2-f8c1bdfe93b8) ![IconLimitDown](https://github.com/kachurovskiy/nanoels/assets/517919/b18703de-9408-45aa-83e0-812069a3a674) limit buttons. Pressing the button again removes the limit regardless of the current position.
 
-Another way to set a soft limit is to use numpad buttons ![Icon0](https://github.com/kachurovskiy/nanoels/assets/517919/67f660f1-c6fa-4922-bf03-9f6571023806) to ![Icon9](https://github.com/kachurovskiy/nanoels/assets/517919/6ad6b4e4-5bf1-473f-93ed-65f6ee478d8f) to enter a custom move distance. Pressing a limit button when the screen bottom line shows `Use 1.234mm?` will set corresponding limit `1.234mm` away from the current position.
+Another way to set a soft limit is to use numpad buttons ![Icon0](https://github.com/kachurovskiy/nanoels/assets/517919/67f660f1-c6fa-4922-bf03-9f6571023806) to ![Icon9](https://github.com/kachurovskiy/nanoels/assets/517919/6ad6b4e4-5bf1-473f-93ed-65f6ee478d8f) to enter a distance relative to the current position. Pressing a limit button when the screen bottom line shows `Use 1.234mm?` will set corresponding limit `1.234mm` away from the current position.
 
 Soft limits are used when preparing an automatic operation like turning, facing, threading and cutting off.
+
+### Gearbox mode a.k.a. electronic lead screw
+
+Press ![IconGears](https://github.com/kachurovskiy/nanoels/assets/517919/d926a776-79a8-4abe-9589-734ef546daf5) to switch to the gearbox mode. After turning the controller `ON` with the ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/250b0641-6d5c-4ffb-a88c-b483e98c04c5) button, lead screw will move the distance of 1 pitch for 1 spindle turn.
+
+With a small pitch like `0.07mm` this mode is useful for turning - gradually taking off material from the outer diameter of the part.
+
+With a large pitch like `0.5"` one can cut a corresponding thread. Moving with ![IconArrowLeft](https://github.com/kachurovskiy/nanoels/assets/517919/e75e40a9-8a75-4375-90e7-4dbcf1305ab0) and ![IconArrowRight](https://github.com/kachurovskiy/nanoels/assets/517919/47cd6d04-ca6f-4af9-83f3-b15af942c588) buttons is supported and does not result in losing the thread.
+
+Soft limits are respected in this mode allowing to finish the cut in a precise position.
+
+Cross-slide should be moved with manual move buttons or disabled using ![IconA](https://github.com/kachurovskiy/nanoels/assets/517919/3059b6ed-0197-4e48-91a7-80a7e1317176) and be operated manually.
+
+Press ![IconStop](https://github.com/kachurovskiy/nanoels/assets/517919/9ed2da6c-7461-419f-827d-781980c9ddde) to turn gearbox mode `off` and decouple lead screw movements from spindle turns.
 
 ### Work in progress
 
