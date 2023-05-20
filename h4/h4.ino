@@ -43,6 +43,7 @@
 #define DUPR_MAX long(254000) // 25.4mm
 #define STARTS_MAX 124 // No more than 124-start thread
 #define PASSES_MAX 999 // No more turn or face passes than this
+#define SAFE_DISTANCE_DU 5000 // Step back 0.5mm from the material when moving between cuts in automated modes
 
 // Version of the pref storage format, should be changed when non-backward-compatible
 // changes are made to the storage logic, resulting in Preferences wipe on first start.
@@ -1991,6 +1992,7 @@ void modeTurn(Axis* main, Axis* aux) {
   // Will vary for internal/external cuts.
   long auxStartStop = auxForward ? aux->rightStop : aux->leftStop;
   long auxEndStop = auxForward ? aux->leftStop : aux->rightStop;
+  long auxSafeDistance = (auxForward ? -1 : 1) * SAFE_DISTANCE_DU / aux->screwPitch * aux->motorSteps;
 
   long startOffset = starts == 1 ? 0 : round(1.0 * ENCODER_STEPS / starts) * (dupr > 0 ? -1 : 1);
 
@@ -2025,8 +2027,9 @@ void modeTurn(Axis* main, Axis* aux) {
     }
     // Retracting the tool
     if (opSubIndex == 2) {
-      stepTo(aux, auxStartStop);
-      if (aux->pos == auxStartStop) {
+      long auxPos = auxStartStop + auxSafeDistance;
+      stepTo(aux, auxPos);
+      if (aux->pos == auxPos) {
         opSubIndex = 3;
       }
     }
