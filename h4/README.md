@@ -91,7 +91,7 @@ Another way to set a soft limit is to use numpad buttons ![Icon0](https://github
 
 Soft limits are used when preparing an automatic operation like turning, facing, threading and cutting off.
 
-### Gearbox mode a.k.a. electronic lead screw
+### Gearbox mode / electronic lead screw
 
 Press ![IconGears](https://github.com/kachurovskiy/nanoels/assets/517919/d926a776-79a8-4abe-9589-734ef546daf5) to switch to the gearbox mode. After turning the controller `ON` with the ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/250b0641-6d5c-4ffb-a88c-b483e98c04c5) button, lead screw will move the distance of 1 pitch for 1 spindle turn.
 
@@ -99,11 +99,29 @@ With a small pitch like `0.07mm` this mode is useful for turning - gradually tak
 
 With a large pitch like `0.5"` one can cut a corresponding thread. Moving with ![IconArrowLeft](https://github.com/kachurovskiy/nanoels/assets/517919/e75e40a9-8a75-4375-90e7-4dbcf1305ab0) and ![IconArrowRight](https://github.com/kachurovskiy/nanoels/assets/517919/47cd6d04-ca6f-4af9-83f3-b15af942c588) buttons is supported and does not result in losing the thread.
 
+Direction of movement can be quickly reversed with ![IconReverse](https://github.com/kachurovskiy/nanoels/assets/517919/d820c1cd-8ce3-4d02-91f9-d240f4ea51cc) button which toggles the pitch sign. Negative pitch can also be used to cut left threads.
+
 Soft limits are respected in this mode allowing to finish the cut in a precise position.
 
-Cross-slide should be moved with manual move buttons or disabled using ![IconA](https://github.com/kachurovskiy/nanoels/assets/517919/3059b6ed-0197-4e48-91a7-80a7e1317176) and be operated manually.
+Cross-slide can be moved with manual move buttons or disabled using ![IconA](https://github.com/kachurovskiy/nanoels/assets/517919/3059b6ed-0197-4e48-91a7-80a7e1317176) and be operated manually.
 
 Press ![IconStop](https://github.com/kachurovskiy/nanoels/assets/517919/9ed2da6c-7461-419f-827d-781980c9ddde) to turn gearbox mode `off` and decouple lead screw movements from spindle turns.
+
+### Automatic turning
+
+Press ![IconTurning](https://github.com/kachurovskiy/nanoels/assets/517919/00abcae7-0cc3-430d-be56-c8ec22d1d9d0) to switch to the automatic turning mode which is usually used to take large amount of material from the inside or outside diameter of the part in multiple passes.
+
+Set the desired pitch to a suitable value e.g. `0.05mm`. Negative pitch will make turning start from the left limit, positive pitch will make it start from the right. All soft limits (left, right, up, down) must be set before the operation can be started.
+
+Pressing ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d) guides through remaining steps:
+
+- Entering the numer of passes - use numpad or ![IconPlus](https://github.com/kachurovskiy/nanoels/assets/517919/3c0e1c27-820a-4d34-ae97-4b362b537e72) and ![IconMinus](https://github.com/kachurovskiy/nanoels/assets/517919/75db2ae9-97d6-4d39-9fff-e98e889ee84b), confirm with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
+- Selecting `External` or `Internal` operation - use ![IconArrowLeft](https://github.com/kachurovskiy/nanoels/assets/517919/28a59458-0f91-42a5-9ba4-412d050dc462) and ![IconArrowRight](https://github.com/kachurovskiy/nanoels/assets/517919/0ff9ab80-0ce1-45fc-bc00-86d34ecac9f1) to change selection, confirm with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
+- Confirm the final `Go?` question with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
+
+Turn on the spindle. Operation will proceed fully automatically and the cutter will return to the starting position when done. Pitch can be adjusted on the fly using ![IconPlus](https://github.com/kachurovskiy/nanoels/assets/517919/3c0e1c27-820a-4d34-ae97-4b362b537e72) and ![IconMinus](https://github.com/kachurovskiy/nanoels/assets/517919/75db2ae9-97d6-4d39-9fff-e98e889ee84b).
+
+Operation can be stopped at any time by pressing ![IconStop](https://github.com/kachurovskiy/nanoels/assets/517919/cf4b9b31-dda3-4469-9667-1d1c44ea39b4) or using manual move buttons.
 
 ### Work in progress
 
