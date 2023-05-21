@@ -35,6 +35,42 @@ No computer or CAD software needed! Coming soon:
 
 [Case 3D models](https://github.com/kachurovskiy/nanoels/tree/main/h4/case), [front panel graphics](https://github.com/kachurovskiy/nanoels/tree/main/h4/graphics) and [PCB Gerber and EasyEDA files](https://github.com/kachurovskiy/nanoels/tree/main/h4/pcbs) can be found in respective sub-folders.
 
+## Wiring
+
+![PXL_20230505_134343196](https://github.com/kachurovskiy/nanoels/assets/517919/ccea47f1-fb60-4908-bad8-a4ef200a82dd)
+
+Encoder terminal:
+
+- GND - connect to encoder power-in line (usually black) and wire shielding if there's any
+- 5V - connect to encoder power-in line (usually red)
+- ENCB - connect to one of the encoder signal lines
+- ENCA - connect to one of the encoder signal lines
+
+Z axis - stepper terminal for the main lead screw:
+
+- 5V - connect to stepper driver PUL+, DIR+, ENA+ and wire shielding if there's any
+- ENA - connect to stepper driver ENA-
+- DIR - connect to stepper driver DIR-
+- STEP - connect to stepper driver PUL-
+
+X axis - stepper terminal for the cross-slide:
+
+- 5V - connect to stepper driver PUL+, DIR+, ENA+ and wire shielding if there's any
+- ENA - connect to stepper driver ENA-
+- DIR - connect to stepper driver DIR-
+- STEP - connect to stepper driver PUL-
+
+## Programming the controller
+
+- Download the Arduino IDE
+- Install `LiquidCrystal` library via the Library Manager in the Arduino IDE
+- Download [this repository](https://github.com/kachurovskiy/nanoels/archive/refs/heads/main.zip), unzip, go to `h4` directory and open `h4.ino` file in Arduino IDE
+- Check the top constants (e.g. encoder steps, motor steps, display offset) and adjust if needed
+- Select "ESP32S3 Dev Module" as device at the top, pick COM port that appears when you connect the device with a USB cable
+- Upload the sketch to your H4 controller
+- Spindle direction: show angle on screen using ![IconDisplay](https://github.com/kachurovskiy/nanoels/assets/517919/60bb723d-4c2d-45af-9208-95c2b26a42d1). Rotate the chuck forward manually - angle should increase. If it decreases, swap `ENC_A` and `ENC_B` values in the code, re-upload the sketch
+- Motor direction: try ![IconArrowLeft](https://github.com/kachurovskiy/nanoels/assets/517919/d110519a-6cf4-491e-b81a-c09aefa49e49) ![IconArrowRight](https://github.com/kachurovskiy/nanoels/assets/517919/48a0327e-0cc4-465e-b371-644f153f3288) ![IconArrowUp](https://github.com/kachurovskiy/nanoels/assets/517919/ac350635-4424-4438-bcfb-3cb0431345f8) ![IconArrowDown](https://github.com/kachurovskiy/nanoels/assets/517919/897b4005-45d0-46ed-977e-b25a98983961) buttons - if motor is moving in the wrong direction, change `INVERT_Z` or `INVERT_X` in the code, re-upload the sketch
+
 ## Usage manual
 
 ### Switching between metric and imperial
