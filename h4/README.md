@@ -135,6 +135,24 @@ Turn on the spindle. Operation will proceed fully automatically and the cutter w
 
 Operation can be stopped at any time by pressing ![IconStop](https://github.com/kachurovskiy/nanoels/assets/517919/cf4b9b31-dda3-4469-9667-1d1c44ea39b4) or using manual move buttons.
 
+### Automatic cut-off
+
+https://github.com/kachurovskiy/nanoels/assets/517919/fe5245b8-4bf4-4001-8762-c786e85a2369
+
+Press ![IconParting](https://github.com/kachurovskiy/nanoels/assets/517919/ba1501b3-89df-4198-9f8d-3ff862add69f) to switch to the automatic parting mode which gradually feeds the cross-slide into the part from outside or inside in one or multiple passes.
+
+Set the desired pitch to a suitable value e.g. `0.05mm`. Negative pitch will make turning start from the inside, positive pitch will make it start from the outside. ![IconArrowUp](https://github.com/kachurovskiy/nanoels/assets/517919/0a1320df-5ec8-4f6d-93f2-f8c1bdfe93b8) and ![IconLimitDown](https://github.com/kachurovskiy/nanoels/assets/517919/b18703de-9408-45aa-83e0-812069a3a674) soft limits must be set before the operation can be started.
+
+Pressing ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d) guides through remaining steps:
+
+- Entering the numer of passes - use numpad or ![IconPlus](https://github.com/kachurovskiy/nanoels/assets/517919/3c0e1c27-820a-4d34-ae97-4b362b537e72) and ![IconMinus](https://github.com/kachurovskiy/nanoels/assets/517919/75db2ae9-97d6-4d39-9fff-e98e889ee84b), confirm with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
+- Check that pitch corresponds to the desired direction of cutting, click ![IconReverse](https://github.com/kachurovskiy/nanoels/assets/517919/d820c1cd-8ce3-4d02-91f9-d240f4ea51cc) to change it
+- Confirm the final `Go?` question with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
+
+Turn on the spindle. Operation will proceed fully automatically and the cutter will return to the starting position when done. Pitch can be adjusted on the fly using ![IconPlus](https://github.com/kachurovskiy/nanoels/assets/517919/3c0e1c27-820a-4d34-ae97-4b362b537e72) and ![IconMinus](https://github.com/kachurovskiy/nanoels/assets/517919/75db2ae9-97d6-4d39-9fff-e98e889ee84b).
+
+Operation can be stopped at any time by pressing ![IconStop](https://github.com/kachurovskiy/nanoels/assets/517919/cf4b9b31-dda3-4469-9667-1d1c44ea39b4) or using manual move buttons.
+
 ### Work in progress
 
 Instructions for other modes and features are coming soon.
