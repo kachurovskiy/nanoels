@@ -61,6 +61,8 @@ Use negative pitch values e.g. `-2mm` to cut left-to-right threads. To change th
 
 ### Setting step
 
+https://github.com/kachurovskiy/nanoels/assets/517919/c31d04b4-958b-48af-9717-09322885c12c
+
 Step setting is used for manual carriage moves in `off` state - i.e. when no mode is active and no thread is being cut. Current step setting is normally shown on the 1st screen line as e.g. `step 1mm` or `step 0.1"` but can be hidden if there's no space.
 
 Pressing ![IconSteps](https://github.com/kachurovskiy/nanoels/assets/517919/52ce78e4-4202-4642-9433-e61ca39de9d5) cycles through the list of predefined steps:
