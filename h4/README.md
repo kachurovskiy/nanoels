@@ -91,6 +91,8 @@ When `off`, use numpad buttons ![Icon0](https://github.com/kachurovskiy/nanoels/
 
 ### Soft limits / automatic stops
 
+https://github.com/kachurovskiy/nanoels/assets/517919/8b29bba1-941e-4e69-8598-6cb8aa0c6929
+
 Soft limits allow to cut close to the lathe chuck, part shoulder or rear support without hitting them.
 
 One way to set a soft limit is to move the carriage or cross-slide to the desired position and press one of the ![IconLimitLeft](https://github.com/kachurovskiy/nanoels/assets/517919/0e3d005e-b917-4389-84b3-76bddbd989a4) ![IconLimitRight](https://github.com/kachurovskiy/nanoels/assets/517919/9890c846-c7af-4082-a862-39bb0a1ffcd7) ![IconArrowUp](https://github.com/kachurovskiy/nanoels/assets/517919/0a1320df-5ec8-4f6d-93f2-f8c1bdfe93b8) ![IconLimitDown](https://github.com/kachurovskiy/nanoels/assets/517919/b18703de-9408-45aa-83e0-812069a3a674) limit buttons. Pressing the button again removes the limit regardless of the current position.
