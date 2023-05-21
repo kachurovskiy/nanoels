@@ -408,7 +408,8 @@ int getApproxRpm() {
 }
 
 bool stepperIsRunning(Axis* a) {
-  return micros() - a->stepStartUs < 50000;
+  unsigned long nowUs = micros();
+  return nowUs > a->stepStartUs ? nowUs - a->stepStartUs < 50000 : nowUs < 25000;
 }
 
 // Returns number of letters printed.
@@ -719,7 +720,7 @@ void taskDisplay(void *param) {
     // Calling Preferences.commit() blocks all interrupts for 30ms, don't call saveIfChanged() if
     // encoder is likely to move soon.
     unsigned long now = micros();
-    if (!stepperIsRunning(&z) && !stepperIsRunning(&x) && (now > spindleEncTime + 1000000) && (now > saveTime + 3000000)) {
+    if (!stepperIsRunning(&z) && !stepperIsRunning(&x) && (now < spindleEncTime || now > spindleEncTime + 1000000) && (now < saveTime || now > saveTime + 3000000)) {
       if (saveIfChanged()) {
         saveTime = now;
       }
@@ -1930,6 +1931,7 @@ void moveAxis(Axis* a) {
   }
 
   unsigned long nowUs = micros();
+  if (nowUs < a->stepStartUs) a->stepStartUs = 0; // micros() overflow
   float delayUs = 1000000.0 / a->speed;
   if (nowUs >= (a->stepStartUs + delayUs) && xSemaphoreTake(a->mutex, 1) == pdTRUE) {
     // Check pendingPos again now that we have the mutex.
