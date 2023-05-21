@@ -1039,12 +1039,6 @@ void setup() {
   lcd.begin(20, 4);
 
   Serial.begin(115200);
-  // Serial output during this time doesn't show up in the Serial Monitor.
-  delay(2000);
-  Serial.print("NanoEls H");
-  Serial.print(HARDWARE_VERSION);
-  Serial.print(" V");
-  Serial.println(SOFTWARE_VERSION);
 
   if (!Wire.begin(SDA, SCL)) {
     Serial.println("I2C initialization failed");
