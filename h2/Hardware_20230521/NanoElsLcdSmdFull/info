@@ -1,0 +1,287 @@
+{
+  "uuid": "04848f03254aae0e12bcdd25aba22e5a",
+  "path": "Offline/NanoElsLcdSmdFull",
+  "name": "NanoElsLcdSmdFull",
+  "content": "",
+  "created_at": "2023-02-09 07:04:05",
+  "updated_at": "2023-04-04 09:51:08",
+  "stick": "",
+  "documents": [
+    {
+      "uuid": "20aa07d79ee5fb25cbe3108f7a378b4a",
+      "title": "NanoElsLcdSmdFull Schematics",
+      "description": "",
+      "docType": "1",
+      "master": "",
+      "thumb": "/images/thumb-default.png",
+      "components": {
+        "c4ee9d81f5434f76805d2fd140196f48": 1,
+        "3099c27523e748f6a1422a8cc23fab88": 1,
+        "0f1e51f787c64e5b94be278e7c1f25a2": 1,
+        "59e19831ee104ab0b2ebf8c754cf6806": 2,
+        "626962a298fa4ed8a0bab64938dcef2d": 1,
+        "41402fd5cf3b4cf6af6993225ff81392": 1,
+        "312a96abbe764068929aa252a7805b9f": 12,
+        "fdaa9087076b4ad38de28f860664cd55": 1,
+        "aa45da4cb5334b519d1cd5fd18b3ade1": 2,
+        "eea7da1ca0c44129aaa6c9aab6416099": 10,
+        "bd97c016456df88105edf42532efd2c7": 2,
+        "637415f70eb949abfaeba2abe658ee9b": 3,
+        "154b66255b01a09bf1c88bb1ea89be78": 3,
+        "5563491116b5449a9a46d9ad40c4d199": 1,
+        "581125a14e12e18ffc3f8a73f22b8ab4": 11,
+        "5ff01e5b28266f76e3c6ac889a7fdd07": 1,
+        "597701dbde98d3183fe5df5fb870ec57": 16,
+        "4d1ef67d2be8a3575d188ee702dc956b": 8,
+        "1d220e3844cc4961b30fa05b5972c21f": 1
+      },
+      "BOM": [
+        [
+          "Value",
+          "Quantity",
+          "Package",
+          "Components",
+          "CustomPara"
+        ],
+        [
+          "1kΩ",
+          1,
+          "RES-ADJ-SMD_3P-L4.5-W4.5-P2.30-LS6.2-BL-FS",
+          "BRIGHTNESS",
+          {
+            "BOM_Supplier": "LCSC",
+            "BOM_Supplier Part": "C780178",
+            "BOM_Manufacturer": "BOURNS",
+            "BOM_Manufacturer Part": "3314G-2-102E",
+            "BOM_JLCPCB Part Class": "Extended Part",
+            "puuid": "2fe9f9ca1c334a69ade0318c2f4d6d70",
+            "uuid": "1d220e3844cc4961b30fa05b5972c21f"
+          }
+        ],
+        [
+          "10uF",
+          1,
+          "C0603",
+          "C1",
+          {
+            "BOM_Supplier": "LCSC",
+            "BOM_Manufacturer": "SAMSUNG(三星)",
+            "BOM_Manufacturer Part": "CL10A106MA8NRNC",
+            "BOM_Supplier Part": "C96446",
+            "BOM_JLCPCB Part Class": "Basic Part",
+            "puuid": "f8151fdc728a41ebbc304e11d39e5437",
+            "uuid": "5563491116b5449a9a46d9ad40c4d199"
+          }
+        ],
+        [
+          "1nF",
+          11,
+          "C0402",
+          "C2,C6,C7,C8,C9,C10,C11,C12,C13,C14,C15",
+          {
+            "BOM_Supplier": "LCSC",
+            "BOM_Manufacturer": "FH(风华)",
+            "BOM_Manufacturer Part": "0402B102K500NT",
+            "BOM_Supplier Part": "C1523",
+            "BOM_JLCPCB Part Class": "Basic Part",
+            "puuid": "0821ed6ea50c44f4909e4be7610e4198",
+            "uuid": "581125a14e12e18ffc3f8a73f22b8ab4"
+          }
+        ],
+        [
+          "100nF",
+          3,
+          "C0603",
+          "C3,C21,C22",
+          {
+            "BOM_Supplier": "LCSC",
+            "BOM_Manufacturer": "YAGEO(国巨)",
+            "BOM_Manufacturer Part": "CC0603KRX7R9BB104",
+            "BOM_Supplier Part": "C14663",
+            "BOM_JLCPCB Part Class": "Basic Part",
+            "puuid": "f8151fdc728a41ebbc304e11d39e5437",
+            "uuid": "154b66255b01a09bf1c88bb1ea89be78"
+          }
+        ],
+        [
+          "1nF",
+          2,
+          "C1206",
+          "C4,C5",
+          {
+            "BOM_Supplier": "LCSC",
+            "BOM_Manufacturer": "FH(风华)",
+            "BOM_Manufacturer Part": "1206B102K202NT",
+            "BOM_Supplier Part": "C9196",
+            "BOM_JLCPCB Part Class": "Basic Part",
+            "puuid": "7bdec8012728462a85919a4d0d033579",
+            "uuid": "bd97c016456df88105edf42532efd2c7"
+          }
+        ],
+        [
+          "1uF",
+          3,
+          "C0603",
+          "C17,C19,C20",
+          {
+            "BOM_Supplier": "LCSC",
+            "BOM_Manufacturer Part": "CL10A105KB8NNNC",
+            "BOM_Manufacturer": "SAMSUNG(三星)",
+            "BOM_Supplier Part": "C15849",
+            "BOM_JLCPCB Part Class": "Basic Part",
+            "puuid": "f8151fdc728a41ebbc304e11d39e5437",
+            "uuid": "637415f70eb949abfaeba2abe658ee9b"
+          }
+        ],
+        [
+          "PESD5V0S1BBN",
+          10,
+          "SOD-523_L1.2-W0.8-LS1.6-BI",
+          "D1,D2,D3,D4,D5,D6,D7,D8,D9,D10",
+          {
+            "BOM_Supplier": "LCSC",
+            "BOM_Supplier Part": "C314264",
+            "BOM_Manufacturer": "BORN(伯恩半导体)",
+            "BOM_Manufacturer Part": "PESD5V0S1BBN",
+            "BOM_JLCPCB Part Class": "Extended Part",
+            "puuid": "83d2c26c897548478611a7b637e39735",
+            "uuid": "eea7da1ca0c44129aaa6c9aab6416099"
+          }
+        ],
+        [
+          "JK-NSMD016",
+          2,
+          "F1206",
+          "FUSE,FUSE2",
+          {
+            "BOM_Supplier": "LCSC",
+            "BOM_Supplier Part": "C369156",
+            "BOM_Manufacturer": "JK(金科)",
+            "BOM_Manufacturer Part": "JK-NSMD016",
+            "BOM_JLCPCB Part Class": "Extended Part",
+            "puuid": "c74a5ddd0add4500b745ecf0d59ab737",
+            "uuid": "aa45da4cb5334b519d1cd5fd18b3ade1"
+          }
+        ],
+        [
+          "TS-1006S-BR15026",
+          12,
+          "SW-SMD_4P-L6.0-W6.0-P4.50-LS9.5",
+          "K1,K2,K3,K4,K5,LEFT,MINUS,ONOFF,PLUS,RIGHT,STOPL,STOPR",
+          {
+            "BOM_Supplier": "LCSC",
+            "BOM_Supplier Part": "C2856659",
+            "BOM_Manufacturer": "XUNPU(讯普)",
+            "BOM_Manufacturer Part": "TS-1006S-BR15026",
+            "BOM_JLCPCB Part Class": "Extended Part",
+            "puuid": "35576fa560384c3f9ace87bbc5a4fd13",
+            "uuid": "312a96abbe764068929aa252a7805b9f"
+          }
+        ],
+        [
+          "MFL2012SP401M1CTF",
+          1,
+          "FILTER-SMD_4P-L2.0-W1.2-L",
+          "L1",
+          {
+            "BOM_Supplier": "LCSC",
+            "BOM_Supplier Part": "C2757906",
+            "BOM_Manufacturer": "Sunlord(顺络)",
+            "BOM_Manufacturer Part": "MFL2012SP401M1CTF",
+            "BOM_JLCPCB Part Class": "Extended Part",
+            "puuid": "cb2b03baf896435998153401c04d6546",
+            "uuid": "fdaa9087076b4ad38de28f860664cd55"
+          }
+        ],
+        [
+          "600Ω",
+          8,
+          "L0603",
+          "L10,L11,L12,L13,L14,L15,L16,L17",
+          {
+            "BOM_Supplier": "LCSC",
+            "BOM_Manufacturer": "Sunlord(顺络)",
+            "BOM_Manufacturer Part": "GZ1608D601TF",
+            "BOM_Supplier Part": "C1002",
+            "BOM_JLCPCB Part Class": "Basic Part",
+            "puuid": "1f261cf72cb1479ca32177c31156ede3",
+            "uuid": "4d1ef67d2be8a3575d188ee702dc956b"
+          }
+        ],
+        [
+          "100kΩ",
+          1,
+          "R0603",
+          "R1",
+          {
+            "BOM_Supplier": "LCSC",
+            "BOM_Manufacturer": "UNI-ROYAL(厚声)",
+            "BOM_Manufacturer Part": "0603WAF1003T5E",
+            "BOM_Supplier Part": "C25803",
+            "BOM_JLCPCB Part Class": "Basic Part",
+            "puuid": "398691f1f785460098bbe5ee6590333c",
+            "uuid": "5ff01e5b28266f76e3c6ac889a7fdd07"
+          }
+        ],
+        [
+          "1kΩ",
+          16,
+          "R0603",
+          "R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13,R14,R15,R16,R17",
+          {
+            "BOM_Supplier": "LCSC",
+            "BOM_Manufacturer": "UNI-ROYAL(厚声)",
+            "BOM_Manufacturer Part": "0603WAF1001T5E",
+            "BOM_Supplier Part": "C21190",
+            "BOM_JLCPCB Part Class": "Basic Part",
+            "puuid": "398691f1f785460098bbe5ee6590333c",
+            "uuid": "597701dbde98d3183fe5df5fb870ec57"
+          }
+        ]
+      ],
+      "updateTime": 1680594015,
+      "createTime": 1605475732,
+      "histories": [],
+      "created_at": "2020-11-15 22:28:52",
+      "updated_at": "2023-04-04 09:40:15"
+    },
+    {
+      "uuid": "db1a7853ba6416424fb5fc02416d6c35",
+      "title": "PCB_NanoElsLcdSmdFull",
+      "filename": "PCB_NanoElsLcdSmdFull.json",
+      "description": "",
+      "docType": "3",
+      "master": "",
+      "thumb": "/images/thumb-default.png",
+      "components": {
+        "2fe9f9ca1c334a69ade0318c2f4d6d70": 1,
+        "4f52decd8a8d4c00bb408ec5ad43fc0c": 1,
+        "1f261cf72cb1479ca32177c31156ede3": 8,
+        "398691f1f785460098bbe5ee6590333c": 17,
+        "c74a5ddd0add4500b745ecf0d59ab737": 2,
+        "f8151fdc728a41ebbc304e11d39e5437": 7,
+        "7bdec8012728462a85919a4d0d033579": 2,
+        "83d2c26c897548478611a7b637e39735": 10,
+        "0821ed6ea50c44f4909e4be7610e4198": 11,
+        "952a4c5fa6da4d36a29f9284ea44b4cf": 1,
+        "35576fa560384c3f9ace87bbc5a4fd13": 12,
+        "cb2b03baf896435998153401c04d6546": 1,
+        "d09bbb70188b4f619daaf6ebc1476d71": 1,
+        "29d8adbc70e94ec3ad2217f1342906c9": 1,
+        "706e7cae200d4ba9a280251234a70559": 2,
+        "914fb3061f4e4f9a8810e2805958629f": 1
+      },
+      "BOM": [],
+      "updateTime": 1680594668,
+      "createTime": 1639344859,
+      "histories": [],
+      "created_at": "2021-12-12 22:34:19",
+      "updated_at": "2023-04-04 09:51:08"
+    }
+  ],
+  "sort": [],
+  "title": "NanoElsLcdSmdFull",
+  "foldername": "NanoElsLcdSmdFull",
+  "schfilename": "NanoElsLcdSmdFull.json",
+  "schfilemtime": 1680594015067
+}
