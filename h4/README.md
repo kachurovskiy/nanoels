@@ -143,6 +143,20 @@ Press ![IconFacing](https://github.com/kachurovskiy/nanoels/assets/517919/f37cfd
 
 It's setup in the same way as automatic turning above. When running, passes are made along the face instead of the side of the part.
 
+### Cone
+
+https://github.com/kachurovskiy/nanoels/assets/517919/6dd4a5e6-12ef-45a5-a24e-4a538f206546
+
+Press ![IconCone](https://github.com/kachurovskiy/nanoels/assets/517919/d6fb049a-d93e-4dd4-aec9-4a9ed840ffde) to switch to the cone mode which maintains a constant ratio of movement between the X and Z axes. Cone mode doesn't require soft limits to be set but if they are set, they are respected.
+
+Pressing ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d) guides through the setup:
+
+- Enter cone ratio which is calculated as `(major_diameter - minor_diameter) / length`, see [this spreadsheet for most used values](https://docs.google.com/spreadsheets/d/1l0FUMtlWUjPywN9j94DOL84lB8dFrvdRWZIffT2NoHA/edit?usp=sharing). Confirm with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
+- Select `External` or `Internal` cone - use ![IconArrowLeft](https://github.com/kachurovskiy/nanoels/assets/517919/28a59458-0f91-42a5-9ba4-412d050dc462) and ![IconArrowRight](https://github.com/kachurovskiy/nanoels/assets/517919/0ff9ab80-0ce1-45fc-bc00-86d34ecac9f1) to change selection. Confirm with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
+- Confirm the final `Go?` question with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
+
+Turn on the spindle. Pitch can be adjusted on the fly using ![IconPlus](https://github.com/kachurovskiy/nanoels/assets/517919/3c0e1c27-820a-4d34-ae97-4b362b537e72) and ![IconMinus](https://github.com/kachurovskiy/nanoels/assets/517919/75db2ae9-97d6-4d39-9fff-e98e889ee84b). It's convenient to cut multiple cone passes with ![IconReverse](https://github.com/kachurovskiy/nanoels/assets/517919/d820c1cd-8ce3-4d02-91f9-d240f4ea51cc) moving the tool in using manual move buttons.
+
 ### Automatic cut-off
 
 https://github.com/kachurovskiy/nanoels/assets/517919/fe5245b8-4bf4-4001-8762-c786e85a2369
@@ -160,20 +174,6 @@ Pressing ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0
 Turn on the spindle. Operation will proceed fully automatically and the cutter will return to the starting position when done. Pitch can be adjusted on the fly using ![IconPlus](https://github.com/kachurovskiy/nanoels/assets/517919/3c0e1c27-820a-4d34-ae97-4b362b537e72) and ![IconMinus](https://github.com/kachurovskiy/nanoels/assets/517919/75db2ae9-97d6-4d39-9fff-e98e889ee84b).
 
 Operation can be stopped at any time by pressing ![IconStop](https://github.com/kachurovskiy/nanoels/assets/517919/cf4b9b31-dda3-4469-9667-1d1c44ea39b4) or using manual move buttons.
-
-### Cone
-
-https://github.com/kachurovskiy/nanoels/assets/517919/6dd4a5e6-12ef-45a5-a24e-4a538f206546
-
-Press ![IconCone](https://github.com/kachurovskiy/nanoels/assets/517919/d6fb049a-d93e-4dd4-aec9-4a9ed840ffde) to switch to the cone mode which maintains a constant ratio of movement between the X and Z axes. Cone mode doesn't require soft limits to be set but if they are set, they are respected.
-
-Pressing ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d) guides through the setup:
-
-- Enter cone ratio which is calculated as `(major_diameter - minor_diameter) / length`, see [this spreadsheet for most used values](https://docs.google.com/spreadsheets/d/1l0FUMtlWUjPywN9j94DOL84lB8dFrvdRWZIffT2NoHA/edit?usp=sharing). Confirm with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
-- Select `External` or `Internal` cone - use ![IconArrowLeft](https://github.com/kachurovskiy/nanoels/assets/517919/28a59458-0f91-42a5-9ba4-412d050dc462) and ![IconArrowRight](https://github.com/kachurovskiy/nanoels/assets/517919/0ff9ab80-0ce1-45fc-bc00-86d34ecac9f1) to change selection. Confirm with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
-- Confirm the final `Go?` question with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
-
-Turn on the spindle. Pitch can be adjusted on the fly using ![IconPlus](https://github.com/kachurovskiy/nanoels/assets/517919/3c0e1c27-820a-4d34-ae97-4b362b537e72) and ![IconMinus](https://github.com/kachurovskiy/nanoels/assets/517919/75db2ae9-97d6-4d39-9fff-e98e889ee84b). It's convenient to cut multiple cone passes with ![IconReverse](https://github.com/kachurovskiy/nanoels/assets/517919/d820c1cd-8ce3-4d02-91f9-d240f4ea51cc) moving the tool in using manual move buttons.
 
 ### Work in progress
 
