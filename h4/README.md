@@ -74,6 +74,8 @@ Use numpad buttons ![Icon0](https://github.com/kachurovskiy/nanoels/assets/51791
 
 ### Moving left and right, in and out
 
+https://github.com/kachurovskiy/nanoels/assets/517919/6b6dfb87-ee3a-4e2c-b272-3af0c08e09fa
+
 Press ![IconArrowLeft](https://github.com/kachurovskiy/nanoels/assets/517919/d110519a-6cf4-491e-b81a-c09aefa49e49) and ![IconArrowRight](https://github.com/kachurovskiy/nanoels/assets/517919/48a0327e-0cc4-465e-b371-644f153f3288) buttons to move the carriage, ![IconArrowUp](https://github.com/kachurovskiy/nanoels/assets/517919/ac350635-4424-4438-bcfb-3cb0431345f8) and ![IconArrowDown](https://github.com/kachurovskiy/nanoels/assets/517919/897b4005-45d0-46ed-977e-b25a98983961) to move the cross-slide.
 
 Depending on the state of the controller, pressing the move button will result in traveling the following distance:
