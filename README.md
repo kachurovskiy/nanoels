@@ -10,11 +10,7 @@ No more greasy gear swapping! Control your metal lathe lead screw with a few cli
 - Soft limits for the carriage
 - Multi-start threads in 1 start of the spindle
 
-[See h2 folder for parts list, software, assembly and usage manual.](https://github.com/kachurovskiy/nanoels/blob/main/h2/)
-
-## Hardware
-
-Controller can be built from [generally available components](https://github.com/kachurovskiy/nanoels/tree/main/h2#components) or from the [official kit](https://kachurovskiy.com/):
+See [h2 folder for parts list, software, assembly and usage manual](https://github.com/kachurovskiy/nanoels/blob/main/h2/). Controller can be built from [generally available components](https://github.com/kachurovskiy/nanoels/tree/main/h2#components) or from the [official kit](https://kachurovskiy.com/):
 
 [![kit](h2/kit.jpg)](https://kachurovskiy.com/)
 
@@ -28,13 +24,17 @@ It's suggested to use STEPPERONLINE CL57T closed-loop driver with NEMA 23 3NM mo
 
 # NanoEls H4
 
-ELS controller based on ESP32-S3 that supports up to 4 axis. ELS software for it [is in active developent in the h4 package](https://github.com/kachurovskiy/nanoels/tree/main/h4).
+CNC and electronic lead screw controller based on ESP32-S3 that supports up to 4 axes:
+
+- Automatic threads including multi-start
+- Multi-pass turning, facing and cones
+- Precise movements, soft limits and much more
 
 [![h4-600px](https://user-images.githubusercontent.com/517919/235074149-307f8b7f-a9d5-4ade-b29a-13809ba81e75.JPG)](https://kachurovskiy.com/)
 
-Controller itself is available for purchase on https://kachurovskiy.com
+See [h4 folder for hardware files, software, assembly and usage manual](https://github.com/kachurovskiy/nanoels/tree/main/h4).
 
-Hardware design is open-source so you can order and 3D-print all of the parts.
+Controller is available for purchase on https://kachurovskiy.com
 
 # Contributing to the project
 
