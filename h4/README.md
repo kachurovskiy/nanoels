@@ -103,6 +103,8 @@ Soft limits are used when preparing an automatic operation like turning, facing,
 
 ### Gearbox mode / electronic lead screw
 
+https://github.com/kachurovskiy/nanoels/assets/517919/df9fa150-0284-4aec-ab81-8e37f4a747bc
+
 Press ![IconGears](https://github.com/kachurovskiy/nanoels/assets/517919/d926a776-79a8-4abe-9589-734ef546daf5) to switch to the gearbox mode. After turning the controller `ON` with the ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/250b0641-6d5c-4ffb-a88c-b483e98c04c5) button, lead screw will move the distance of 1 pitch for 1 spindle turn.
 
 With a small pitch like `0.07mm` this mode is useful for turning - gradually taking off material from the outer diameter of the part.
