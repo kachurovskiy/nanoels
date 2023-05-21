@@ -137,6 +137,12 @@ Turn on the spindle. Operation will proceed fully automatically and the cutter w
 
 Operation can be stopped at any time by pressing ![IconStop](https://github.com/kachurovskiy/nanoels/assets/517919/cf4b9b31-dda3-4469-9667-1d1c44ea39b4) or using manual move buttons.
 
+### Automatic facing
+
+Press ![IconFacing](https://github.com/kachurovskiy/nanoels/assets/517919/f37cfd0e-74cc-4e70-80ab-620ab769afb8) to switch to the automatic facing mode which is usually used to take large amount of material from the face of the part in 1 or more passes.
+
+It's setup in the same way as automatic turning above. When running, passes are made along the face instead of the side of the part.
+
 ### Automatic cut-off
 
 https://github.com/kachurovskiy/nanoels/assets/517919/fe5245b8-4bf4-4001-8762-c786e85a2369
