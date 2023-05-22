@@ -729,6 +729,9 @@ void taskDisplay(void *param) {
       beepFlag = false;
       beep();
     }
+    if (abs(z.pendingPos) > z.estopSteps || abs(x.pendingPos) > x.estopSteps) {
+      setEmergencyStop(ESTOP_POS);
+    }
     taskYIELD();
   }
   reset();
@@ -786,10 +789,12 @@ void taskMoveZ(void *param) {
       taskYIELD();
       continue;
     }
+    if (isOn && isPassMode()) {
+      setIsOn(false);
+    }
     int sign = left ? 1 : -1;
     bool stepperOn = true;
     stepperEnable(&z, true);
-    z.speedMax = getStepMaxSpeed(&z);
     z.movingManually = true;
     if (isOn && dupr != 0) {
       // Move by moveStep in the desired direction but stay in the thread by possibly traveling a little more.
@@ -797,6 +802,7 @@ void taskMoveZ(void *param) {
       long prevSpindlePos = spindlePos;
       bool resting = false;
       do {
+        z.speedMax = z.speedManualMove;
         if (mode != MODE_ASYNC && xSemaphoreTake(motionMutex, 100) == pdTRUE) {
           if (!resting) {
             spindlePos += diff;
@@ -812,7 +818,7 @@ void taskMoveZ(void *param) {
         long newPos = mode == MODE_ASYNC ? getAsyncMovePos(sign) : posFromSpindle(&z, prevSpindlePos, true);
         if (newPos != z.pos) {
           stepTo(&z, newPos);
-          waitForStep(&z);
+          waitForPendingPosNear0(&z);
         } else if (z.pos == (left ? z.leftStop : z.rightStop)) {
           // We're standing on a stop with the L/R move button pressed.
           resting = true;
@@ -823,7 +829,16 @@ void taskMoveZ(void *param) {
           DELAY(200);
         }
       } while (left ? buttonLeftPressed : buttonRightPressed);
+      if (mode == MODE_CONE) {
+        if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
+          setEmergencyStop(ESTOP_MARK_ORIGIN);
+        } else {
+          markOrigin();
+          xSemaphoreGive(motionMutex);
+        }
+      }
     } else {
+      z.speedMax = getStepMaxSpeed(&z);
       int delta = 0;
       do {
         float fractionalDelta = moveStep * sign / SCREW_Z_DU * MOTOR_STEPS_Z + z.fractionalPos;
@@ -846,18 +861,7 @@ void taskMoveZ(void *param) {
         stepTo(&z, posCopy + delta);
         waitForStep(&z);
       } while (delta != 0 && (left ? buttonLeftPressed : buttonRightPressed));
-    }
-    waitForPendingPos0(&z);
-    if (isOn) {
-      if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
-        setEmergencyStop(ESTOP_MARK_ORIGIN);
-      } else {
-        markOrigin();
-        xSemaphoreGive(motionMutex);
-      }
-      if (isPassMode()) {
-        setIsOn(false);
-      }
+      waitForPendingPos0(&z);
     }
     z.movingManually = false;
     if (stepperOn) {
@@ -875,6 +879,9 @@ void taskMoveX(void *param) {
     if (!up && !down) {
       taskYIELD();
       continue;
+    }
+    if (isOn && isPassMode()) {
+      setIsOn(false);
     }
     x.movingManually = true;
     x.speedMax = getStepMaxSpeed(&x);
@@ -902,11 +909,12 @@ void taskMoveX(void *param) {
       stepTo(&x, posCopy + delta);
       waitForStep(&x);
     } while (delta != 0 && (up ? buttonUpPressed : buttonDownPressed));
-    if (isOn) {
-      waitForPendingPos0(&x);
-      markOrigin();
-      if (isPassMode()) {
-        setIsOn(false);
+    if (isOn && mode == MODE_CONE) {
+      if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
+        setEmergencyStop(ESTOP_MARK_ORIGIN);
+      } else {
+        markOrigin();
+        xSemaphoreGive(motionMutex);
       }
     }
     x.movingManually = false;
@@ -1907,14 +1915,6 @@ void updateEnable(Axis* a) {
   }
 }
 
-bool setPosEmergencyStop() {
-  if (abs(z.pendingPos) > z.estopSteps || abs(x.pendingPos) > x.estopSteps) {
-    setEmergencyStop(ESTOP_POS);
-    return true;
-  }
-  return false;
-}
-
 void moveAxis(Axis* a) {
   // Most of the time a step isn't needed.
   if (a->pendingPos == 0) {
@@ -1925,9 +1925,16 @@ void moveAxis(Axis* a) {
   }
 
   unsigned long nowUs = micros();
-  if (nowUs < a->stepStartUs) a->stepStartUs = 0; // micros() overflow
   float delayUs = 1000000.0 / a->speed;
-  if (nowUs >= (a->stepStartUs + delayUs) && xSemaphoreTake(a->mutex, 1) == pdTRUE) {
+  if (nowUs < a->stepStartUs) a->stepStartUs = 0; // micros() overflow
+  if (a->pendingPos == 1 && a->speedMax == LONG_MAX) {
+    // Don't limit ourselves by step timing to improve performance.
+  } else if (nowUs < (a->stepStartUs + delayUs - 5)) {
+    // Not enough time has passed to issue this step.
+    return;
+  }
+
+  if (xSemaphoreTake(a->mutex, 1) == pdTRUE) {
     // Check pendingPos again now that we have the mutex.
     if (a->pendingPos != 0) {
       DLOW(a->step);
@@ -1972,29 +1979,32 @@ long spindleModulo(long value) {
   return value;
 }
 
+long mainStartStop, mainEndStop, auxStartStop, auxEndStop, auxSafeDistance, startOffset;
 void modeTurn(Axis* main, Axis* aux) {
   if (main->movingManually || aux->movingManually || turnPasses <= 0 ||
       main->leftStop == LONG_MAX || main->rightStop == LONG_MIN ||
       aux->leftStop == LONG_MAX || aux->rightStop == LONG_MIN ||
       dupr == 0 || (dupr * opDuprSign < 0) || starts < 1) {
+    setIsOn(false);
     return;
   }
-  aux->speedMax = aux->speedManualMove;
 
-  // Start from left or right depending on the pitch.
-  long mainStartStop = opDuprSign > 0 ? main->rightStop : main->leftStop;
-  long mainEndStop = opDuprSign > 0 ? main->leftStop : main->rightStop;
-
-  // Will vary for internal/external cuts.
-  long auxStartStop = auxForward ? aux->rightStop : aux->leftStop;
-  long auxEndStop = auxForward ? aux->leftStop : aux->rightStop;
-  long auxSafeDistance = (auxForward ? -1 : 1) * SAFE_DISTANCE_DU / aux->screwPitch * aux->motorSteps;
-
-  long startOffset = starts == 1 ? 0 : round(1.0 * ENCODER_STEPS / starts) * (dupr > 0 ? -1 : 1);
-
+  // opIndex 0 is only executed once, do setup calculations here.
   if (opIndex == 0) {
+    // Start from left or right depending on the pitch.
+    mainStartStop = opDuprSign > 0 ? main->rightStop : main->leftStop;
+    mainEndStop = opDuprSign > 0 ? main->leftStop : main->rightStop;
+
+    // Will vary for internal/external cuts.
+    auxStartStop = auxForward ? aux->rightStop : aux->leftStop;
+    auxEndStop = auxForward ? aux->leftStop : aux->rightStop;
+    auxSafeDistance = (auxForward ? -1 : 1) * SAFE_DISTANCE_DU / aux->screwPitch * aux->motorSteps;
+
+    startOffset = starts == 1 ? 0 : round(1.0 * ENCODER_STEPS / starts) * (dupr > 0 ? -1 : 1);
+
     // Move to right-bottom limit.
     main->speedMax = main->speedManualMove;
+    aux->speedMax = aux->speedManualMove;
     long auxPos = auxStartStop;
     long mainPos = mainStartStop;
     stepTo(main, mainPos);
@@ -2032,9 +2042,11 @@ void modeTurn(Axis* main, Axis* aux) {
     // Returning to start of main.
     if (opSubIndex == 3) {
       main->speedMax = main->speedManualMove;
-      stepTo(main, mainStartStop);
-      if (main->pos == mainStartStop) {
-        main->speedMax = LONG_MAX;
+      // Overstep by 1 so that "main" backlash is taken out before "opSubIndex == 1".
+      long mainPos = mainStartStop + (opDuprSign > 0 ? -1 : 1);
+      stepTo(main, mainPos);
+      if (main->pos == mainPos) {
+        stepTo(main, mainStartStop);
         opSubIndex = 0;
         opIndex++;
       }
@@ -2105,6 +2117,7 @@ void modeCone() {
 
 void modeCut() {
   if (x.movingManually || turnPasses <= 0 || x.leftStop == LONG_MAX || x.rightStop == LONG_MIN || dupr == 0 || dupr * opDuprSign < 0) {
+    setIsOn(false);
     return;
   }
 
@@ -2158,6 +2171,7 @@ void modeEllipse(Axis* main, Axis* aux) {
       main->leftStop == main->rightStop ||
       aux->leftStop == aux->rightStop ||
       dupr == 0 || (dupr * opDuprSign < 0)) {
+    setIsOn(false);
     return;
   }
 
@@ -2484,7 +2498,7 @@ void applySettings() {
 }
 
 void loop() {
-  if (emergencyStop != ESTOP_NONE || setPosEmergencyStop()) {
+  if (emergencyStop != ESTOP_NONE) {
     return;
   }
   if (xSemaphoreTake(motionMutex, 1) != pdTRUE) {
