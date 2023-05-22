@@ -4,6 +4,7 @@
 
 // Define your hardware parameters here. Don't remove the ".0" at the end.
 #define ENCODER_STEPS 600.0 // 600 step spindle optical rotary encoder
+#define ENCODER_BACKLASH 3 // Numer of impulses encoder can issue without movement of the spindle
 
 // Spindle rotary encoder pins. Swap values if the rotation direction is wrong.
 #define ENC_A 7
@@ -44,6 +45,7 @@
 #define STARTS_MAX 124 // No more than 124-start thread
 #define PASSES_MAX 999 // No more turn or face passes than this
 #define SAFE_DISTANCE_DU 5000 // Step back 0.5mm from the material when moving between cuts in automated modes
+#define SAVE_DELAY_US 5000000 // Wait 5s after last save and last change of saveable data before saving again
 
 // Version of the pref storage format, should be changed when non-backward-compatible
 // changes are made to the storage logic, resulting in Preferences wipe on first start.
@@ -55,7 +57,7 @@
 #define GCODE_WAIT_EPSILON_STEPS 10
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 1
+#define SOFTWARE_VERSION 2
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 4
@@ -127,6 +129,7 @@
 #define PREF_POS_GLOBAL_X "xpg"
 #define PREF_MOTOR_POS_X "xpm"
 #define PREF_SPINDLE_POS "sp"
+#define PREF_SPINDLE_POS_AVG "spa"
 #define PREF_OUT_OF_SYNC "oos"
 #define PREF_SPINDLE_POS_GLOBAL "spg"
 #define PREF_SHOW_ANGLE "ang"
@@ -338,6 +341,8 @@ unsigned long spindleEncTimeDiffBulk = 0; // micros() between RPM_BULK spindle u
 unsigned long spindleEncTimeAtIndex0 = 0; // micros() when spindleEncTimeIndex was 0
 int spindleEncTimeIndex = 0; // counter going between 0 and RPM_BULK - 1
 long spindlePos = 0; // Spindle position
+long spindlePosAvg = 0; // Spindle position accounting for encoder backlash
+long savedSpindlePosAvg = 0; // spindlePosAvg saved in Preferences
 long savedSpindlePos = 0; // spindlePos value saved in Preferences
 volatile long spindlePosDelta = 0; // Unprocessed encoder ticks.
 int spindlePosSync = 0; // Non-zero if gearbox is on and a soft limit was removed while axis was on it
@@ -720,7 +725,7 @@ void taskDisplay(void *param) {
     // Calling Preferences.commit() blocks all interrupts for 30ms, don't call saveIfChanged() if
     // encoder is likely to move soon.
     unsigned long now = micros();
-    if (!stepperIsRunning(&z) && !stepperIsRunning(&x) && (now < spindleEncTime || now > spindleEncTime + 1000000) && (now < saveTime || now > saveTime + 3000000)) {
+    if (!stepperIsRunning(&z) && !stepperIsRunning(&x) && (now > spindleEncTime + SAVE_DELAY_US) && (now < saveTime || now > saveTime + SAVE_DELAY_US)) {
       if (saveIfChanged()) {
         saveTime = now;
       }
@@ -806,10 +811,12 @@ void taskMoveZ(void *param) {
         if (mode != MODE_ASYNC && xSemaphoreTake(motionMutex, 100) == pdTRUE) {
           if (!resting) {
             spindlePos += diff;
+            spindlePosAvg += diff;
           }
           // If spindle is moving, it will be changing spindlePos at the same time. Account for it.
           while (diff > 0 ? (spindlePos < prevSpindlePos) : (spindlePos > prevSpindlePos)) {
             spindlePos += diff;
+            spindlePosAvg += diff;
           };
           prevSpindlePos = spindlePos;
           xSemaphoreGive(motionMutex);
@@ -1026,6 +1033,7 @@ void setup() {
   x.savedLeftStop = x.leftStop = pref.getLong(PREF_LEFT_STOP_X, LONG_MAX);
   x.savedRightStop = x.rightStop = pref.getLong(PREF_RIGHT_STOP_X, LONG_MIN);
   savedSpindlePos = spindlePos = pref.getLong(PREF_SPINDLE_POS);
+  savedSpindlePosAvg = spindlePosAvg = pref.getLong(PREF_SPINDLE_POS_AVG);
   savedSpindlePosSync = spindlePosSync = pref.getInt(PREF_OUT_OF_SYNC);
   savedSpindlePosGlobal = spindlePosGlobal = pref.getLong(PREF_SPINDLE_POS_GLOBAL);
   savedShowAngle = showAngle = pref.getBool(PREF_SHOW_ANGLE);
@@ -1075,7 +1083,7 @@ void setup() {
 bool saveIfChanged() {
   // Should avoid calling Preferences whenever possible to reduce memory wear and avoid ~20ms write delay that blocks interrupts.
   if (dupr == savedDupr && starts == savedStarts && z.pos == z.savedPos && z.originPos == z.savedOriginPos && z.posGlobal == z.savedPosGlobal && z.motorPos == z.savedMotorPos && z.leftStop == z.savedLeftStop && z.rightStop == z.savedRightStop &&
-      spindlePos == savedSpindlePos && spindlePosSync == savedSpindlePosSync && savedSpindlePosGlobal == spindlePosGlobal && showAngle == savedShowAngle && showTacho == savedShowTacho && moveStep == savedMoveStep &&
+      spindlePos == savedSpindlePos && spindlePosAvg == savedSpindlePosAvg && spindlePosSync == savedSpindlePosSync && savedSpindlePosGlobal == spindlePosGlobal && showAngle == savedShowAngle && showTacho == savedShowTacho && moveStep == savedMoveStep &&
       mode == savedMode && measure == savedMeasure && x.pos == x.savedPos && x.originPos == x.savedOriginPos && x.posGlobal == x.savedPosGlobal && x.motorPos == x.savedMotorPos && x.leftStop == x.savedLeftStop && x.rightStop == x.savedRightStop &&
       coneRatio == savedConeRatio && turnPasses == savedTurnPasses) return false;
 
@@ -1090,6 +1098,7 @@ bool saveIfChanged() {
   if (z.leftStop != z.savedLeftStop) pref.putLong(PREF_LEFT_STOP_Z, z.savedLeftStop = z.leftStop);
   if (z.rightStop != z.savedRightStop) pref.putLong(PREF_RIGHT_STOP_Z, z.savedRightStop = z.rightStop);
   if (spindlePos != savedSpindlePos) pref.putLong(PREF_SPINDLE_POS, savedSpindlePos = spindlePos);
+  if (spindlePosAvg != savedSpindlePosAvg) pref.putLong(PREF_SPINDLE_POS_AVG, savedSpindlePosAvg = spindlePosAvg);
   if (spindlePosSync != savedSpindlePosSync) pref.putInt(PREF_OUT_OF_SYNC, savedSpindlePosSync = spindlePosSync);
   if (spindlePosGlobal != savedSpindlePosGlobal) pref.putLong(PREF_SPINDLE_POS_GLOBAL, savedSpindlePosGlobal = spindlePosGlobal);
   if (showAngle != savedShowAngle) pref.putBool(PREF_SHOW_ANGLE, savedShowAngle = showAngle);
@@ -1132,6 +1141,7 @@ void markAxisOrigin(Axis* a) {
 
 void zeroSpindlePos() {
   spindlePos = 0;
+  spindlePosAvg = 0;
   spindlePosSync = 0;
 }
 
@@ -1968,7 +1978,7 @@ void modeGearbox() {
     return;
   }
   z.speedMax = LONG_MAX;
-  stepTo(&z, posFromSpindle(&z, spindlePos, true));
+  stepTo(&z, posFromSpindle(&z, spindlePosAvg, true));
 }
 
 long spindleModulo(long value) {
@@ -2026,7 +2036,7 @@ void modeTurn(Axis* main, Axis* aux) {
     // Doing the pass cut.
     if (opSubIndex == 1) {
       main->speedMax = LONG_MAX;
-      stepTo(main, posFromSpindle(main, spindlePos, true));
+      stepTo(main, posFromSpindle(main, spindlePosAvg, true));
       if (main->pos == mainEndStop) {
         opSubIndex = 2;
       }
@@ -2080,7 +2090,7 @@ void modeCone() {
   z.speedMax = LONG_MAX;
 
   // Respect limits of both axis by translating them into limits on spindlePos value.
-  long spindle = spindlePos;
+  long spindle = spindlePosAvg;
   long spindleMin = LONG_MIN;
   long spindleMax = LONG_MAX;
   if (z.leftStop != LONG_MAX) {
@@ -2143,7 +2153,7 @@ void modeCut() {
     if (opSubIndex == 1) {
       x.speedMax = LONG_MAX;
       long maxPos = endStop - (endStop - startStop) / turnPasses * (turnPasses - opIndex);
-      long xPos = min(maxPos, posFromSpindle(&x, spindlePos, true));
+      long xPos = min(maxPos, posFromSpindle(&x, spindlePosAvg, true));
       stepTo(&x, xPos);
       if (x.pos == maxPos) {
         opSubIndex = 2;
@@ -2190,6 +2200,7 @@ void modeEllipse(Axis* main, Axis* aux) {
     opIndex = 1;
     opSubIndex = 0;
     spindlePos = 0;
+    spindlePosAvg = 0;
   } else if (opIndex <= turnPasses) {
     float pass0to1 = opIndex / float(turnPasses);
     long mainDelta = round(pass0to1 * (mainEndStop - mainStartStop));
@@ -2209,13 +2220,14 @@ void modeEllipse(Axis* main, Axis* aux) {
       if (main->pos == mainPos) {
         opSubIndex = 2;
         spindlePos = 0;
+        spindlePosAvg = 0;
       }
     } else if (opSubIndex == 2) {
       float progress0to1 = 0;
-      if ((spindleDelta > 0 && spindlePos >= spindleDelta) || (spindleDelta < 0 && spindlePos <= spindleDelta)) {
+      if ((spindleDelta > 0 && spindlePosAvg >= spindleDelta) || (spindleDelta < 0 && spindlePosAvg <= spindleDelta)) {
         progress0to1 = 1;
       } else {
-        progress0to1 = spindlePos / float(spindleDelta);
+        progress0to1 = spindlePosAvg / float(spindleDelta);
       }
       long mainPos = mainEndStop - mainDelta + round(mainDelta * cos(HALF_PI * (3 + progress0to1)));
       long auxPos = auxStartStop + round(auxDelta * (1 + sin(HALF_PI * (3 + progress0to1))));
@@ -2421,18 +2433,20 @@ void discountFullSpindleTurns() {
     }
     if (spindlePosDiff != 0) {
       spindlePos += spindlePosDiff;
+      spindlePosAvg += spindlePosDiff;
     }
   }
 }
 
 void processSpindlePosDelta() {
+  if (spindlePosDelta == 0) {
+    return;
+  }
+
   noInterrupts();
   long delta = spindlePosDelta;
   spindlePosDelta = 0;
   interrupts();
-  if (delta == 0) {
-    return;
-  }
 
   unsigned long microsNow = micros();
   if (showTacho) {
@@ -2453,6 +2467,11 @@ void processSpindlePosDelta() {
   } else if (spindlePosGlobal < 0) {
     spindlePosGlobal += int(ENCODER_STEPS);
   }
+  if (spindlePos > spindlePosAvg) {
+    spindlePosAvg = spindlePos;
+  } else if (spindlePos < spindlePosAvg - ENCODER_BACKLASH) {
+    spindlePosAvg = spindlePos + ENCODER_BACKLASH;
+  }
   spindleEncTime = microsNow;
 
   if (spindlePosSync != 0) {
@@ -2460,7 +2479,7 @@ void processSpindlePosDelta() {
     if (spindlePosSync % int(ENCODER_STEPS) == 0) {
       spindlePosSync = 0;
       Axis* a = getPitchAxis();
-      spindlePos = spindleFromPos(a, a->pos);
+      spindlePosAvg = spindlePos = spindleFromPos(a, a->pos);
     }
   }
 }
