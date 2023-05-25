@@ -22,6 +22,10 @@
       padding: 20px;
       border-radius: 5px;
     }
+    .error {
+      padding: 10px;
+      color: red;
+    }
     button {
       background-color: #444;
       color: #fff;
@@ -30,6 +34,11 @@
       border-radius: 3px;
       cursor: pointer;
       margin: 10px 0;
+    }
+    button:disabled {
+      background-color: rgba(0, 0, 0, 0);
+      border: 1px solid #444;
+      cursor: not-allowed;
     }
     input[type="text"], textarea {
       background-color: #555;
@@ -46,7 +55,7 @@
       margin-bottom: 10px;
     }
     .log {
-      height: 200px;
+      height: 100px;
       overflow: auto;
       border: 1px solid #ccc;
       padding: 10px;
@@ -60,10 +69,14 @@
     <button id="selectDeviceButton" onclick="selectPort()">Select Device</button>
   </div>
   <div id="mainContent" style="display: none;">
+    <h2>Status</h2>
+    <pre id="statusBlock" class="container">Waiting for machine status... Is device in GCODE mode?</pre>
+    <div id="errorBlock" class="error" style="display: none;"></div>
     <h2>Enter text to send</h2>
     <textarea id="gcodeTextArea" rows="10" onkeydown="textAreaKeyDown(event)"></textarea><br>
-    <button id="sendButton" onclick="sendGcode()">Send (Ctrl + Enter)</button>
-    <div id="hint" style="display: none;">If nothing is happening, make sure H4 is in GCODE mode and is ON</div>
+    <button id="buttonStart" onclick="start()">Start (Ctrl + Enter)</button>
+    <button id="buttonStop" onclick="stop()">Stop</button>
+    <button onclick="toggleLog()">Log</button>
     <div id="logContainer" style="display: none;">
       <h2>Device responses</h2>
       <pre id="logBlock" class="log container"></pre>
@@ -79,14 +92,26 @@ const deviceSelection = document.getElementById("deviceSelection");
 const mainContent = document.getElementById("mainContent");
 const gcodeTextArea = document.getElementById("gcodeTextArea");
 const logBlock = document.getElementById("logBlock");
+const statusBlock = document.getElementById("statusBlock");
+const errorBlock = document.getElementById("errorBlock");
 const logContainer = document.getElementById("logContainer");
 const historyContainer = document.getElementById("historyContainer");
 const historyBlock = document.getElementById("historyBlock");
+const buttonStart = document.getElementById("buttonStart");
+const buttonStop = document.getElementById("buttonStop");
 
 let port = null;
-let readInterval = 0;
+let readTimeout = 0;
 let reader = null;
 let writer = null;
+let isOn = false;
+let waitForOkOrError = false;
+let lines = [];
+let lineIndex = 0;
+let status = '';
+let statusInterval = 0;
+let unparsedResponse = '';
+let error = '';
 
 function getHistory() {
   const historyString = localStorage.getItem('history');
@@ -109,11 +134,33 @@ function updateHistory() {
   historyContainer.style.display = history.length ? 'block' : 'none';
 }
 
-function showHint(value) {
-  hint.style.display = value ? 'block' : 'none';
+function setStatus(s) {
+  if (s.startsWith('<')) s = s.substring(1);
+  if (s.endsWith('>')) s = s.slice(0, -1);
+  const parts = s.split('|');
+  if (parts.length === 3) {
+    if (parts[1].startsWith('WPos:')) {
+      const coords = parts[1].substring('WPos:'.length).split(',');
+      parts[1] = `Z=${coords[2]} X=${coords[0]}`;
+    }
+    if (parts[2].startsWith('FS:')) {
+      const coords = parts[2].substring('FS:'.length).split(',');
+      parts[2] = `Feed=${coords[0]} RPM=${coords[1]}`;
+    }
+    s = parts.join(' ');
+  }
+  status = s;
+  statusBlock.innerText = s;
+}
+
+function setError(e) {
+  error = e;
+  errorBlock.innerText = e;
+  errorBlock.style.display = e ? 'block' : 'none';
 }
 
 function historyButtonClick(event) {
+  if (gcodeTextArea.disabled) return;
   let history = getHistory();
   let text = history[Number(event.target.dataset.index)];
   if (text) {
@@ -127,9 +174,45 @@ function clearHistory() {
   updateHistory();
 }
 
-async function sendGcode() {
+function start() {
+  if (isOn) return;
+  const text = gcodeTextArea.value.trim();
+  if (!text) return;
+  lines = text.split('\n');
+  lineIndex = 0;
+  isOn = true;
+  setError('');
+  waitForOkOrError = false;
+  unparsedResponse = '';
+  gcodeTextArea.disabled = true;
+  write('~');
+  writeCurrentLine();
+  updateUi();
+
+  let history = getHistory();
+  if (history.indexOf(text) == -1) {
+    history.push(text);
+    localStorage.setItem('history', JSON.stringify({history}));
+    updateHistory();
+  }
+}
+
+function stop() {
+  write('!');
+  if (!isOn) return;
+  isOn = false;
+  gcodeTextArea.disabled = false;
+  highlightLine();
+  askForStatus();
+  updateUi();
+}
+
+async function write(sequence) {
+  console.log('>', sequence);
   if (!port.writable) {
-    log('Port is not writable, try reconnecting the USB and turning GCODE mode ON.');
+    if (sequence != '?') {
+      log('Port is not writable, try reconnecting the USB and switching to GCODE mode.');
+    }
     return;
   }
   if (!writer) {
@@ -142,31 +225,78 @@ async function sendGcode() {
       return;
     }
   }
-  let value = gcodeTextArea.value;
-  await writer.write(value + '\n');
+  await writer.write(sequence);
+}
 
-  value = value.trim();
-  let history = getHistory();
-  if (history.indexOf(value) == -1) {
-    history.push(value);
-    localStorage.setItem('history', JSON.stringify({history}));
-    updateHistory();
+function highlightLine() {
+  const result = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (isOn && i == lineIndex) {
+      result.push(`➞ ${lines[i]}`);
+    } else {
+      result.push(lines[i]);
+    }
   }
+  gcodeTextArea.value = result.join('\n');
+  gcodeTextArea.scrollTop = (lineIndex - 1) * (gcodeTextArea.scrollHeight / gcodeTextArea.rows);
+}
 
-  if (!logBlock.innerText.trim()) {
-    showHint(true);
+async function writeCurrentLine() {
+  if (!isOn || waitForOkOrError) return;
+  if (lineIndex >= lines.length) {
+    stop();
+    return;
   }
+  const line = lines[lineIndex].trim();
+  if (!line) {
+    lineIndex++;
+    return;
+  }
+  waitForOkOrError = true;
+  highlightLine();
+  await write(line + '\n');
+  await readFromPort();
 };
+
+async function processResponse(response) {
+  console.log('<', response);
+  unparsedResponse += response;
+
+  // Cut out status message.
+  const statuses = unparsedResponse.match(/(<[^>]+>)/);
+  if (statuses && statuses.length > 1) {
+    statuses.shift();
+    for (const s of statuses) {
+      unparsedResponse = unparsedResponse.replace(s, '');
+    }
+    setStatus(statuses.pop());
+  }
+
+  if (unparsedResponse.startsWith('error:')) {
+    setError(unparsedResponse);
+    log(unparsedResponse);
+    unparsedResponse = '';
+    stop();
+  } else if (unparsedResponse.startsWith('ok')) {
+    log(unparsedResponse);
+    unparsedResponse = '';
+    waitForOkOrError = false;
+    lineIndex++;
+    if (isOn) await writeCurrentLine();
+  }
+}
 
 function textAreaKeyDown(event) {
   if (event.keyCode == 13 && event.ctrlKey) {
-    sendGcode();
+    start();
   }
 }
 
 function updateUi() {
   deviceSelection.style.display = port ? 'none' : 'block';
   mainContent.style.display = port ? 'block' : 'none';
+  buttonStart.disabled = isOn;
+  buttonStop.disabled = !isOn;
   updateHistory();
 }
 
@@ -174,7 +304,10 @@ function log(value) {
   if (!value) return;
   logBlock.innerText += value;
   logBlock.scrollTop = logBlock.scrollHeight;
-  logContainer.style.display = 'block';
+}
+
+function toggleLog() {
+  logContainer.style.display = logContainer.style.display == 'none' ? 'block' : 'none';
 }
 
 async function selectPort() {
@@ -189,26 +322,61 @@ async function selectPort() {
 }
 
 async function openPort() {
-  await port.open({ baudRate: 115200 });
-  readInterval = setInterval(readFromPort, 500);
+  try {
+    await port.open({ baudRate: 115200 });
+    readSoon();
+    await askForStatus();
+    statusInterval = setInterval(askForStatus, 1000);
+  } catch (e) {
+    setError(`Unable to open port - likely some other app is using it - is Arduino IDE Serial Port Monitor active? ${e}`);
+    closePort();
+  }
+}
+
+async function askForStatus() {
+  try {
+    await write('?');
+  } catch (e) {
+    setError(`Device disconnected? ${e}`);
+    closePort();
+  }
+}
+
+function readSoon() {
+  clearTimeout(readTimeout);
+  readTimeout = setTimeout(readFromPort, 200);
 }
 
 async function readFromPort() {
-  if (!port.readable) return;
-  if (!reader) {
-    const textDecoder = new TextDecoderStream();
-    port.readable.pipeTo(textDecoder.writable);
-    reader = textDecoder.readable.getReader();
+  try {
+    if (!port.readable) {
+      readSoon();
+      return;
+    }
+    if (!reader) {
+      const textDecoder = new TextDecoderStream();
+      port.readable.pipeTo(textDecoder.writable);
+      reader = textDecoder.readable.getReader();
+    }
+    const { value, done } = await reader.read();
+    if (!value) {
+      readSoon();
+      return;
+    }
+    await processResponse(value);
+    readSoon();
+  } catch (e) {
+    setError(e.message || String(e));
+    closePort();
   }
-  const { value, done } = await reader.read();
-  log(value);
-  showHint(false);
 }
 
 async function closePort() {
   if (!port) return;
-  clearInterval(readInterval);
-  readInterval = 0;
+  clearInterval(statusInterval);
+  statusInterval = 0;
+  clearTimeout(readTimeout);
+  readTimeout = 0;
   if (reader) {
     reader.releaseLock();
     reader = null;
@@ -217,7 +385,11 @@ async function closePort() {
     writer.releaseLock();
     writer = null;
   }
-  await port.close();
+  try {
+    await port.close();
+  } catch (e) {
+    // Ignore close errors.
+  }
   port = null;
 }
 
@@ -226,8 +398,8 @@ async function init() {
   if (ports.length > 0 && ports[0].readable && ports[0].writable) {
     port = ports[0];
     openPort();
-    updateUi();
   }
+  updateUi();
 }
 init();
 
