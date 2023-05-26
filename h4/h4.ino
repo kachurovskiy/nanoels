@@ -2130,7 +2130,7 @@ long spindleModulo(long value) {
   return value;
 }
 
-long mainStartStop, mainEndStop, auxStartStop, auxEndStop, auxSafeDistance, startOffset;
+long auxSafeDistance, startOffset;
 void modeTurn(Axis* main, Axis* aux) {
   if (main->movingManually || aux->movingManually || turnPasses <= 0 ||
       main->leftStop == LONG_MAX || main->rightStop == LONG_MIN ||
@@ -2140,18 +2140,17 @@ void modeTurn(Axis* main, Axis* aux) {
     return;
   }
 
+  // Variables below have to be re-calculated every time because origin can change
+  // while TURN is running e.g. due to dupr change.
+  long mainStartStop = opDuprSign > 0 ? main->rightStop : main->leftStop;
+  long mainEndStop = opDuprSign > 0 ? main->leftStop : main->rightStop;
+  long auxStartStop = auxForward ? aux->rightStop : aux->leftStop;
+  long auxEndStop = auxForward ? aux->leftStop : aux->rightStop;
+
   // opIndex 0 is only executed once, do setup calculations here.
   if (opIndex == 0) {
-    // Start from left or right depending on the pitch.
-    mainStartStop = opDuprSign > 0 ? main->rightStop : main->leftStop;
-    mainEndStop = opDuprSign > 0 ? main->leftStop : main->rightStop;
-
-    // Will vary for internal/external cuts.
-    auxStartStop = auxForward ? aux->rightStop : aux->leftStop;
-    auxEndStop = auxForward ? aux->leftStop : aux->rightStop;
     auxSafeDistance = (auxForward ? -1 : 1) * SAFE_DISTANCE_DU / aux->screwPitch * aux->motorSteps;
-
-    startOffset = starts == 1 ? 0 : round(1.0 * ENCODER_STEPS / starts) * (dupr > 0 ? -1 : 1);
+    startOffset = starts == 1 ? 0 : round(1.0 * ENCODER_STEPS / starts) * -opDuprSign;
 
     // Move to right-bottom limit.
     main->speedMax = main->speedManualMove;
