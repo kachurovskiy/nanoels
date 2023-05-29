@@ -19,6 +19,7 @@ It's suggested to use STEPPERONLINE CL57T closed-loop driver with NEMA 23 3NM mo
 ## Build examples
 
 - [EdFleta](https://github.com/kachurovskiy/nanoels/discussions/87)
+- [fmw626](https://github.com/kachurovskiy/nanoels/discussions/118)
 - [Johannmupa](https://github.com/kachurovskiy/nanoels/discussions/89)
 - [kachurovskiy](https://youtu.be/jR4tBBHSl3c?t=62)
 
