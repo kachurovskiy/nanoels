@@ -35,6 +35,8 @@ No computer or CAD software needed! Coming soon:
 
 [Case 3D models](https://github.com/kachurovskiy/nanoels/tree/main/h4/case), [front panel graphics](https://github.com/kachurovskiy/nanoels/tree/main/h4/graphics) and [PCB Gerber and EasyEDA files](https://github.com/kachurovskiy/nanoels/tree/main/h4/pcbs) can be found in respective sub-folders.
 
+See [hardware.md](https://github.com/kachurovskiy/nanoels/blob/main/hardware.md) for mounts and adapters for encoders and motors. For attaching a cross-slide motor, consider [belt-based](https://www.thingiverse.com/thing:6058899) or [gear-based](https://www.thingiverse.com/thing:4714722) NEMA 17 mounts.
+
 ## Wiring
 
 ![PXL_20230505_134343196](https://github.com/kachurovskiy/nanoels/assets/517919/ccea47f1-fb60-4908-bad8-a4ef200a82dd)
