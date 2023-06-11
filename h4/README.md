@@ -267,4 +267,4 @@ GCode can be generated using e.g. https://kachurovskiy.github.io/lathecode/
 
 ### More modes are coming!
 
-Please start a new discussion to let me know which mode you think should be added next.
+Please [start a new discussion](https://github.com/kachurovskiy/nanoels/discussions) to let us know which mode you think should be added next.
