@@ -213,9 +213,42 @@ Turn on the spindle. Operation will proceed fully automatically and the cutter w
 
 Operation can be stopped at any time by pressing ![IconStop](https://github.com/kachurovskiy/nanoels/assets/517919/cf4b9b31-dda3-4469-9667-1d1c44ea39b4) or using manual move buttons.
 
-### Work in progress
+### Automatic threading
 
-Instructions for other modes and features are coming soon.
+Press ![IconThread](https://github.com/kachurovskiy/nanoels/assets/517919/8f07c5bc-fdf5-4eaa-91c4-32a5d656e04a) to switch to the automatic threading which will cut a thread (optionally multi-start one) in multiple passes.
+
+Set the desired pitch to a suitable value e.g. `2mm` or `20tpi`. Negative pitch will result in a left thread and will make the operation start from the left limit, positive pitch will make the operation start from the right. All soft limits (left, right, up, down) must be set before the operation can be started.
+
+Pressing ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d) guides through remaining steps:
+
+- Entering the numer of passes - use numpad or ![IconPlus](https://github.com/kachurovskiy/nanoels/assets/517919/3c0e1c27-820a-4d34-ae97-4b362b537e72) and ![IconMinus](https://github.com/kachurovskiy/nanoels/assets/517919/75db2ae9-97d6-4d39-9fff-e98e889ee84b), confirm with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
+- Selecting `External` or `Internal` operation - use ![IconArrowLeft](https://github.com/kachurovskiy/nanoels/assets/517919/28a59458-0f91-42a5-9ba4-412d050dc462) and ![IconArrowRight](https://github.com/kachurovskiy/nanoels/assets/517919/0ff9ab80-0ce1-45fc-bc00-86d34ecac9f1) to change selection. Internal operations start from the ![IconLimitUp](https://github.com/kachurovskiy/nanoels/assets/517919/fd552c49-7f50-4e25-b78f-b0d565c0b96c) limit, external from the ![IconLimitDown](https://github.com/kachurovskiy/nanoels/assets/517919/b18703de-9408-45aa-83e0-812069a3a674) limit. For multi-start thread, press ![IconPlus](https://github.com/kachurovskiy/nanoels/assets/517919/3c0e1c27-820a-4d34-ae97-4b362b537e72) to add more starts. Confirm with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
+- Confirm the final `Go?` question with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
+
+Turn on the spindle. Operation will proceed fully automatically and the cutter will return to the starting position when done.
+
+Operation can be stopped at any time by pressing ![IconStop](https://github.com/kachurovskiy/nanoels/assets/517919/cf4b9b31-dda3-4469-9667-1d1c44ea39b4) or using manual move buttons.
+
+### Automatic half-spheres and half-ellipses
+
+Press ![IconM](https://github.com/kachurovskiy/nanoels/assets/517919/902cc062-3b85-4335-8e6c-077ec956f410) several times until `ELLI` is shown on screen. In this mode, cutter will form convex or concave half-ellipses in multiple passes.
+
+- External setting with positive pitch forms left hemisphere
+- Internal setting with positive pitch forms left concave hemisphere
+- External setting with negative pitch forms right hemisphere
+- Internal setting with negative pitch forms right concave hemisphere
+
+Set the desired pitch to a suitable value e.g. `0.07mm`. All soft limits (left, right, up, down) must be set before the operation can be started.
+
+Pressing ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d) guides through remaining steps:
+
+- Entering the numer of passes - use numpad or ![IconPlus](https://github.com/kachurovskiy/nanoels/assets/517919/3c0e1c27-820a-4d34-ae97-4b362b537e72) and ![IconMinus](https://github.com/kachurovskiy/nanoels/assets/517919/75db2ae9-97d6-4d39-9fff-e98e889ee84b), confirm with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
+- Selecting `External` or `Internal` operation - use ![IconArrowLeft](https://github.com/kachurovskiy/nanoels/assets/517919/28a59458-0f91-42a5-9ba4-412d050dc462) and ![IconArrowRight](https://github.com/kachurovskiy/nanoels/assets/517919/0ff9ab80-0ce1-45fc-bc00-86d34ecac9f1) to change selection. Confirm with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
+- Confirm the final `Go?` question with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
+
+Turn on the spindle. Operation will proceed fully automatically and the cutter will return to the starting position when done.
+
+Operation can be stopped at any time by pressing ![IconStop](https://github.com/kachurovskiy/nanoels/assets/517919/cf4b9b31-dda3-4469-9667-1d1c44ea39b4) or using manual move buttons.
 
 ### GCode
 
@@ -229,3 +262,9 @@ Commands can be sent to device e.g. using [our Web-based GCode sender](https://k
 - G18 - ZX plane
 
 Sample command `G1 X5 Z2 F100` will move the cutter to X=5mm, Z=2mm at 100 mm/sec in absolute metric mode.
+
+GCode can be generated using e.g. https://kachurovskiy.github.io/lathecode/
+
+### More modes are coming!
+
+Please start a new discussion to let me know which mode you think should be added next.
