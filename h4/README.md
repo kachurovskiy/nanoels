@@ -252,6 +252,8 @@ Operation can be stopped at any time by pressing ![IconStop](https://github.com/
 
 ### GCode
 
+🚧 GCode support and lathecode editor are not ready for general use, below is a preview of what's coming 🚧
+
 Commands can be sent to device e.g. using [our Web-based GCode sender](https://kachurovskiy.github.io/nanoels/h4/sender.html) while connected over USB. The following commands are currently implemented:
 
 - G0, G1 - linear move
