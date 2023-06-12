@@ -37,6 +37,11 @@ See [h4 folder for hardware files, software, assembly and usage manual](https://
 
 Controller is available for purchase on https://kachurovskiy.com
 
+## Build examples
+
+- [fmw626](https://github.com/kachurovskiy/nanoels/discussions/123)
+- [Kissys](https://github.com/kachurovskiy/nanoels/discussions/121)
+
 # Contributing to the project
 
 - Questions, problems and improvements: please start [a new GitHub Discussion](https://github.com/kachurovskiy/nanoels/discussions/new) or a new Issue
