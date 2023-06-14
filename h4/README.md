@@ -105,7 +105,7 @@ Step setting is used for manual carriage moves in `off` state - i.e. when no mod
 
 Pressing ![IconSteps](https://github.com/kachurovskiy/nanoels/assets/517919/52ce78e4-4202-4642-9433-e61ca39de9d5) cycles through the list of predefined steps:
 
-- Metric: `1mm`, `0.1mm`, `0.01mm`, `0.001mm`
+- Metric: `1mm`, `0.1mm`, `0.01mm`
 - Imperial: `0.1"`, `0.01"`, `0.001"`
 
 Use numpad buttons ![Icon0](https://github.com/kachurovskiy/nanoels/assets/517919/67f660f1-c6fa-4922-bf03-9f6571023806) to ![Icon9](https://github.com/kachurovskiy/nanoels/assets/517919/6ad6b4e4-5bf1-473f-93ed-65f6ee478d8f) to enter a custom step value. Pressing ![IconSteps](https://github.com/kachurovskiy/nanoels/assets/517919/52ce78e4-4202-4642-9433-e61ca39de9d5) when the screen bottom line shows `Use 1.234mm?` will make the step equal to `1.234mm`.
