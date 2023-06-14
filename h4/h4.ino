@@ -57,6 +57,7 @@
 #define PASSES_MAX 999 // No more turn or face passes than this
 #define SAFE_DISTANCE_DU 5000 // Step back 0.5mm from the material when moving between cuts in automated modes
 #define SAVE_DELAY_US 5000000 // Wait 5s after last save and last change of saveable data before saving again
+#define DIRECTION_SETUP_DELAY_US 2 // Stepper driver needs some time to adjust to direction change
 
 // Version of the pref storage format, should be changed when non-backward-compatible
 // changes are made to the storage logic, resulting in Preferences wipe on first start.
@@ -163,7 +164,7 @@
 #define MOVE_STEP_1 10000 // 1mm
 #define MOVE_STEP_2 1000 // 0.1mm
 #define MOVE_STEP_3 100 // 0.01mm
-#define MOVE_STEP_4 10 // 1 micron
+
 #define MOVE_STEP_IMP_1 25400 // 1/10"
 #define MOVE_STEP_IMP_2 2540 // 1/100"
 #define MOVE_STEP_IMP_3 254 // 1/1000" also known as 1 thou
@@ -186,6 +187,7 @@
 #define ESTOP_KEY 1
 #define ESTOP_POS 2
 #define ESTOP_MARK_ORIGIN 3
+#define ESTOP_ON_OFF 4
 
 // For MEASURE_TPI, round TPI to the nearest integer if it's within this range of it.
 // E.g. 80.02tpi would be shown as 80tpi but 80.04tpi would be shown as-is.
@@ -405,6 +407,73 @@ long opIndex = 0; // Index of an automation operation
 long opSubIndex = 0; // Sub-index of an automation operation
 int opDuprSign = 1; // 1 if dupr was positive when operation started, -1 if negative
 
+const int customCharMmCode = 0;
+byte customCharMm[] = {
+  B11010,
+  B10101,
+  B10101,
+  B00000,
+  B11010,
+  B10101,
+  B10101,
+  B00000
+};
+const int customCharLimUpCode = 1;
+byte customCharLimUp[] = {
+  B11111,
+  B00100,
+  B01110,
+  B10101,
+  B00100,
+  B00100,
+  B00000,
+  B00000
+};
+const int customCharLimDownCode = 2;
+byte customCharLimDown[] = {
+  B00000,
+  B00100,
+  B00100,
+  B10101,
+  B01110,
+  B00100,
+  B11111,
+  B00000
+};
+const int customCharLimLeftCode = 3;
+byte customCharLimLeft[] = {
+  B10000,
+  B10010,
+  B10100,
+  B11111,
+  B10100,
+  B10010,
+  B10000,
+  B00000
+};
+const int customCharLimRightCode = 4;
+byte customCharLimRight[] = {
+  B00001,
+  B01001,
+  B00101,
+  B11111,
+  B00101,
+  B01001,
+  B00001,
+  B00000
+};
+const int customCharLimUpDownCode = 5;
+byte customCharLimUpDown[] = {
+  B11111,
+  B00100,
+  B01110,
+  B00000,
+  B01110,
+  B00100,
+  B11111,
+  B00000
+};
+
 String gcodeCommand = "";
 long gcodeFeedDuPerSec = GCODE_FEED_DEFAULT_DU_SEC;
 bool gcodeInitialized = false;
@@ -460,7 +529,7 @@ int printDeciMicrons(long deciMicrons, int precisionPointsMax) {
     points = 1;
   }
   int count = lcd.print(deciMicrons / (imperial ? 254000.0 : 10000.0), min(precisionPointsMax, points));
-  count += lcd.print(imperial ? "\"" : "mm");
+  count += imperial ? lcd.print("\"") : lcd.write(customCharMmCode);
   return count;
 }
 
@@ -578,16 +647,17 @@ void updateDisplay() {
     charIndex += lcd.print(isOn ? "ON " : "off ");
     int beforeStops = charIndex;
     if (z.leftStop != LONG_MAX) {
-      charIndex += lcd.print("L");
+      charIndex += lcd.write(customCharLimLeftCode);
+    }
+    if (x.leftStop != LONG_MAX && x.rightStop != LONG_MIN) {
+      charIndex += lcd.write(customCharLimUpDownCode);
+    } else if (x.leftStop != LONG_MAX) {
+      charIndex += lcd.write(customCharLimUpCode);
+    } else if (x.rightStop != LONG_MIN) {
+      charIndex += lcd.write(customCharLimDownCode);
     }
     if (z.rightStop != LONG_MIN) {
-      charIndex += lcd.print("R");
-    }
-    if (x.leftStop != LONG_MAX) {
-      charIndex += lcd.print("U");
-    }
-    if (x.rightStop != LONG_MIN) {
-      charIndex += lcd.print("D");
+      charIndex += lcd.write(customCharLimRightCode);
     }
     if (beforeStops != charIndex) {
       charIndex += lcd.print(" ");
@@ -872,13 +942,13 @@ void taskMoveZ(void *param) {
       continue;
     }
     if (isOn && isPassMode()) {
-      setIsOn(false);
+      setIsOnAfterMutex(false);
     }
     int sign = pulseDelta == 0 ? (left ? 1 : -1) : (pulseDelta > 0 ? 1 : -1);
     bool stepperOn = true;
     stepperEnable(&z, true);
     z.movingManually = true;
-    if (isOn && dupr != 0) {
+    if (isOn && dupr != 0 && mode != MODE_CONE) {
       // Move by moveStep in the desired direction but stay in the thread by possibly traveling a little more.
       int diff = ceil(moveStep * 1.0 / abs(dupr * starts)) * ENCODER_STEPS * sign * (dupr > 0 ? 1 : -1);
       long prevSpindlePos = spindlePos;
@@ -913,13 +983,10 @@ void taskMoveZ(void *param) {
           DELAY(200);
         }
       } while (left ? buttonLeftPressed : buttonRightPressed);
-      if (mode == MODE_CONE) {
-        if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
-          setEmergencyStop(ESTOP_MARK_ORIGIN);
-        } else {
-          markOrigin();
-          xSemaphoreGive(motionMutex);
-        }
+      if (mode == MODE_ASYNC) {
+        // Restore async direction.
+        waitForPendingPos0(&z);
+        updateAsyncTimerSettings();
       }
     } else {
       z.speedMax = getStepMaxSpeed(&z);
@@ -946,6 +1013,14 @@ void taskMoveZ(void *param) {
         waitForStep(&z);
       } while (delta != 0 && (left ? buttonLeftPressed : buttonRightPressed));
       waitForPendingPos0(&z);
+      if (isOn && mode == MODE_CONE) {
+        if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
+          setEmergencyStop(ESTOP_MARK_ORIGIN);
+        } else {
+          markOrigin();
+          xSemaphoreGive(motionMutex);
+        }
+      }
     }
     z.movingManually = false;
     if (stepperOn) {
@@ -966,7 +1041,7 @@ void taskMoveX(void *param) {
       continue;
     }
     if (isOn && isPassMode()) {
-      setIsOn(false);
+      setIsOnAfterMutex(false);
     }
     x.movingManually = true;
     x.speedMax = getStepMaxSpeed(&x);
@@ -984,7 +1059,7 @@ void taskMoveX(void *param) {
         delta = sign;
       }
 
-      long posCopy = x.pos;
+      long posCopy = x.pos + x.pendingPos;
       // Don't move out of stops.
       if (x.leftStop != LONG_MAX && posCopy + delta > x.leftStop) {
         delta = x.leftStop - posCopy;
@@ -1039,9 +1114,9 @@ void taskGcode(void *param) {
       } else if (gcodeInSemicolon && charCode >= 32) {
         // Ignoring comment.
       } else if (receivedChar == '!' /* stop */) {
-        setIsOn(false);
+        setIsOnAfterMutex(false);
       } else if (receivedChar == '~' /* resume */) {
-        setIsOn(true);
+        setIsOnAfterMutex(true);
       } else if (receivedChar == '%' /* start/end marker */) {
         // Not using % markers in this implementation.
       } else if (receivedChar == '?' /* status */) {
@@ -1060,7 +1135,7 @@ void taskGcode(void *param) {
       } else if (isOn) {
         if (gcodeInBrace && charCode < 32) {
           Serial.println("error: comment not closed");
-          setIsOn(false);
+          setIsOnAfterMutex(false);
         } else if (charCode < 32 && gcodeCommand.length() > 1) {
           if (handleGcodeCommand(gcodeCommand)) Serial.println("ok");
           gcodeCommand = "";
@@ -1112,6 +1187,10 @@ void setEmergencyStop(int kind) {
     lcd.print("Unable to");
     lcd.setCursor(0, 1);
     lcd.print("mark origin");
+  } else if (emergencyStop == ESTOP_ON_OFF) {
+    lcd.print("Unable to");
+    lcd.setCursor(0, 1);
+    lcd.print("turn on/off");
   } else {
     lcd.print("Emergency stop");
   }
@@ -1194,6 +1273,12 @@ void setup() {
   }
 
   lcd.begin(20, 4);
+  lcd.createChar(customCharMmCode, customCharMm);
+  lcd.createChar(customCharLimLeftCode, customCharLimLeft);
+  lcd.createChar(customCharLimRightCode, customCharLimRight);
+  lcd.createChar(customCharLimUpCode, customCharLimUp);
+  lcd.createChar(customCharLimDownCode, customCharLimDown);
+  lcd.createChar(customCharLimUpDownCode, customCharLimUpDown);
 
   Serial.begin(115200);
 
@@ -1408,7 +1493,7 @@ void setMode(int value) {
     return;
   }
   if (isOn) {
-    setIsOn(false);
+    setIsOnAfterMutex(false);
   }
   if (mode == MODE_THREAD) {
     setStarts(1);
@@ -1488,9 +1573,8 @@ void setOutOfSync(Axis* a) {
 long normalizePitch(long pitch) {
   int scale = 1;
   if (measure == MEASURE_METRIC) {
-    // Keep the 3rd precision point only if we're in the micron mode.
-    // Always drop the 4th precision point if any.
-    scale = moveStep == MOVE_STEP_4 ? 10 : 100;
+    // Drop the 3rd and 4th precision point if any.
+    scale = 100;
   } else if (measure == MEASURE_INCH) {
     // Always drop the 4th precision point in inch representation if any.
     scale = 254;
@@ -1514,12 +1598,7 @@ void buttonPlusMinusPress(bool plus) {
       setTurnPasses(turnPasses + 1);
     }
   } else if (measure != MEASURE_TPI) {
-    bool isMetric = measure == MEASURE_METRIC;
-    int delta = isMetric ? MOVE_STEP_3 : MOVE_STEP_IMP_3;
-    if (moveStep == MOVE_STEP_4) {
-      // Don't speed up scrolling when on smallest step.
-      delta = MOVE_STEP_4;
-    }
+    int delta = measure == MEASURE_METRIC ? MOVE_STEP_3 : MOVE_STEP_IMP_3;
     // Switching between mm/inch/tpi often results in getting non-0 3rd and 4th
     // precision points that can't be easily controlled. Remove them.
     long normalizedDupr = normalizePitch(dupr);
@@ -1562,16 +1641,23 @@ void buttonOnOffPress(bool on) {
     // Move to the next setup step.
     setupIndex++;
   } else {
-    setIsOn(on);
+    setIsOnAfterMutex(on);
   }
+}
+
+void setIsOnAfterMutex(bool on) {
+  if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
+    setEmergencyStop(ESTOP_ON_OFF);
+    return;
+  }
+  setIsOn(on);
+  xSemaphoreGive(motionMutex);
 }
 
 void setIsOn(bool on) {
   if (isOn && on) {
     return;
   }
-
-  bool hasMutex = xSemaphoreTake(motionMutex, 10) == pdTRUE;
   if (!on) {
     isOn = false;
     setupIndex = 0;
@@ -1586,9 +1672,6 @@ void setIsOn(bool on) {
     opIndex = 0;
     opSubIndex = 0;
     setupIndex = 0;
-  }
-  if (hasMutex) {
-    xSemaphoreGive(motionMutex);
   }
 }
 
@@ -1684,8 +1767,6 @@ void buttonMoveStepPress() {
       moveStep = MOVE_STEP_2;
     } else if (moveStep == MOVE_STEP_2) {
       moveStep = MOVE_STEP_3;
-    } else if (moveStep == MOVE_STEP_3) {
-      moveStep = MOVE_STEP_4;
     } else {
       moveStep = MOVE_STEP_1;
     }
@@ -1707,6 +1788,7 @@ void setDir(Axis* a, bool dir) {
     a->direction = dir;
     a->directionInitialized = true;
     DWRITE(a->dir, dir ^ a->invertStepper);
+    delayMicroseconds(DIRECTION_SETUP_DELAY_US);
   }
 }
 
@@ -2105,6 +2187,8 @@ void moveAxis(Axis* a) {
       a->speed += a->acceleration * delayUs / 1000000.0;
       if (a->speed > a->speedMax) {
         a->speed = a->speedMax;
+      } else if (a->speed < a->speedStart) {
+        a->speed = a->speedStart;
       }
       a->stepStartUs = nowUs;
 
@@ -2504,9 +2588,9 @@ bool handleGcode(const String& command) {
 bool handleMcode(const String& command) {
   int op = getInt(command, 'M');
   if (op == 0 || op == 1 || op == 2 || op == 30) {
-    setIsOn(false);
+    setIsOnAfterMutex(false);
   } else {
-    setIsOn(false);
+    setIsOnAfterMutex(false);
     Serial.print("error: unsupported command ");
     Serial.println(command);
     return false;
