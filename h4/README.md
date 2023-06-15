@@ -64,9 +64,11 @@ X axis - stepper terminal for the cross-slide:
 
 ## Programming the controller
 
-- Download the Arduino IDE
-- Install `LiquidCrystal` library via the Library Manager in the Arduino IDE
-- Download [this repository](https://github.com/kachurovskiy/nanoels/archive/refs/heads/main.zip), unzip, go to `h4` directory and open `h4.ino` file in Arduino IDE
+- Download the [Arduino IDE](https://docs.arduino.cc/software/ide-v2)
+- Add `https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json` in [Preferences as "Additional board manager URLs"](https://github.com/kachurovskiy/nanoels/assets/517919/dcc023e6-20fc-4284-ba56-d466dbe4ce53)
+- Install `esp32` [via Board Manager](https://github.com/kachurovskiy/nanoels/assets/517919/094d00ff-1e51-4f26-bb81-aa4ad42bde2a)
+- Install Adafruit `TCA8418` library [via Library Manager](https://github.com/kachurovskiy/nanoels/assets/517919/90326e0d-6600-4b47-aa66-1177c4b9cc27)
+- Download [this repository](https://github.com/kachurovskiy/nanoels/archive/refs/heads/main.zip), unzip, go to `h4` directory and open `h4.ino` file in the Arduino IDE
 - Check the top constants (e.g. encoder steps, motor steps, display offset) and adjust if needed
 - Select "ESP32S3 Dev Module" as device at the top, pick COM port that appears when you connect the device with a USB cable
 - Upload the sketch to your H4 controller
