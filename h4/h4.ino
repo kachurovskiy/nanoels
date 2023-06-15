@@ -2606,6 +2606,9 @@ void handleAxisMove(Axis* a, float mmOrInch) {
 
 // Process one command, return ok flag.
 bool handleGcodeCommand(String command) {
+  command.trim();
+  if (command.length() == 0) return false;
+
   // Trim N.. prefix.
   char code = command.charAt(0);
   int spaceIndex = command.indexOf(' ');
@@ -2628,6 +2631,7 @@ bool handleGcodeCommand(String command) {
     case 'T': return true; /* ignoring tool changes */
     default: Serial.print("error: unsupported command "); Serial.println(code); return false;
   }
+  return false;
 }
 
 void discountFullSpindleTurns() {

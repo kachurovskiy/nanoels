@@ -250,6 +250,7 @@ async function writeCurrentLine() {
   const line = lines[lineIndex].trim();
   if (!line) {
     lineIndex++;
+    writeCurrentLine();
     return;
   }
   waitForOkOrError = true;
@@ -260,7 +261,7 @@ async function writeCurrentLine() {
 
 async function processResponse(response) {
   console.log('<', response);
-  unparsedResponse += response;
+  unparsedResponse = (unparsedResponse + response).trimStart();
 
   // Cut out status message.
   const statuses = unparsedResponse.match(/(<[^>]+>)/);
@@ -328,7 +329,7 @@ async function openPort() {
     await askForStatus();
     statusInterval = setInterval(askForStatus, 1000);
   } catch (e) {
-    setError(`Unable to open port - likely some other app is using it - is Arduino IDE Serial Port Monitor active? ${e}`);
+    setError(`Unable to open port - likely some other app is using it - try closing Arduino IDE. ${e}`);
     closePort();
   }
 }
