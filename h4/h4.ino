@@ -2618,8 +2618,8 @@ bool handleGcodeCommand(String command) {
   }
 
   // Update position for relative calculations right before performing them.
-  z.gcodeRelativePos = (gcodeAbsolutePositioning ? 0 : z.pos) - z.originPos;
-  x.gcodeRelativePos = (gcodeAbsolutePositioning ? 0 : x.pos) - x.originPos;
+  z.gcodeRelativePos = (gcodeAbsolutePositioning ? 0 : z.pos) + z.originPos;
+  x.gcodeRelativePos = (gcodeAbsolutePositioning ? 0 : x.pos) + x.originPos;
 
   setFeedRate(command);
   switch (code) {
