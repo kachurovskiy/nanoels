@@ -69,7 +69,7 @@
 #define GCODE_WAIT_EPSILON_STEPS 10
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 2
+#define SOFTWARE_VERSION 3
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 4
@@ -217,6 +217,7 @@ long lcdHashLine0 = LCD_HASH_INITIAL;
 long lcdHashLine1 = LCD_HASH_INITIAL;
 long lcdHashLine2 = LCD_HASH_INITIAL;
 long lcdHashLine3 = LCD_HASH_INITIAL;
+bool splashScreen = false;
 
 #include <Preferences.h>
 
@@ -614,6 +615,19 @@ void updateDisplay() {
   int rpm = showTacho ? getApproxRpm() : 0;
   int charIndex = 0;
 
+  if (splashScreen) {
+    splashScreen = false;
+    lcd.clear();
+    lcd.setCursor(6, 1);
+    lcd.print("NanoEls");
+    lcd.setCursor(6, 2);
+    lcd.print("H" + String(HARDWARE_VERSION) + " V" + String(SOFTWARE_VERSION));
+    lcdHashLine0 = LCD_HASH_INITIAL;
+    lcdHashLine1 = LCD_HASH_INITIAL;
+    lcdHashLine2 = LCD_HASH_INITIAL;
+    lcdHashLine3 = LCD_HASH_INITIAL;
+    delay(2000);
+  }
   if (lcdHashLine0 == LCD_HASH_INITIAL) {
     // First run after reset.
     lcd.clear();
@@ -719,7 +733,7 @@ void updateDisplay() {
     gcodeCommandHash += gcodeCommand.charAt(i);
   }
   long newHashLine3 = z.pos + (showAngle ? spindlePos : -1) + (showTacho ? rpm : -2) + measure + (numpadResult > 0 ? numpadResult : -1) + mode * 5 + dupr +
-      (mode == MODE_CONE ? round(coneRatio * 10000) : 0) + turnPasses + opIndex + setupIndex + isOn * 4 + (inNumpad ? 10 : 0) + (auxForward ? 1 : 0) +
+      (mode == MODE_CONE ? round(coneRatio * 10000) : 0) + turnPasses + opIndex + setupIndex + (isOn ? 139 : -117) + (inNumpad ? 10 : 0) + (auxForward ? 17 : -31) +
       (z.leftStop == LONG_MAX ? 123 : z.leftStop) + (z.rightStop == LONG_MIN ? 1234 : z.rightStop) +
       (x.leftStop == LONG_MAX ? 1235 : x.leftStop) + (x.rightStop == LONG_MIN ? 123456 : x.rightStop) + gcodeCommandHash;
   if (lcdHashLine3 != newHashLine3) {
@@ -753,7 +767,7 @@ void updateDisplay() {
         charIndex += lcd.print("Operation ");
         charIndex += lcd.print(opIndex);
         charIndex += lcd.print(" of ");
-        charIndex += lcd.print(turnPasses * starts);
+        charIndex += lcd.print(max(opIndex, long(turnPasses * starts)));
       }
     } else if (mode == MODE_CONE) {
       if (numpadResult != 0 && setupIndex == 1) {
@@ -1070,6 +1084,7 @@ void taskMoveX(void *param) {
       waitForStep(&x);
       pulseDelta = getAndResetPulses(&x);
     } while (delta != 0 && (pulseDelta != 0 || (up ? buttonUpPressed : buttonDownPressed)));
+    waitForPendingPos0(&x);
     if (isOn && mode == MODE_CONE) {
       if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
         setEmergencyStop(ESTOP_MARK_ORIGIN);
@@ -1439,21 +1454,6 @@ void setMeasure(int value) {
   moveStep = measure == MEASURE_METRIC ? MOVE_STEP_1 : MOVE_STEP_IMP_1;
 }
 
-void splashScreen() {
-#ifndef TEST
-  lcd.clear();
-  lcd.setCursor(6, 1);
-  lcd.print("NanoEls");
-  lcd.setCursor(6, 2);
-  lcd.print("H" + String(HARDWARE_VERSION) + " V" + String(SOFTWARE_VERSION));
-  lcdHashLine0 = LCD_HASH_INITIAL;
-  lcdHashLine1 = LCD_HASH_INITIAL;
-  lcdHashLine2 = LCD_HASH_INITIAL;
-  lcdHashLine3 = LCD_HASH_INITIAL;
-  delay(2000);
-#endif
-}
-
 unsigned int getTimerLimit() {
   if (dupr == 0) {
     return 65535;
@@ -1678,7 +1678,7 @@ void setIsOn(bool on) {
 void buttonOffRelease() {
   if (millis() - resetMillis > 4000) {
     reset();
-    splashScreen();
+    splashScreen = true;
   }
 }
 
