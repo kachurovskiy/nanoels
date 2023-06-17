@@ -282,11 +282,11 @@ struct Axis {
   long nextRightStop; // right stop value that should be applied asap
   bool nextRightStopFlag; // whether nextRightStop requires attention
 
-  unsigned long speed; // motor speed in steps / second
-  unsigned long speedStart; // Initial speed of a motor, steps / second.
-  unsigned long speedMax; // To limit max speed e.g. for manual moves
-  unsigned long speedManualMove; // Maximum speed of a motor during manual move, steps / second.
-  unsigned long acceleration; // Acceleration of a motor, steps / second ^ 2.
+  long speed; // motor speed in steps / second
+  long speedStart; // Initial speed of a motor, steps / second.
+  long speedMax; // To limit max speed e.g. for manual moves
+  long speedManualMove; // Maximum speed of a motor during manual move, steps / second.
+  long acceleration; // Acceleration of a motor, steps / second ^ 2.
 
   bool direction; // To reset speed when direction changes.
   bool directionInitialized;
@@ -1211,6 +1211,20 @@ void setEmergencyStop(int kind) {
   }
 }
 
+// Some users reported axis acceleration problems after extended use.
+// Until the root cause is found, wipe axis speed-related info before an operation.
+void resetSpeeds() {
+  z.speed = z.speedStart = SPEED_START_Z;
+  z.speedMax = LONG_MAX;
+  z.speedManualMove = SPEED_MANUAL_MOVE_Z;
+  z.acceleration = ACCELERATION_Z;
+
+  x.speed = x.speedStart = SPEED_START_X;
+  x.speedMax = LONG_MAX;
+  x.speedManualMove = SPEED_MANUAL_MOVE_X;
+  x.acceleration = ACCELERATION_X;
+}
+
 void setup() {
   pinMode(ENC_A, INPUT_PULLUP);
   pinMode(ENC_B, INPUT_PULLUP);
@@ -1666,6 +1680,7 @@ void setIsOn(bool on) {
   stepperEnable(&z, on);
   stepperEnable(&x, on);
   markOrigin();
+  resetSpeeds();
   if (on) {
     isOn = true;
     opDuprSign = dupr >= 0 ? 1 : -1;
