@@ -1978,7 +1978,7 @@ bool processNumpadResult(int keyCode) {
   }
 
   // Set axis 0 newDu ahead.
-  if (!isOn && (keyCode == B_Z || keyCode == B_X)) {
+  if (keyCode == B_Z || keyCode == B_X) {
     a->originPos = -pos;
     return true;
   }

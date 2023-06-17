@@ -119,7 +119,7 @@ Use numpad buttons ![Icon0](https://github.com/kachurovskiy/nanoels/assets/51791
 
 Z and X position can be counted from any location you'd like. By pressing ![IconZ](https://github.com/kachurovskiy/nanoels/assets/517919/32d95cce-d8be-4f8c-8a9c-399d278a2115) or ![IconX](https://github.com/kachurovskiy/nanoels/assets/517919/fd870901-4cc0-469e-ad88-e558998928d0) you can take the current position on the respective axis as `0`.
 
-You can also set the `0` at a position ahead of the current position by entering the required distance using the numpad buttons ![Icon0](https://github.com/kachurovskiy/nanoels/assets/517919/67f660f1-c6fa-4922-bf03-9f6571023806) to ![Icon9](https://github.com/kachurovskiy/nanoels/assets/517919/6ad6b4e4-5bf1-473f-93ed-65f6ee478d8f) and then pressing ![IconZ](https://github.com/kachurovskiy/nanoels/assets/517919/32d95cce-d8be-4f8c-8a9c-399d278a2115) or ![IconX](https://github.com/kachurovskiy/nanoels/assets/517919/fd870901-4cc0-469e-ad88-e558998928d0). For now it's only possible when the ELS is `OFF` and for a positive distance value.
+You can also set the `0` at a position ahead of the current position by entering the required distance using the numpad buttons ![Icon0](https://github.com/kachurovskiy/nanoels/assets/517919/67f660f1-c6fa-4922-bf03-9f6571023806) to ![Icon9](https://github.com/kachurovskiy/nanoels/assets/517919/6ad6b4e4-5bf1-473f-93ed-65f6ee478d8f) and then pressing ![IconZ](https://github.com/kachurovskiy/nanoels/assets/517919/32d95cce-d8be-4f8c-8a9c-399d278a2115) or ![IconX](https://github.com/kachurovskiy/nanoels/assets/517919/fd870901-4cc0-469e-ad88-e558998928d0).
 
 ### Moving left and right, in and out
 
