@@ -9,8 +9,8 @@ Controller itself is available for purchase on https://kachurovskiy.com/ or you 
 ## Features
 
 - Metric, inch and TPI support, cut any thread with utmost precision
-- Controls 2 axis - lead screw (Z) and cross-slide (X)
-- Manual movement of both axis: by eye, in precise steps or by a precise amount
+- Controls 2 axes - lead screw (Z) and cross-slide (X)
+- Manual movement of both axes: by eye, in precise steps or by a precise amount
 - Disabling/enabling of stepper motors allowing to switch to manual operations in 1 click
 - Soft limits allowing to cut e.g. close to the chuck
 - Automatic threads: just set length, depth, pitch and number of passes
@@ -64,7 +64,7 @@ X axis - stepper terminal for the cross-slide:
 
 ## Programming the controller
 
-- Download the [Arduino IDE](https://docs.arduino.cc/software/ide-v2)
+- Install the [Arduino IDE](https://docs.arduino.cc/software/ide-v2)
 - Add `https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json` in [Preferences as "Additional board manager URLs"](https://github.com/kachurovskiy/nanoels/assets/517919/dcc023e6-20fc-4284-ba56-d466dbe4ce53)
 - Install `esp32` [via Board Manager](https://github.com/kachurovskiy/nanoels/assets/517919/094d00ff-1e51-4f26-bb81-aa4ad42bde2a)
 - Install Adafruit `TCA8418` library [via Library Manager](https://github.com/kachurovskiy/nanoels/assets/517919/90326e0d-6600-4b47-aa66-1177c4b9cc27)
@@ -72,8 +72,11 @@ X axis - stepper terminal for the cross-slide:
 - Check the top constants (e.g. encoder steps, motor steps, display offset) and adjust if needed
 - Select "ESP32S3 Dev Module" as device at the top, pick COM port that appears when you connect the device with a USB cable
 - Upload the sketch to your H4 controller
-- Spindle direction: show angle on screen using ![IconDisplay](https://github.com/kachurovskiy/nanoels/assets/517919/60bb723d-4c2d-45af-9208-95c2b26a42d1). Rotate the chuck forward manually - angle should increase. If it decreases, swap `ENC_A` and `ENC_B` values in the code, re-upload the sketch
-- Motor direction: try ![IconArrowLeft](https://github.com/kachurovskiy/nanoels/assets/517919/d110519a-6cf4-491e-b81a-c09aefa49e49) ![IconArrowRight](https://github.com/kachurovskiy/nanoels/assets/517919/48a0327e-0cc4-465e-b371-644f153f3288) ![IconArrowUp](https://github.com/kachurovskiy/nanoels/assets/517919/ac350635-4424-4438-bcfb-3cb0431345f8) ![IconArrowDown](https://github.com/kachurovskiy/nanoels/assets/517919/897b4005-45d0-46ed-977e-b25a98983961) buttons - if motor is moving in the wrong direction, change `INVERT_Z` or `INVERT_X` in the code, re-upload the sketch
+
+A few things to check after upload:
+
+- Spindle direction: show angle on screen using ![IconDisplay](https://github.com/kachurovskiy/nanoels/assets/517919/60bb723d-4c2d-45af-9208-95c2b26a42d1). Rotate the chuck forward manually - angle should increase. If it decreases, swap `ENCB` and `ENCA` wires in the terminal
+- Motor direction: try ![IconArrowLeft](https://github.com/kachurovskiy/nanoels/assets/517919/d110519a-6cf4-491e-b81a-c09aefa49e49) ![IconArrowRight](https://github.com/kachurovskiy/nanoels/assets/517919/48a0327e-0cc4-465e-b371-644f153f3288) ![IconArrowUp](https://github.com/kachurovskiy/nanoels/assets/517919/ac350635-4424-4438-bcfb-3cb0431345f8) ![IconArrowDown](https://github.com/kachurovskiy/nanoels/assets/517919/897b4005-45d0-46ed-977e-b25a98983961) buttons - if motor is moving in the wrong direction, change `INVERT_Z` or `INVERT_X` in the code, re-upload the sketch (or swap the motor leads `A+` and `A-` in the stepper driver)
 
 ## Usage manual
 
@@ -111,6 +114,12 @@ Pressing ![IconSteps](https://github.com/kachurovskiy/nanoels/assets/517919/52ce
 - Imperial: `0.1"`, `0.01"`, `0.001"`
 
 Use numpad buttons ![Icon0](https://github.com/kachurovskiy/nanoels/assets/517919/67f660f1-c6fa-4922-bf03-9f6571023806) to ![Icon9](https://github.com/kachurovskiy/nanoels/assets/517919/6ad6b4e4-5bf1-473f-93ed-65f6ee478d8f) to enter a custom step value. Pressing ![IconSteps](https://github.com/kachurovskiy/nanoels/assets/517919/52ce78e4-4202-4642-9433-e61ca39de9d5) when the screen bottom line shows `Use 1.234mm?` will make the step equal to `1.234mm`.
+
+### Zeroing the axes
+
+Z and X position can be counted from any location you'd like. By pressing ![IconZ](https://github.com/kachurovskiy/nanoels/assets/517919/32d95cce-d8be-4f8c-8a9c-399d278a2115) or ![IconX](https://github.com/kachurovskiy/nanoels/assets/517919/fd870901-4cc0-469e-ad88-e558998928d0) you can take the current position on the respective axis as `0`.
+
+You can also set the `0` at a position ahead of the current position by entering the required distance using the numpad buttons ![Icon0](https://github.com/kachurovskiy/nanoels/assets/517919/67f660f1-c6fa-4922-bf03-9f6571023806) to ![Icon9](https://github.com/kachurovskiy/nanoels/assets/517919/6ad6b4e4-5bf1-473f-93ed-65f6ee478d8f) and then pressing ![IconZ](https://github.com/kachurovskiy/nanoels/assets/517919/32d95cce-d8be-4f8c-8a9c-399d278a2115) or ![IconX](https://github.com/kachurovskiy/nanoels/assets/517919/fd870901-4cc0-469e-ad88-e558998928d0). For now it's only possible when the ELS is `OFF` and for a positive distance value.
 
 ### Moving left and right, in and out
 
