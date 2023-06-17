@@ -1941,8 +1941,8 @@ bool processNumpadResult(int keyCode) {
   }
 
   // Shared piece for stops and moves.
-  Axis* a = (keyCode == B_STOPL || keyCode == B_STOPR || keyCode == B_LEFT || keyCode == B_RIGHT) ? &z : &x;
-  long pos = a->pos + newDu / a->screwPitch * a->motorSteps * ((keyCode == B_STOPL || keyCode == B_STOPU || keyCode == B_LEFT || keyCode == B_UP) ? 1 : -1);
+  Axis* a = (keyCode == B_STOPL || keyCode == B_STOPR || keyCode == B_LEFT || keyCode == B_RIGHT || keyCode == B_Z) ? &z : &x;
+  long pos = a->pos + newDu / a->screwPitch * a->motorSteps * ((keyCode == B_STOPL || keyCode == B_STOPU || keyCode == B_LEFT || keyCode == B_UP || keyCode == B_Z || keyCode == B_X) ? 1 : -1);
 
   // Potentially assign a new value to a limit. Treat newDu as a relative distance from current position.
   if (keyCode == B_STOPL) {
@@ -1974,6 +1974,12 @@ bool processNumpadResult(int keyCode) {
     }
     a->speedMax = a->speedManualMove;
     stepTo(a, pos);
+    return true;
+  }
+
+  // Set axis 0 newDu ahead.
+  if (!isOn && (keyCode == B_Z || keyCode == B_X)) {
+    a->originPos = -pos;
     return true;
   }
 
