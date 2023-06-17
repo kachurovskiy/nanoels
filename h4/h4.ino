@@ -20,6 +20,8 @@
 #define NEEDS_REST_Z false // Set to false for closed-loop drivers, true for open-loop.
 #define MAX_TRAVEL_MM_Z 300 // Lathe bed doesn't allow to travel more than this in one go, 30cm / ~1 foot
 #define BACKLASH_DU_Z 6500 // 0.65mm backlash in deci-microns (10^-7 of a meter)
+#define SHOW_NAME_Z false // Whether to show the axis name before position value
+#define NAME_Z "Z " // Text shown on screen before axis position value
 
 // Cross-slide lead screw (X) parameters.
 #define MOTOR_STEPS_X 2400.0 // 800 steps at 3x reduction
@@ -31,6 +33,9 @@
 #define NEEDS_REST_X false // Set to false for all kinds of drivers or X will be unlocked when not moving.
 #define MAX_TRAVEL_MM_X 100 // Cross slide doesn't allow to travel more than this in one go, 10cm
 #define BACKLASH_DU_X 1500 // 0.15mm backlash in deci-microns (10^-7 of a meter)
+#define SHOW_WHEN_0_X false // Whether to show the axis position on the 3rd screen line when it's 0
+#define SHOW_NAME_X false // Whether to show the axis name before position value
+#define NAME_X "X " // Text shown on screen before axis position value
 
 // Manual stepping with left/right/up/down buttons. Only used when step isn't default continuous (1mm or 0.1").
 #define STEP_TIME_MS 500 // Time in milliseconds it should take to make 1 manual step.
@@ -69,7 +74,7 @@
 #define GCODE_WAIT_EPSILON_STEPS 10
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 3
+#define SOFTWARE_VERSION 4
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 4
@@ -711,8 +716,8 @@ void updateDisplay() {
     if (z.isManuallyDisabled) {
       charIndex += lcd.print("Z disable");
     } else {
-      if (xDisplayPos == 0 && !x.isManuallyDisabled) {
-        charIndex += lcd.print("Position ");
+      if (xDisplayPos == 0 && !x.isManuallyDisabled && !SHOW_WHEN_0_X || SHOW_NAME_Z) {
+        charIndex += SHOW_NAME_Z ? lcd.print(NAME_Z) : lcd.print("Position ");
       }
       charIndex += printAxisPos(&z);
     }
@@ -721,7 +726,8 @@ void updateDisplay() {
     }
     if (x.isManuallyDisabled) {
       charIndex += lcd.print("X disable");
-    } else if (xDisplayPos != 0) {
+    } else if (xDisplayPos != 0 || SHOW_WHEN_0_X) {
+      if (SHOW_NAME_X) charIndex += lcd.print(NAME_X);
       charIndex += printAxisPos(&x);
     }
     printLcdSpaces(charIndex);
