@@ -24,6 +24,8 @@ Features:
 - Metric, inch and TPI support
 - Quick reverse
 
+⚠️ Due to Arduino relatively low frequency and realtime requirements (can't plan the motion ahead) H2 can only issue 2800 step impulses per second. This means that the motor can reach ~800 RPM at 200 steps per revolution or ~200 RPM at 800 steps per revolution. Make sure to use a motor with a driver that can do full steps or use the [H4 controller](https://github.com/kachurovskiy/nanoels/tree/main/h4) instead.
+
 ## Components
 
 - Arduino Nano (mini USB style)
