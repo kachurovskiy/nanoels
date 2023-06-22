@@ -109,7 +109,6 @@ let waitForOkOrError = false;
 let lines = [];
 let lineIndex = 0;
 let status = '';
-let statusInterval = 0;
 let unparsedResponse = '';
 let error = '';
 
@@ -208,7 +207,7 @@ function stop() {
 }
 
 async function write(sequence) {
-  console.log('>', sequence);
+  console.log('command:', sequence);
   if (!port.writable) {
     if (sequence != '?') {
       log('Port is not writable, try reconnecting the USB and switching to GCODE mode.');
@@ -260,7 +259,7 @@ async function writeCurrentLine() {
 };
 
 async function processResponse(response) {
-  console.log('<', response);
+  console.log('response:', response);
   unparsedResponse = (unparsedResponse + response).trimStart();
 
   // Cut out status message.
@@ -327,7 +326,6 @@ async function openPort() {
     await port.open({ baudRate: 115200 });
     readSoon();
     await askForStatus();
-    statusInterval = setInterval(askForStatus, 1000);
   } catch (e) {
     setError(`Unable to open port - likely some other app is using it - try closing Arduino IDE. ${e}`);
     closePort();
@@ -374,8 +372,6 @@ async function readFromPort() {
 
 async function closePort() {
   if (!port) return;
-  clearInterval(statusInterval);
-  statusInterval = 0;
   clearTimeout(readTimeout);
   readTimeout = 0;
   if (reader) {
