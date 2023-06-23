@@ -22,6 +22,8 @@ Controller itself is available for purchase on https://kachurovskiy.com/ or you 
 - RPM and angle indication
 - Internal/external and left-to-right versions of each automatic operation
 - Backlash compensation
+- Rotary encoders to move axes
+- Rotary or linear 3rd axis
 - GCode over USB (work in progress)
 
 No computer or CAD software needed! Coming soon:
@@ -184,13 +186,15 @@ Pressing ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0
 
 Turn on the spindle. Operation will proceed fully automatically and the cutter will return to the starting position when done. Pitch can be adjusted on the fly using ![IconPlus](https://github.com/kachurovskiy/nanoels/assets/517919/3c0e1c27-820a-4d34-ae97-4b362b537e72) and ![IconMinus](https://github.com/kachurovskiy/nanoels/assets/517919/75db2ae9-97d6-4d39-9fff-e98e889ee84b).
 
+You can skip to the next pass using ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d) while the operation is running.
+
 Operation can be stopped at any time by pressing ![IconStop](https://github.com/kachurovskiy/nanoels/assets/517919/cf4b9b31-dda3-4469-9667-1d1c44ea39b4) or using manual move buttons.
 
 ### Automatic facing
 
 Press ![IconFacing](https://github.com/kachurovskiy/nanoels/assets/517919/f37cfd0e-74cc-4e70-80ab-620ab769afb8) to switch to the automatic facing mode which is usually used to take large amount of material from the face of the part in 1 or more passes.
 
-It's setup in the same way as automatic turning above. When running, passes are made along the face instead of the side of the part.
+It's setup in the same way as automatic turning above. When running, passes are made along the face instead of the side of the part. Negative pitch will make facing start from the inside.
 
 ### Cone
 
@@ -202,7 +206,6 @@ Pressing ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0
 
 - Enter cone ratio which is calculated as `(major_diameter - minor_diameter) / length`, see [this spreadsheet for most used values](https://docs.google.com/spreadsheets/d/1l0FUMtlWUjPywN9j94DOL84lB8dFrvdRWZIffT2NoHA/edit?usp=sharing). Confirm with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
 - Select `External` or `Internal` cone - use ![IconArrowLeft](https://github.com/kachurovskiy/nanoels/assets/517919/28a59458-0f91-42a5-9ba4-412d050dc462) and ![IconArrowRight](https://github.com/kachurovskiy/nanoels/assets/517919/0ff9ab80-0ce1-45fc-bc00-86d34ecac9f1) to change selection. Confirm with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
-- Confirm the final `Go?` question with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
 
 Turn on the spindle. Pitch can be adjusted on the fly using ![IconPlus](https://github.com/kachurovskiy/nanoels/assets/517919/3c0e1c27-820a-4d34-ae97-4b362b537e72) and ![IconMinus](https://github.com/kachurovskiy/nanoels/assets/517919/75db2ae9-97d6-4d39-9fff-e98e889ee84b). It's convenient to cut multiple cone passes with ![IconReverse](https://github.com/kachurovskiy/nanoels/assets/517919/d820c1cd-8ce3-4d02-91f9-d240f4ea51cc) moving the tool in using manual move buttons.
 
@@ -238,6 +241,8 @@ Pressing ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0
 
 Turn on the spindle. Operation will proceed fully automatically and the cutter will return to the starting position when done.
 
+You can skip to the next pass using ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d) while the operation is running.
+
 Operation can be stopped at any time by pressing ![IconStop](https://github.com/kachurovskiy/nanoels/assets/517919/cf4b9b31-dda3-4469-9667-1d1c44ea39b4) or using manual move buttons.
 
 ### Automatic half-spheres and half-ellipses
@@ -257,7 +262,7 @@ Pressing ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0
 - Selecting `External` or `Internal` operation - use ![IconArrowLeft](https://github.com/kachurovskiy/nanoels/assets/517919/28a59458-0f91-42a5-9ba4-412d050dc462) and ![IconArrowRight](https://github.com/kachurovskiy/nanoels/assets/517919/0ff9ab80-0ce1-45fc-bc00-86d34ecac9f1) to change selection. Confirm with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
 - Confirm the final `Go?` question with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
 
-Turn on the spindle. Operation will proceed fully automatically and the cutter will return to the starting position when done.
+Turn on the spindle. Operation will proceed fully automatically and the cutter will return to the starting position when done. Adjusting the pitch on the fly is not supported.
 
 Operation can be stopped at any time by pressing ![IconStop](https://github.com/kachurovskiy/nanoels/assets/517919/cf4b9b31-dda3-4469-9667-1d1c44ea39b4) or using manual move buttons.
 
