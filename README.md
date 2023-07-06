@@ -1,5 +1,24 @@
 This software and instructions are [provided as is](LICENSE), without warranty of any kind. [🇷🇺 Перевод на русский](https://translate.google.com/translate?hl=en&sl=en&tl=ru&u=https%3A%2F%2Fgithub.com%2Fkachurovskiy%2Fnanoels%2Fblob%2Fmain%2FREADME.md), [🇩🇪 deutsche Übersetzung](https://translate.google.com/translate?hl=en&sl=en&tl=de&u=https%3A%2F%2Fgithub.com%2Fkachurovskiy%2Fnanoels%2Fblob%2Fmain%2FREADME.md)
 
+# NanoEls H4
+
+CNC and electronic lead screw controller based on ESP32-S3 that supports up to 4 axes:
+
+- Automatic threads including multi-start
+- Multi-pass turning, facing and cones
+- Precise movements, soft limits and much more
+
+[![h4-600px](https://user-images.githubusercontent.com/517919/235074149-307f8b7f-a9d5-4ade-b29a-13809ba81e75.JPG)](https://kachurovskiy.com/)
+
+See [h4 folder for hardware files, software, assembly and usage manual](https://github.com/kachurovskiy/nanoels/tree/main/h4).
+
+Controller is available for purchase on https://kachurovskiy.com
+
+## Build examples
+
+- [fmw626](https://github.com/kachurovskiy/nanoels/discussions/123)
+- [Kissys](https://github.com/kachurovskiy/nanoels/discussions/121)
+
 # NanoEls H2
 
 Cheap DIY Electronic Lead Screw (ELS) based on Arduino Nano for metal lathes.
@@ -22,25 +41,6 @@ It's suggested to use STEPPERONLINE CL57T closed-loop driver with NEMA 23 3NM mo
 - [fmw626](https://github.com/kachurovskiy/nanoels/discussions/118)
 - [Johannmupa](https://github.com/kachurovskiy/nanoels/discussions/89)
 - [kachurovskiy](https://youtu.be/jR4tBBHSl3c?t=62)
-
-# NanoEls H4
-
-CNC and electronic lead screw controller based on ESP32-S3 that supports up to 4 axes:
-
-- Automatic threads including multi-start
-- Multi-pass turning, facing and cones
-- Precise movements, soft limits and much more
-
-[![h4-600px](https://user-images.githubusercontent.com/517919/235074149-307f8b7f-a9d5-4ade-b29a-13809ba81e75.JPG)](https://kachurovskiy.com/)
-
-See [h4 folder for hardware files, software, assembly and usage manual](https://github.com/kachurovskiy/nanoels/tree/main/h4).
-
-Controller is available for purchase on https://kachurovskiy.com
-
-## Build examples
-
-- [fmw626](https://github.com/kachurovskiy/nanoels/discussions/123)
-- [Kissys](https://github.com/kachurovskiy/nanoels/discussions/121)
 
 # Contributing to the project
 
