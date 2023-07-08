@@ -283,6 +283,8 @@ Sample command `G1 X5 Z2 F100` will move the cutter to X=5mm, Z=2mm at 100 mm/se
 
 GCode can be generated using e.g. https://kachurovskiy.github.io/lathecode/
 
+**WARNING:** GCode commands currently ignore automatic stops / soft limits. To stop GCode from executing use ![IconStop](https://github.com/kachurovskiy/nanoels/assets/517919/cf4b9b31-dda3-4469-9667-1d1c44ea39b4) or emergency stop. Clicking `Stop` in the Web UI has a delay and only stops when current command is finished.
+
 ### More modes are coming!
 
 Please [start a new discussion](https://github.com/kachurovskiy/nanoels/discussions) to let us know which mode you think should be added next.
