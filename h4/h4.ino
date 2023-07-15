@@ -66,9 +66,6 @@
 #define PULSE_MIN_WIDTH_US 1000 // Microseconds width of the pulse that is required for it to be registered. Prevents noise.
 #define PULSE_HALF_BACKLASH 2 // Prevents spurious reverses when moving using a handwheel. Raise to 3 or 4 if they still happen.
 
-#define LONG_MIN long(-2147483648)
-#define LONG_MAX long(2147483647)
-
 #define DUPR_MAX long(254000) // 25.4mm
 #define STARTS_MAX 124 // No more than 124-start thread
 #define PASSES_MAX 999 // No more turn or face passes than this
@@ -824,7 +821,8 @@ void updateDisplay() {
     } else if (mode == MODE_GCODE) {
       charIndex += lcd.print(gcodeCommand.substring(0, 20));
     } else if (isPassMode()) {
-      bool missingStops = needZStops() && (z.leftStop == LONG_MAX || z.rightStop == LONG_MIN) || x.leftStop == LONG_MAX || x.rightStop == LONG_MIN;
+      bool missingZStops = needZStops() && (z.leftStop == LONG_MAX || z.rightStop == LONG_MIN);
+      bool missingStops = missingZStops || x.leftStop == LONG_MAX || x.rightStop == LONG_MIN;
       if (!inNumpad && missingStops) {
         charIndex += lcd.print(needZStops() ? "Set all stops" : "Set X stops");
       } else if (numpadResult != 0 && setupIndex == 1) {
@@ -1218,7 +1216,7 @@ void taskMoveA1(void *param) {
   while (emergencyStop == ESTOP_NONE) {
     bool plus = buttonTurnPressed;
     bool minus = buttonGearsPressed;
-    if (mode != MODE_A1 || !plus && !minus) {
+    if (mode != MODE_A1 || (!plus && !minus)) {
       taskYIELD();
       continue;
     }
@@ -1793,7 +1791,7 @@ void buttonPlusMinusPress(bool plus) {
     } else {
       long currentTpi = round(254000.0 / dupr);
       long tpi = currentTpi + (plus ? 1 : -1);
-      long newDupr = newDupr = round(254000.0 / tpi);
+      long newDupr = tpi == 0 ? (plus ? DUPR_MAX : -DUPR_MAX) : round(254000.0 / tpi);
       // Happens for small pitches like 0.01mm.
       if (newDupr == dupr) {
         newDupr += plus ? -1 : 1;
@@ -1811,7 +1809,8 @@ void beep() {
 
 void buttonOnOffPress(bool on) {
   resetMillis = millis();
-  if (on && isPassMode() && (needZStops() && (z.leftStop == LONG_MAX || z.rightStop == LONG_MIN) || x.leftStop == LONG_MAX || x.rightStop == LONG_MIN)) {
+  bool missingZStops = needZStops() && (z.leftStop == LONG_MAX || z.rightStop == LONG_MIN);
+  if (on && isPassMode() && (missingZStops || x.leftStop == LONG_MAX || x.rightStop == LONG_MIN)) {
     beep();
   } else if (!isOn && on && setupIndex < getLastSetupIndex()) {
     // Move to the next setup step.
