@@ -2,7 +2,7 @@
 
 4-axis Electronic Lead Screw (ELS) based on ESP32-S3 for metal lathes.
 
-[![h4-600px](https://user-images.githubusercontent.com/517919/235074149-307f8b7f-a9d5-4ade-b29a-13809ba81e75.JPG)](https://kachurovskiy.com/)
+[![h4-600px](https://github.com/kachurovskiy/nanoels/assets/517919/4090779c-ef88-4402-aeef-644f7a086ff2)](https://kachurovskiy.com/)
 
 Controller itself is available for purchase on https://kachurovskiy.com/ or you can DIY with the hardware design files provided.
 
