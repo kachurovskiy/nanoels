@@ -2,7 +2,7 @@
 
 4-axis Electronic Lead Screw (ELS) based on ESP32-S3 for metal lathes.
 
-[![h4-600px](https://user-images.githubusercontent.com/517919/235074149-307f8b7f-a9d5-4ade-b29a-13809ba81e75.JPG)](https://kachurovskiy.com/)
+[![h4-600px](https://github.com/kachurovskiy/nanoels/assets/517919/86289a74-f70e-4d16-873f-0954dd297f77)](https://kachurovskiy.com/)
 
 Controller itself is available for purchase on https://kachurovskiy.com/ or you can DIY with the hardware design files provided.
 
@@ -41,7 +41,7 @@ See [hardware.md](https://github.com/kachurovskiy/nanoels/blob/main/hardware.md)
 
 ## Wiring
 
-![PXL_20230505_134343196](https://github.com/kachurovskiy/nanoels/assets/517919/ccea47f1-fb60-4908-bad8-a4ef200a82dd)
+![h4-back-cropped](https://github.com/kachurovskiy/nanoels/assets/517919/bd0fd006-5bda-4b00-a66b-ec7d7cab502e)
 
 Encoder terminal:
 
@@ -249,17 +249,14 @@ Operation can be stopped at any time by pressing ![IconStop](https://github.com/
 
 Press ![IconM](https://github.com/kachurovskiy/nanoels/assets/517919/902cc062-3b85-4335-8e6c-077ec956f410) several times until `ELLI` is shown on screen. In this mode, cutter will form convex or concave half-ellipses in multiple passes.
 
-- External setting with positive pitch forms left hemisphere
-- Internal setting with positive pitch forms left concave hemisphere
-- External setting with negative pitch forms right hemisphere
-- Internal setting with negative pitch forms right concave hemisphere
+Starting operation with positive pitch forms left hemisphere, with negative pitch - right hemisphere.
 
 Set the desired pitch to a suitable value e.g. `0.07mm`. All soft limits (left, right, up, down) must be set before the operation can be started.
 
 Pressing ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d) guides through remaining steps:
 
 - Entering the numer of passes - use numpad or ![IconPlus](https://github.com/kachurovskiy/nanoels/assets/517919/3c0e1c27-820a-4d34-ae97-4b362b537e72) and ![IconMinus](https://github.com/kachurovskiy/nanoels/assets/517919/75db2ae9-97d6-4d39-9fff-e98e889ee84b), confirm with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
-- Selecting `External` or `Internal` operation - use ![IconArrowLeft](https://github.com/kachurovskiy/nanoels/assets/517919/28a59458-0f91-42a5-9ba4-412d050dc462) and ![IconArrowRight](https://github.com/kachurovskiy/nanoels/assets/517919/0ff9ab80-0ce1-45fc-bc00-86d34ecac9f1) to change selection. Confirm with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
+- Selecting `External` or `Internal` operation - use ![IconArrowLeft](https://github.com/kachurovskiy/nanoels/assets/517919/28a59458-0f91-42a5-9ba4-412d050dc462) and ![IconArrowRight](https://github.com/kachurovskiy/nanoels/assets/517919/0ff9ab80-0ce1-45fc-bc00-86d34ecac9f1) to change selection. Use `External` setting for now, `Internal` ellipse is not practical at the moment. Confirm with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
 - Confirm the final `Go?` question with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
 
 Turn on the spindle. Operation will proceed fully automatically and the cutter will return to the starting position when done. Adjusting the pitch on the fly is not supported.
