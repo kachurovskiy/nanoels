@@ -80,7 +80,15 @@ A few things to check after upload:
 - Spindle direction: show angle on screen using ![IconDisplay](https://github.com/kachurovskiy/nanoels/assets/517919/60bb723d-4c2d-45af-9208-95c2b26a42d1). Rotate the chuck forward manually - angle should increase. If it decreases, swap `ENCB` and `ENCA` wires in the terminal
 - Motor direction: try ![IconArrowLeft](https://github.com/kachurovskiy/nanoels/assets/517919/d110519a-6cf4-491e-b81a-c09aefa49e49) ![IconArrowRight](https://github.com/kachurovskiy/nanoels/assets/517919/48a0327e-0cc4-465e-b371-644f153f3288) ![IconArrowUp](https://github.com/kachurovskiy/nanoels/assets/517919/ac350635-4424-4438-bcfb-3cb0431345f8) ![IconArrowDown](https://github.com/kachurovskiy/nanoels/assets/517919/897b4005-45d0-46ed-977e-b25a98983961) buttons - if motor is moving in the wrong direction, change `INVERT_Z` or `INVERT_X` in the code, re-upload the sketch (or swap the motor leads `A+` and `A-` in the stepper driver)
 
+Troubleshooting:
+
+- Arduino IDE doesn't detect NanoEls H4: try a different USB cable
+- Not sure which COM port is NanoEls H4: unplug it, check the list of available ports in Arduino IDE, plug H4 in, see new port that appeared is H4
+- `ImportError: No module named serial` error on Linux: try `sudo apt install python3-serial`
+
 ## Usage manual
+
+**This manual corresponds to `NanoEls H4 V6`. To see your software version, hold ![IconStop](https://github.com/kachurovskiy/nanoels/assets/517919/9ed2da6c-7461-419f-827d-781980c9ddde) for 5 seconds. If you have a different version - e.g. `V5`, please update to the latest one.**
 
 ### Switching between metric and imperial
 
@@ -122,6 +130,8 @@ Use numpad buttons ![Icon0](https://github.com/kachurovskiy/nanoels/assets/51791
 Z and X position can be counted from any location you'd like. By pressing ![IconZ](https://github.com/kachurovskiy/nanoels/assets/517919/32d95cce-d8be-4f8c-8a9c-399d278a2115) or ![IconX](https://github.com/kachurovskiy/nanoels/assets/517919/fd870901-4cc0-469e-ad88-e558998928d0) you can take the current position on the respective axis as `0`.
 
 You can also set the `0` at a position ahead of the current position by entering the required distance using the numpad buttons ![Icon0](https://github.com/kachurovskiy/nanoels/assets/517919/67f660f1-c6fa-4922-bf03-9f6571023806) to ![Icon9](https://github.com/kachurovskiy/nanoels/assets/517919/6ad6b4e4-5bf1-473f-93ed-65f6ee478d8f) and then pressing ![IconZ](https://github.com/kachurovskiy/nanoels/assets/517919/32d95cce-d8be-4f8c-8a9c-399d278a2115) or ![IconX](https://github.com/kachurovskiy/nanoels/assets/517919/fd870901-4cc0-469e-ad88-e558998928d0).
+
+You can set X0 on the lathe centerline by making a light cut, measuring diameter, entering it on the numpad and then pressing ![IconA](https://github.com/kachurovskiy/nanoels/assets/517919/3059b6ed-0197-4e48-91a7-80a7e1317176).
 
 ### Moving left and right, in and out
 
@@ -249,14 +259,16 @@ Operation can be stopped at any time by pressing ![IconStop](https://github.com/
 
 Press ![IconM](https://github.com/kachurovskiy/nanoels/assets/517919/902cc062-3b85-4335-8e6c-077ec956f410) several times until `ELLI` is shown on screen. In this mode, cutter will form convex or concave half-ellipses in multiple passes.
 
-Starting operation with positive pitch forms left hemisphere, with negative pitch - right hemisphere.
+Starting operation with positive pitch forms left hemisphere, with negative pitch - right hemisphere. This ensures that X backlash doesn't affect the cut.
+
+`External` mode forms convex hemisphere (curved outward), `Internal` forms concave hemisphere (curved inward). Start and end points are the same in both cases.
 
 Set the desired pitch to a suitable value e.g. `0.07mm`. All soft limits (left, right, up, down) must be set before the operation can be started.
 
 Pressing ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d) guides through remaining steps:
 
 - Entering the numer of passes - use numpad or ![IconPlus](https://github.com/kachurovskiy/nanoels/assets/517919/3c0e1c27-820a-4d34-ae97-4b362b537e72) and ![IconMinus](https://github.com/kachurovskiy/nanoels/assets/517919/75db2ae9-97d6-4d39-9fff-e98e889ee84b), confirm with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
-- Selecting `External` or `Internal` operation - use ![IconArrowLeft](https://github.com/kachurovskiy/nanoels/assets/517919/28a59458-0f91-42a5-9ba4-412d050dc462) and ![IconArrowRight](https://github.com/kachurovskiy/nanoels/assets/517919/0ff9ab80-0ce1-45fc-bc00-86d34ecac9f1) to change selection. Use `External` setting for now, `Internal` ellipse is not practical at the moment. Confirm with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
+- Selecting `External` or `Internal` operation - use ![IconArrowLeft](https://github.com/kachurovskiy/nanoels/assets/517919/28a59458-0f91-42a5-9ba4-412d050dc462) and ![IconArrowRight](https://github.com/kachurovskiy/nanoels/assets/517919/0ff9ab80-0ce1-45fc-bc00-86d34ecac9f1) to change selection. Confirm with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
 - Confirm the final `Go?` question with ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d)
 
 Turn on the spindle. Operation will proceed fully automatically and the cutter will return to the starting position when done. Adjusting the pitch on the fly is not supported.
