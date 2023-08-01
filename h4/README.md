@@ -33,7 +33,7 @@ No computer or CAD software needed! Coming soon:
 
 ## Hardware
 
-[Datasheet PDF](https://raw.githubusercontent.com/kachurovskiy/nanoels/main/h4/h4-20230429.pdf) contains schematic, screen, terminals and other hardware details that aren't specific do the electronic lead screw application.
+[Datasheet PDF](https://raw.githubusercontent.com/kachurovskiy/nanoels/main/h4/h4.pdf) contains schematic, screen, terminals and other hardware details that aren't specific do the electronic lead screw application.
 
 See [parts.md](https://github.com/kachurovskiy/nanoels/blob/main/h4/parts.md) for Gerber, BOM, STL and other info required for DIY assembly.
 
