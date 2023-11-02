@@ -84,7 +84,7 @@ const float LINEAR_INTERPOLATION_PRECISION = 0.1; // 0 < x <= 1, smaller values 
 const long GCODE_WAIT_EPSILON_STEPS = 10;
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 6
+#define SOFTWARE_VERSION 7
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 4
@@ -571,8 +571,7 @@ int getApproxRpm() {
 }
 
 bool stepperIsRunning(Axis* a) {
-  unsigned long nowUs = micros();
-  return nowUs > a->stepStartUs ? nowUs - a->stepStartUs < 50000 : nowUs < 25000;
+  return micros() - a->stepStartUs < 50000;
 }
 
 // Returns number of letters printed.
@@ -1718,15 +1717,15 @@ unsigned int getTimerLimit() {
 // Keep code in this method to absolute minimum to achieve high stepper speeds.
 void IRAM_ATTR onAsyncTimer() {
   Axis* a = getAsyncAxis();
-  if (!isOn || a->movingManually) {
+  if (!isOn || a->movingManually || (mode != MODE_ASYNC && mode != MODE_A1)) {
     return;
-  } else if (dupr > 0 && (a->leftStop == LONG_MAX || a->pos < a->leftStop)) {
+  } else if (dupr > 0 && a->pos < a->leftStop) {
     if (a->pos >= a->motorPos) {
       a->pos++;
     }
     a->motorPos++;
     a->posGlobal++;
-  } else if (dupr < 0 && (a->rightStop == LONG_MIN || a->pos > a->rightStop)) {
+  } else if (dupr < 0 && a->pos > a->rightStop) {
     if (a->pos >= a->motorPos + a->backlashSteps) {
       a->pos--;
     }
@@ -2445,8 +2444,7 @@ void moveAxis(Axis* a) {
 
   unsigned long nowUs = micros();
   float delayUs = 1000000.0 / a->speed;
-  if (nowUs < a->stepStartUs) a->stepStartUs = 0; // micros() overflow
-  if (nowUs < (a->stepStartUs + delayUs - 5)) {
+  if (nowUs - a->stepStartUs < delayUs - 5) {
     // Not enough time has passed to issue this step.
     return;
   }
