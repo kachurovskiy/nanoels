@@ -64,6 +64,8 @@ X axis - stepper terminal for the cross-slide:
 - DIR - connect to stepper driver DIR-
 - STEP - connect to stepper driver PUL-
 
+Note: depending on your particular encoder, stepper driver and signal wire, H4 might not be able to provide sufficient voltage/current on the 5V output lines above due to the presence of a fuse and current-limiting resistors on the PCB. If your encoder isn't functioning or steppers are working erratically, consider supplying 5V from an external power source to the 5V lines above.
+
 ## Programming the controller
 
 - Install the [Arduino IDE](https://docs.arduino.cc/software/ide-v2)
