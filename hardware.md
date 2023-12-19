@@ -9,7 +9,7 @@ This page provides some general guidance but every lathe is different, start a n
 
 # Encoder
 
-Tested with the [following 600 steps encoder](https://www.amazon.de/-/en/gp/product/B015GYY7XU). They are also available on eBay/AliExpress as "optical rotary encoder".
+Tested with the [following 600 steps encoder](https://www.aliexpress.com/item/4001142743940.html). They are available on eBay/AliExpress as "optical rotary encoder".
 
 ## Encoder base
 

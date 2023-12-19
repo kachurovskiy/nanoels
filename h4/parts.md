@@ -6,7 +6,10 @@ H4 consists of 2 PCBs - main one with ESP32 and keypad with push switches.
 
 [Gerber, BOM, pick and place files](https://github.com/kachurovskiy/nanoels/tree/main/h4/pcbs) can be found in the `pcbs` folder. EasyEDA source files are also provided.
 
-An edit I would make for the next batch is remove the `R7` resistor as it makes the buzzer quieter making it hard to hear when the lathe is running.
+Edits I would make for the next batch:
+
+- Make `R7` a `10Ohm` resistor for optimal buzzer volume and current usage
+- Remove `F2`, `R12`, `R16`, `R36` and `R37` (or replace with 0 Ohm resistors) as they limit current on outgoing `5V` pins to the point where some encoders and motor drivers can't operate
 
 Additionally, the following parts need to be ordered as they're not included in the PCB BOM:
 
