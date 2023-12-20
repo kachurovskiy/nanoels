@@ -21,6 +21,7 @@ const bool NEEDS_REST_Z = false; // Set to false for closed-loop drivers, true f
 const long MAX_TRAVEL_MM_Z = 300; // Lathe bed doesn't allow to travel more than this in one go, 30cm / ~1 foot
 const long BACKLASH_DU_Z = 6500; // 0.65mm backlash in deci-microns (10^-7 of a meter)
 const char NAME_Z = 'Z'; // Text shown on screen before axis position value, GCode axis name
+const bool Z_POS_BY_DRO = true; // sync position to DRO while stepper disabled
 
 // Cross-slide lead screw (X) parameters.
 const long SCREW_X_DU = 12500; // 1.25mm lead screw with 3x reduction in deci-microns (10^-7) of a meter
@@ -33,6 +34,7 @@ const bool NEEDS_REST_X = false; // Set to false for all kinds of drivers or X w
 const long MAX_TRAVEL_MM_X = 100; // Cross slide doesn't allow to travel more than this in one go, 10cm
 const long BACKLASH_DU_X = 1500; // 0.15mm backlash in deci-microns (10^-7 of a meter)
 const char NAME_X = 'X'; // Text shown on screen before axis position value, GCode axis name
+const bool X_POS_BY_DRO = true; // sync position to DRO while stepper disabled
 
 // Manual stepping with left/right/up/down buttons. Only used when step isn't default continuous (1mm or 0.1").
 const long STEP_TIME_MS = 500; // Time in milliseconds it should take to make 1 manual step.
@@ -55,13 +57,18 @@ const long MAX_TRAVEL_MM_A1 = 360; // Probably doesn't make sense to ask the div
 const long BACKLASH_DU_A1 = 0; // Assuming no backlash on the worm gear
 const char NAME_A1 = 'C'; // Text shown on screen before axis position value, GCode axis name
 
+// MODBUS adapter on A2 (pin 12,13,14) instead of handwheel encoder
+#define A2_MODBUS 
+
 // Manual handwheels on A1 and A2. Ignore if you don't have them installed.
 const bool PULSE_1_USE = false; // Whether there's a pulse generator connected on A11-A13 to be used for movement.
 const char PULSE_1_AXIS = NAME_Z; // Set to NAME_X to make A11-A13 pulse generator control X instead.
 const bool PULSE_1_INVERT = false; // Set to true to change the direction in which encoder moves the axis
+#ifndef A2_MODBUS
 const bool PULSE_2_USE = false; // Whether there's a pulse generator connected on A21-A23 to be used for movement.
 const char PULSE_2_AXIS = NAME_X; // Set to NAME_Z to make A21-A23 pulse generator control Z instead.
 const bool PULSE_2_INVERT = true; // Set to false to change the direction in which encoder moves the axis
+#endif // A2_MODBUS
 const float PULSE_PER_REVOLUTION = 100; // PPR of handwheels used on A1 and/or A2.
 const long PULSE_MIN_WIDTH_US = 1000; // Microseconds width of the pulse that is required for it to be registered. Prevents noise.
 const long PULSE_HALF_BACKLASH = 2; // Prevents spurious reverses when moving using a handwheel. Raise to 3 or 4 if they still happen.
@@ -251,6 +258,30 @@ bool splashScreen = false;
 Adafruit_TCA8418 keypad;
 unsigned long keypadTimeUs = 0;
 
+#ifdef A2_MODBUS
+
+#include <ModbusRTU.h>
+#include <HardwareSerial.h>
+#define MODBUS_SLAVE_ID 1
+#define MODBUS_Z_REG 0x1000 // Shaft A in terms of DRO
+#define MODBUS_X_REG 0x1100 // Shaft B in terms of DRO
+#define MODBUS_REG_COUNT 2
+#define MODBUS_DRO_PRECISSION_DU 100 // DRO REG precission in decimicrons, 0.01mm == 100 um
+#define RS485_TXD 12
+#define RS485_RXD 13
+#define RS485_DE  14
+
+SemaphoreHandle_t modbusMutex;
+HardwareSerial RS485(1);
+ModbusRTU mb;
+
+int32_t modbus_z_pos;
+int32_t modbus_x_pos;
+
+unsigned long modbus_ok_req_count = 0;
+unsigned long modbus_bad_req_count = 0;
+#endif A2_MODBUS
+
 // Most buttons we only have "down" handling, holding them has no effect.
 // Buttons with special "holding" logic have flags below.
 bool buttonLeftPressed = false;
@@ -305,6 +336,10 @@ struct Axis {
   long motorPos; // position of the motor in stepper motor steps, same as pos unless moving back, then differs by backlashSteps
   long savedMotorPos; // motorPos saved in Preferences
   bool continuous; // whether current movement is expected to continue until an unknown position
+  bool pos_by_dro; // get position from DRO after stepper enabled
+  bool zero_dro; // flag to sero DRO when axis zeroed, possible meaningable only for external modbus DRO
+  SemaphoreHandle_t dro_semaphore; // Hold all the time while stepper enabled. Not mutex!
+                                   // Can be taken/given from different tasks
 
   long leftStop; // left stop value of pos
   long savedLeftStop; // value saved in Preferences
@@ -336,6 +371,7 @@ struct Axis {
   long estopSteps; // amount of steps to exceed machine limits
   long backlashSteps; // amount of steps in reverse direction to re-engage the carriage
   long gcodeRelativePos; // absolute position in steps that relative GCode refers to
+  bool needsBacklashCompensation; // Needs take out backlash after stepper enabled
 
   int ena; // Enable pin of this motor
   int dir; // Direction pin of this motor
@@ -343,7 +379,7 @@ struct Axis {
 };
 
 void initAxis(Axis* a, char name, bool active, bool rotational, float motorSteps, float screwPitch, long speedStart, long speedManualMove,
-    long acceleration, bool invertStepper, bool needsRest, long maxTravelMm, long backlashDu, int ena, int dir, int step) {
+    long acceleration, bool invertStepper, bool needsRest, long maxTravelMm, long backlashDu, int ena, int dir, int step, bool pos_by_dro) {
   a->mutex = xSemaphoreCreateMutex();
 
   a->name = name;
@@ -363,6 +399,12 @@ void initAxis(Axis* a, char name, bool active, bool rotational, float motorSteps
   a->motorPos = 0;
   a->savedMotorPos = 0;
   a->continuous = false;
+  a->pos_by_dro = pos_by_dro;
+  a->zero_dro = false;
+  a->dro_semaphore = xSemaphoreCreateBinary();
+  xSemaphoreGive(a->dro_semaphore); // Semaphores created in 'empty' state,
+                                    // meaning the semaphore must first be given
+                                    // before it can subsequently be taken 
 
   a->leftStop = 0;
   a->savedLeftStop = 0;
@@ -397,6 +439,7 @@ void initAxis(Axis* a, char name, bool active, bool rotational, float motorSteps
   a->estopSteps = maxTravelMm * 10000 / a->screwPitch * a->motorSteps;
   a->backlashSteps = backlashDu * a->motorSteps / a->screwPitch;
   a->gcodeRelativePos = 0;
+  a->needsBacklashCompensation = needsRest; 
 
   a->ena = ena;
   a->dir = dir;
@@ -423,7 +466,9 @@ long spindlePosGlobal = 0; // global spindle position that is unaffected by e.g.
 long savedSpindlePosGlobal = 0; // spindlePosGlobal saved in Preferences
 
 volatile int pulse1Delta = 0; // Outstanding pulses generated by pulse generator on terminal A1.
+#ifndef A2_MODBUS
 volatile int pulse2Delta = 0; // Outstanding pulses generated by pulse generator on terminal A2.
+#endif
 
 bool showAngle = false; // Whether to show 0-359 spindle angle on screen
 bool showTacho = false; // Whether to show spindle RPM on screen
@@ -978,7 +1023,9 @@ void IRAM_ATTR spinEnc() {
 }
 
 unsigned long pulse1HighMicros = 0;
+#ifndef A2_MODBUS
 unsigned long pulse2HighMicros = 0;
+#endif
 
 // Called on a FALLING interrupt for the first axis rotary encoder pin.
 void IRAM_ATTR pulse1Enc() {
@@ -990,6 +1037,7 @@ void IRAM_ATTR pulse1Enc() {
   }
 }
 
+#ifndef A2_MODBUS
 // Called on a FALLING interrupt for the second axis rotary encoder pin.
 void IRAM_ATTR pulse2Enc() {
   unsigned long now = micros();
@@ -999,6 +1047,7 @@ void IRAM_ATTR pulse2Enc() {
     pulse2Delta += (DREAD(A23) ? -1 : 1) * (PULSE_2_INVERT ? -1 : 1);
   }
 }
+#endif //A2_MODBUS
 
 void setAsyncTimerEnable(bool value) {
   if (value) {
@@ -1115,6 +1164,7 @@ int getAndResetPulses(Axis* a) {
       pulse1Delta = PULSE_HALF_BACKLASH;
       interrupts();
     }
+#ifndef A2_MODBUS
   } else if (PULSE_2_AXIS == a->name) {
     if (pulse2Delta < -PULSE_HALF_BACKLASH) {
       noInterrupts();
@@ -1127,6 +1177,7 @@ int getAndResetPulses(Axis* a) {
       pulse2Delta = PULSE_HALF_BACKLASH;
       interrupts();
     }
+#endif    
   }
   return delta;
 }
@@ -1412,7 +1463,9 @@ void taskAttachInterrupts(void *param) {
   // Attaching interrupt on core 0 to have more time on core 1 where axes are moved.
   attachInterrupt(digitalPinToInterrupt(ENC_A), spinEnc, FALLING);
   if (PULSE_1_USE) attachInterrupt(digitalPinToInterrupt(A12), pulse1Enc, CHANGE);
+#ifndef A2_MODBUS
   if (PULSE_2_USE) attachInterrupt(digitalPinToInterrupt(A22), pulse2Enc, CHANGE);
+#endif  
   vTaskDelete(NULL);
 }
 
@@ -1423,6 +1476,88 @@ void setEmergencyStop(int kind) {
   xSemaphoreTake(x.mutex, 10);
   xSemaphoreTake(a1.mutex, 10);
 }
+
+#ifdef A2_MODBUS
+// callback to monitor errors
+// possible don't need this
+// count good (or bad) requests in a row. TODO error handling
+bool modbus_cb(Modbus::ResultCode event, uint16_t transactionId, void* data) { // Callback to monitor errors
+
+  if (event != Modbus::EX_SUCCESS) {
+    modbus_ok_req_count=0;
+    modbus_bad_req_count++;
+  } else {
+    modbus_ok_req_count++;
+    modbus_bad_req_count=0;
+  }
+  
+  return true;
+}
+
+void taskModbus(void *param) {
+  int32_t precalc;
+  while (emergencyStop == ESTOP_NONE) {
+    // First check, if zero_dro requested
+    if (z.zero_dro){
+	precalc = 0;
+        mb.writeHreg(MODBUS_SLAVE_ID,MODBUS_Z_REG,(uint16_t *)&precalc,MODBUS_REG_COUNT,modbus_cb);
+        while(mb.slave()) { // Check if transaction is active
+          mb.task();
+          taskYIELD();
+        }
+        // TODO:: error check and handle
+        z.zero_dro = false;
+    
+    }
+    if (x.zero_dro){
+	precalc = 0;
+        mb.writeHreg(MODBUS_SLAVE_ID,MODBUS_X_REG,(uint16_t *)&precalc,MODBUS_REG_COUNT,modbus_cb);
+        while(mb.slave()) {
+          mb.task();
+          taskYIELD();
+        }
+        // TODO:: error check and handle
+        x.zero_dro = false;
+    }
+    // now read the shafts A and B
+    // Semaphore should not allow us to update 'enabled' axis
+    if (z.pos_by_dro) {
+	if ( xSemaphoreTake( z.dro_semaphore,0 ) == pdTRUE ){
+	    precalc = 0;
+	    mb.readHreg(MODBUS_SLAVE_ID, MODBUS_Z_REG, (uint16_t *) &precalc, MODBUS_REG_COUNT, modbus_cb);
+	    while(mb.slave()) {
+    		mb.task();
+    		taskYIELD();
+	    }
+	    if( modbus_bad_req_count ==0 ){
+		// change position value only if no error
+		z.pos = (long) precalc * MODBUS_DRO_PRECISSION_DU - z.originPos;
+	    }
+	    xSemaphoreGive(z.dro_semaphore);
+	}
+    }
+    if (x.pos_by_dro){
+	if ( xSemaphoreTake( x.dro_semaphore,0 ) == pdTRUE ){
+	    precalc = 0;
+	    mb.readHreg(MODBUS_SLAVE_ID, MODBUS_X_REG, (uint16_t *) &precalc, MODBUS_REG_COUNT, modbus_cb);
+	    while(mb.slave()) {
+    		mb.task();
+    		taskYIELD();
+	    }
+	    if( modbus_bad_req_count ==0 ){
+		// change position value only if no error
+		x.pos = (long) precalc * MODBUS_DRO_PRECISSION_DU - x.originPos;
+	    }
+	    xSemaphoreGive(x.dro_semaphore);
+	}
+    }
+
+    taskYIELD();
+  }
+  vTaskDelete(NULL);
+}
+
+#endif //A2_MODBUS
 
 void setup() {
   pinMode(ENC_A, INPUT_PULLUP);
@@ -1454,12 +1589,23 @@ void setup() {
     DLOW(A11);
   }
 
+#ifndef A2_MODBUS
   if (PULSE_2_USE) {
     pinMode(A21, OUTPUT);
     pinMode(A22, INPUT);
     pinMode(A23, INPUT);
     DLOW(A21);
   }
+#else
+  if (Z_POS_BY_DRO || X_POS_BY_DRO) {
+    pinMode(RS485_RXD, INPUT);
+    pinMode(RS485_TXD, OUTPUT);
+    RS485.begin(115200, SERIAL_8N1, RS485_RXD, RS485_TXD);
+    // ModbusRTUTemplate::begin(T* port, int16_t txEnablePin, bool txEnableDirect)
+    mb.begin(&RS485, RS485_DE, true);
+    mb.master();
+  }
+#endif
 
   Preferences pref;
   pref.begin(PREF_NAMESPACE);
@@ -1468,9 +1614,9 @@ void setup() {
     pref.putInt(PREF_VERSION, PREFERENCES_VERSION);
   }
 
-  initAxis(&z, NAME_Z, true, false, MOTOR_STEPS_Z, SCREW_Z_DU, SPEED_START_Z, SPEED_MANUAL_MOVE_Z, ACCELERATION_Z, INVERT_Z, NEEDS_REST_Z, MAX_TRAVEL_MM_Z, BACKLASH_DU_Z, Z_ENA, Z_DIR, Z_STEP);
-  initAxis(&x, NAME_X, true, false, MOTOR_STEPS_X, SCREW_X_DU, SPEED_START_X, SPEED_MANUAL_MOVE_X, ACCELERATION_X, INVERT_X, NEEDS_REST_X, MAX_TRAVEL_MM_X, BACKLASH_DU_X, X_ENA, X_DIR, X_STEP);
-  initAxis(&a1, NAME_A1, ACTIVE_A1, ROTARY_A1, MOTOR_STEPS_A1, SCREW_A1_DU, SPEED_START_A1, SPEED_MANUAL_MOVE_A1, ACCELERATION_A1, INVERT_A1, NEEDS_REST_A1, MAX_TRAVEL_MM_A1, BACKLASH_DU_A1, A11, A12, A13);
+  initAxis(&z, NAME_Z, true, false, MOTOR_STEPS_Z, SCREW_Z_DU, SPEED_START_Z, SPEED_MANUAL_MOVE_Z, ACCELERATION_Z, INVERT_Z, NEEDS_REST_Z, MAX_TRAVEL_MM_Z, BACKLASH_DU_Z, Z_ENA, Z_DIR, Z_STEP, Z_POS_BY_DRO);
+  initAxis(&x, NAME_X, true, false, MOTOR_STEPS_X, SCREW_X_DU, SPEED_START_X, SPEED_MANUAL_MOVE_X, ACCELERATION_X, INVERT_X, NEEDS_REST_X, MAX_TRAVEL_MM_X, BACKLASH_DU_X, X_ENA, X_DIR, X_STEP, X_POS_BY_DRO);
+  initAxis(&a1, NAME_A1, ACTIVE_A1, ROTARY_A1, MOTOR_STEPS_A1, SCREW_A1_DU, SPEED_START_A1, SPEED_MANUAL_MOVE_A1, ACCELERATION_A1, INVERT_A1, NEEDS_REST_A1, MAX_TRAVEL_MM_A1, BACKLASH_DU_A1, A11, A12, A13, false);
 
   isOn = false;
   savedDupr = dupr = pref.getLong(PREF_DUPR);
@@ -1512,9 +1658,15 @@ void setup() {
   pref.end();
 
   if (!z.needsRest && !z.disabled) {
+    if (z.pos_by_dro){
+	xSemaphoreTake(z.dro_semaphore, 10);
+    }
     DHIGH(z.ena);
   }
   if (!x.needsRest && !x.disabled) {
+    if (x.pos_by_dro){
+	xSemaphoreTake(x.dro_semaphore, 10);
+    }
     DHIGH(x.ena);
   }
   if (a1.active && !a1.needsRest && !a1.disabled) {
@@ -1557,6 +1709,11 @@ void setup() {
   if (a1.active) xTaskCreatePinnedToCore(taskMoveA1, "taskMoveA1", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   xTaskCreatePinnedToCore(taskAttachInterrupts, "taskAttachInterrupts", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   xTaskCreatePinnedToCore(taskGcode, "taskGcode", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
+  if (Z_POS_BY_DRO || X_POS_BY_DRO) {
+#ifdef A2_MODBUS
+    xTaskCreatePinnedToCore(taskModbus, "taskModbus", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
+#endif  
+  }
 }
 
 bool saveIfChanged() {
@@ -1649,6 +1806,7 @@ void markOrigin() {
 
 void markAxis0(Axis* a) {
   a->originPos = -a->pos;
+  a->zero_dro = true;
 }
 
 Axis* getAsyncAxis() {
@@ -2428,8 +2586,18 @@ void updateEnable(Axis* a) {
     DHIGH(a->ena);
     // Stepper driver needs some time before it will react to pulses.
     DELAY(STEPPED_ENABLE_DELAY_MS);
+    if (a->pos_by_dro){
+	if (xSemaphoreTake( a->dro_semaphore, 100 ) == pdTRUE ){
+	    a->needsBacklashCompensation = true;
+	} else {
+    	    setEmergencyStop(ESTOP_MARK_ORIGIN);
+	}
+    }
   } else {
     DLOW(a->ena);
+    if (a->pos_by_dro) {
+	xSemaphoreGive(a->dro_semaphore);
+    }
   }
 }
 
