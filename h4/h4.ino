@@ -91,7 +91,7 @@ const float LINEAR_INTERPOLATION_PRECISION = 0.1; // 0 < x <= 1, smaller values 
 const long GCODE_WAIT_EPSILON_STEPS = 10;
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 7
+#define SOFTWARE_VERSION 8
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 4
@@ -2400,7 +2400,7 @@ bool processNumpadResult(int keyCode) {
 
   // Set X axis 0 from diameter.
   if (keyCode == B_A) {
-    a->originPos = -pos / 2;
+    a->originPos = -(a->pos + pos) / 2;
     return true;
   }
 
