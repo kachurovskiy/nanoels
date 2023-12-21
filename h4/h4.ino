@@ -84,7 +84,7 @@ const float LINEAR_INTERPOLATION_PRECISION = 0.1; // 0 < x <= 1, smaller values 
 const long GCODE_WAIT_EPSILON_STEPS = 10;
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 8
+#define SOFTWARE_VERSION 9
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 4
@@ -1720,7 +1720,7 @@ void IRAM_ATTR onAsyncTimer() {
   if (!isOn || a->movingManually || (mode != MODE_ASYNC && mode != MODE_A1)) {
     return;
   } else if (dupr > 0 && a->pos < a->leftStop) {
-    if (a->pos >= a->motorPos) {
+    if (a->pos <= a->motorPos) {
       a->pos++;
     }
     a->motorPos++;
