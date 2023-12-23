@@ -13,21 +13,19 @@ Tested with the [following 600 steps encoder](https://www.aliexpress.com/item/40
 
 ## Encoder base
 
-![Encoder base](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/encoder-base-38.5mm-hole-m4-screw.png)
+![Encoder base](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/EncoderMount38.4mm.png)
 
-[STL file](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/encoder-base-38.5mm-hole-m4-screw.stl)
+[STL file](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/EncoderMount38.4mm-Body.step)
 
-To be glued to the lathe wall with the double-sided carpet sticky tape. Holds well if surfaces are properly cleaned with isopropyl alcohol or acetone.
-
-Using an M4 set screw is optional.
+Attached using 2x M4 bolts to the side of the headstock. Using an M4 set screw is optional.
 
 Alternative encoder base allowing for a thicker cable: https://www.thingiverse.com/thing:5156081
 
 ## Encoder gear
 
-![Encoder gear](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/encoder-gear-60t-6.1mm-bore.png)
+![Encoder gear](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/EncoderMount38.4mm.jpg)
 
-[60 teeth gear STL file](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/encoder-gear-60t-6.1mm-bore.stl)
+[60 teeth gear STL file](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/EncoderMount38.4mm-Wheel.step)
 
 Check the distance between the spindle gear and the lathe housing: for the provided conical gear to fit, it has to be 23mm.
 
@@ -37,21 +35,15 @@ For spindles with 56 teeth, try [56 teeth gear model by kingjamez](https://www.t
 
 # Stepper and driver
 
-I used the following one but most Nema 23 or higher steppers should work.
-
-- Nema 23 Stepper Motor Bipolar 1.8deg 3.0 Nm 4.2A 57x57x113mm 4 Wires Open Loop
-- DM556Y Driver 1.7-5.6A DC20V~50V
-
 Cheap drivers like TB6600 are not recommended, they are very rough and noisy.
-DM556 from AliExpress is not very good either, they require reducing acceleration and max speed in the settings or it will lose steps during jogging (`PULSE_DELTA_US` from `7` to `2` and `PULSE_MAX_US` from `2000` to `1500`).
-Generally, paying for a better brand such as "Rtelligent" for open-loop or "STEPPERONLINE" for both open- and closed-loop is worth the money as their drivers work much better than brandless black boxes (smoother and quieter operation).
 
-It's suggested to run the stepper in the 200 steps mode or 400 if your driver doesn't support full steps.
-Microstepping will lower maximum usable rpm 2x for each microstep increase.
+For H1 or H2 controllers it's suggested to buy the stepper that supports 200 steps mode. Microstepping will lower maximum usable rpm 2x for each microstep increase. I can recommend STEPPERONLINE steppers for good price and performance and their drivers usually support 200 step mode.
+
+For H4 controller it's suggested to use [integrated closed loop motors like these](https://www.aliexpress.com/item/1005005598264428.html). They don't support 200 steps mode but H4 can easily run them at 800 steps per revolution. They don't need a separate driver, don't heat up and work quetly. They do take a but more space than open-loop steppers though.
 
 ## Stepper power supply
 
-48V power supply is used on NEMA 23 for maximum power (check your driver max voltage) but 24V might also work for light turning.
+48V power supply is used on NEMA 23 for maximum power (check your driver max voltage) but 24V might also work for light turning. Closed loop motors require less current than open loop ones since they adjust to the load. For a lathe like WM210 with NEMA 23 and NEMA 17, 4A power supply would be sufficient.
 
 ## Stepper mount
 
@@ -68,6 +60,12 @@ A rock-solid but more expensive (35€) option is to order a 10mm steel laser cu
 It's also possible to cut out the stepper mount manually from plywood: https://imgur.com/a/CSmeSm2 ([PDF](https://github.com/kachurovskiy/nanoels/raw/main/h1/stepper/nema23-mount-plywood.pdf))
 
 Alternative stepper mount with a pinch bolt: https://www.thingiverse.com/thing:5156087
+
+## Cross-slide mount
+
+See https://www.thingiverse.com/thing:6058899 - I use it with a 60mm open-loop NEMA 17 motor. It fits most desktop lathes like WM210.
+
+It's good to insert a thin metal shim in the back to thermally sink the motor in to the lathe apron. Thickness of the shim can vary.
 
 ## Stepper to leadscrew
 
