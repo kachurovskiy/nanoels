@@ -15,7 +15,7 @@ Tested with the [following 600 steps encoder](https://www.aliexpress.com/item/40
 
 ![Encoder base](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/EncoderMount38.4mm.png)
 
-[STL file](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/EncoderMount38.4mm-Body.step)
+[STEP file for 3D printing](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/EncoderMount38.4mm-Body.step)
 
 Attached using 2x M4 bolts to the side of the headstock. Using an M4 set screw is optional.
 
@@ -25,7 +25,7 @@ Alternative encoder base allowing for a thicker cable: https://www.thingiverse.c
 
 ![Encoder gear](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/EncoderMount38.4mm.jpg)
 
-[60 teeth gear STL file](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/EncoderMount38.4mm-Wheel.step)
+[60 teeth gear STEP file](https://github.com/kachurovskiy/nanoels/raw/main/h1/encoder/EncoderMount38.4mm-Wheel.step)
 
 Check the distance between the spindle gear and the lathe housing: for the provided conical gear to fit, it has to be 23mm.
 
