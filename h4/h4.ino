@@ -84,7 +84,7 @@ const float LINEAR_INTERPOLATION_PRECISION = 0.1; // 0 < x <= 1, smaller values 
 const long GCODE_WAIT_EPSILON_STEPS = 10;
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 9
+#define SOFTWARE_VERSION 10
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 4
@@ -264,6 +264,9 @@ bool buttonTurnPressed = false;
 bool inNumpad = false;
 int numpadDigits[20];
 int numpadIndex = 0;
+
+#include <queue>
+std::queue<int> keyEventQueue;
 
 bool isOn = false;
 bool nextIsOn; // isOn value that should be applied asap
@@ -1333,14 +1336,52 @@ void taskMoveA1(void *param) {
   vTaskDelete(NULL);
 }
 
-void taskGcode(void *param) {
-  while (emergencyStop == ESTOP_NONE) {
-    if (mode != MODE_GCODE) {
+void taskGcode(void *param)
+{
+  while (emergencyStop == ESTOP_NONE)
+  {
+
+    int charCode = 0;
+    char receivedChar = 0;
+    bool keyEmulation = false;
+    if (Serial.available() > 0)
+    {
+      receivedChar = Serial.read();
+      charCode = int(receivedChar);
+      if (receivedChar == '=' /* keycode commands*/)
+      {
+        keyEmulation = true;
+        // read the rest of the command from the Serial interface
+        String command = Serial.readStringUntil('\n');
+
+        // split the command by comma
+        int commaIndex = command.indexOf(',');
+        while (commaIndex != -1)
+        {
+          String keycodeStr = command.substring(0, commaIndex);
+          int keycode = keycodeStr.toInt();
+          // add the keycode to the array for processKeypadEvent to handle
+          keyEventQueue.push(keycode);
+
+          // remove the processed keycode from the command
+          command = command.substring(commaIndex + 1);
+          commaIndex = command.indexOf(',');
+        }
+
+        // process the last (or only) keycode
+        int keycode = command.toInt();
+        keyEventQueue.push(keycode);
+      }
+    }
+
+    if (mode != MODE_GCODE && !keyEmulation)
+    {
       gcodeInitialized = false;
       taskYIELD();
       continue;
     }
-    if (!gcodeInitialized) {
+    if (!gcodeInitialized)
+    {
       gcodeInitialized = true;
       gcodeCommand = "";
       gcodeAbsolutePositioning = true;
@@ -1349,24 +1390,39 @@ void taskGcode(void *param) {
       gcodeInSemicolon = false;
     }
     // Implementing a relevant subset of RS274 (Gcode) and GRBL (state management) covering basic use cases.
-    if (Serial.available() > 0) {
-      char receivedChar = Serial.read();
-      int charCode = int(receivedChar);
-      if (gcodeInBrace) {
-        if (receivedChar == ')') gcodeInBrace = false;
-      } else if (receivedChar == '(') {
+    if (!keyEmulation)
+    {
+      if (gcodeInBrace)
+      {
+        if (receivedChar == ')')
+          gcodeInBrace = false;
+      }
+      else if (receivedChar == '(')
+      {
         gcodeInBrace = true;
-      } else if (receivedChar == ';' /* start of comment till end of line */) {
+      }
+      else if (receivedChar == ';' /* start of comment till end of line */)
+      {
         gcodeInSemicolon = true;
-      } else if (gcodeInSemicolon && charCode >= 32) {
+      }
+      else if (gcodeInSemicolon && charCode >= 32)
+      {
         // Ignoring comment.
-      } else if (receivedChar == '!' /* stop */) {
+      }
+      else if (receivedChar == '!' /* stop */)
+      {
         setIsOnFromTask(false);
-      } else if (receivedChar == '~' /* resume */) {
+      }
+      else if (receivedChar == '~' /* resume */)
+      {
         setIsOnFromTask(true);
-      } else if (receivedChar == '%' /* start/end marker */) {
+      }
+      else if (receivedChar == '%' /* start/end marker */)
+      {
         // Not using % markers in this implementation.
-      } else if (receivedChar == '?' /* status */) {
+      }
+      else if (receivedChar == '?' /* status */)
+      {
         Serial.print("<");
         Serial.print(isOn ? "Run" : "Idle");
         Serial.print("|WPos:");
@@ -1378,31 +1434,48 @@ void taskGcode(void *param) {
         Serial.print(round(gcodeFeedDuPerSec * 60 / 10000.0));
         Serial.print(",");
         Serial.print(getApproxRpm());
+        Serial.print("|");
+        Serial.print("V:" + String(SOFTWARE_VERSION));
         Serial.print(">"); // no new line to allow client to easily cut out the status response
-      } else if (isOn) {
-        if (gcodeInBrace && charCode < 32) {
+      }
+      else if (isOn)
+      {
+        if (gcodeInBrace && charCode < 32)
+        {
           Serial.println("error: comment not closed");
           setIsOnFromTask(false);
-        } else if (charCode < 32 && gcodeCommand.length() > 1) {
-          if (handleGcodeCommand(gcodeCommand)) Serial.println("ok");
+        }
+        else if (charCode < 32 && gcodeCommand.length() > 1)
+        {
+          if (handleGcodeCommand(gcodeCommand))
+            Serial.println("ok");
           gcodeCommand = "";
           gcodeInSemicolon = false;
-        } else if (charCode < 32) {
+        }
+        else if (charCode < 32)
+        {
           Serial.println("ok");
           gcodeCommand = "";
-        } else if (charCode >= 32 && (charCode == 'G' || charCode == 'M')) {
+        }
+        else if (charCode >= 32 && (charCode == 'G' || charCode == 'M'))
+        {
           // Split consequent G and M commands on one line.
           // No "ok" for commands in the middle of the line.
           handleGcodeCommand(gcodeCommand);
           gcodeCommand = receivedChar;
-        } else if (charCode >= 32) {
+        }
+        else if (charCode >= 32)
+        {
           gcodeCommand += receivedChar;
         }
-      } else {
+      }
+      else
+      {
         // ignoring non-realtime command input when off
         // to flush any commands coming after an error
       }
     }
+    keyEmulation = false;
     taskYIELD();
   }
   vTaskDelete(NULL);
@@ -2258,106 +2331,190 @@ bool processNumpadResult(int keyCode) {
   return false;
 }
 
-void processKeypadEvent() {
-  if (keypad.available() == 0) return;
-  int event = keypad.getEvent();
+void processKeypadEvent()
+{
+  // process keycodes from keyEventArray
+  if (keyEventQueue.size() > 0)
+  {
+    int event = keyEventQueue.front(); // Get the first event
+    keyEventQueue.pop();               // Remove the first event
+
+    processKeyEvent(event);
+    return;
+  }
+
+  if (keypad.available() > 0)
+  {
+    int event = keypad.getEvent();
+    processKeyEvent(event);
+  }
+}
+
+void processKeyEvent(int event)
+{
   int keyCode = event;
   bitWrite(keyCode, 7, 0);
   bool isPress = bitRead(event, 7) == 1; // 1 - press, 0 - release
   keypadTimeUs = micros();
 
   // Off button always gets handled.
-  if (keyCode == B_OFF) {
+  if (keyCode == B_OFF)
+  {
     buttonOffPressed = isPress;
     isPress ? buttonOnOffPress(false) : buttonOffRelease();
   }
 
-  if (mode == MODE_GCODE && isOn) {
+  if (mode == MODE_GCODE && isOn)
+  {
     // Not allowed to interfere other than turn off.
-    if (isPress && keyCode != B_OFF) beep();
+    if (isPress && keyCode != B_OFF)
+      beep();
     return;
   }
 
   // Releases don't matter in numpad but it has to run before LRUD since it might handle those keys.
-  if (isPress && processNumpad(keyCode)) {
+  if (isPress && processNumpad(keyCode))
+  {
     return;
   }
 
   // Setup wizard navigation.
-  if (isPress && setupIndex == 2 && (keyCode == B_LEFT || keyCode == B_RIGHT)) {
+  if (isPress && setupIndex == 2 && (keyCode == B_LEFT || keyCode == B_RIGHT))
+  {
     auxForward = !auxForward;
-  } else if (keyCode == B_LEFT) { // Make sure isPress=false propagates to motion flags.
+  }
+  else if (keyCode == B_LEFT)
+  { // Make sure isPress=false propagates to motion flags.
     buttonLeftPressed = isPress;
-  } else if (keyCode == B_RIGHT) {
+  }
+  else if (keyCode == B_RIGHT)
+  {
     buttonRightPressed = isPress;
-  } else if (keyCode == B_UP) {
+  }
+  else if (keyCode == B_UP)
+  {
     buttonUpPressed = isPress;
-  } else if (keyCode == B_DOWN) {
+  }
+  else if (keyCode == B_DOWN)
+  {
     buttonDownPressed = isPress;
-  } else if (keyCode == B_MODE_GEARS) {
+  }
+  else if (keyCode == B_MODE_GEARS)
+  {
     buttonGearsPressed = isPress;
-  } else if (keyCode == B_MODE_TURN) {
+  }
+  else if (keyCode == B_MODE_TURN)
+  {
     buttonTurnPressed = isPress;
   }
 
   // For all other keys we have no "release" logic.
-  if (!isPress) {
+  if (!isPress)
+  {
     return;
   }
 
   // Rest of the buttons.
-  if (keyCode == B_PLUS) {
+  if (keyCode == B_PLUS)
+  {
     buttonPlusMinusPress(true);
-  } else if (keyCode == B_MINUS) {
+  }
+  else if (keyCode == B_MINUS)
+  {
     buttonPlusMinusPress(false);
-  } else if (keyCode == B_ON) {
+  }
+  else if (keyCode == B_ON)
+  {
     buttonOnOffPress(true);
-  } else if (keyCode == B_STOPL) {
+  }
+  else if (keyCode == B_STOPL)
+  {
     buttonLeftStopPress(&z);
-  } else if (keyCode == B_STOPR) {
+  }
+  else if (keyCode == B_STOPR)
+  {
     buttonRightStopPress(&z);
-  } else if (keyCode == B_STOPU) {
+  }
+  else if (keyCode == B_STOPU)
+  {
     buttonLeftStopPress(&x);
-  } else if (keyCode == B_STOPD) {
+  }
+  else if (keyCode == B_STOPD)
+  {
     buttonRightStopPress(&x);
-  } else if (keyCode == B_MODE_OTHER) {
+  }
+  else if (keyCode == B_MODE_OTHER)
+  {
     buttonModePress();
-  } else if (keyCode == B_DISPL) {
+  }
+  else if (keyCode == B_DISPL)
+  {
     buttonDisplayPress();
-  } else if (keyCode == B_X) {
+  }
+  else if (keyCode == B_X)
+  {
     markAxis0(&x);
-  } else if (keyCode == B_Z) {
+  }
+  else if (keyCode == B_Z)
+  {
     markAxis0(&z);
-  } else if (keyCode == B_A) {
+  }
+  else if (keyCode == B_A)
+  {
     x.disabled = !x.disabled;
     updateEnable(&x);
-  } else if (keyCode == B_B) {
+  }
+  else if (keyCode == B_B)
+  {
     z.disabled = !z.disabled;
     updateEnable(&z);
-  } else if (keyCode == B_STEP) {
+  }
+  else if (keyCode == B_STEP)
+  {
     buttonMoveStepPress();
-  } else if (keyCode == B_SETTINGS) {
+  }
+  else if (keyCode == B_SETTINGS)
+  {
     // TODO.
-  } else if (keyCode == B_REVERSE) {
+  }
+  else if (keyCode == B_REVERSE)
+  {
     buttonReversePress();
-  } else if (keyCode == B_MEASURE) {
+  }
+  else if (keyCode == B_MEASURE)
+  {
     buttonMeasurePress();
-  } else if (keyCode == B_MODE_GEARS && mode != MODE_A1) {
+  }
+  else if (keyCode == B_MODE_GEARS && mode != MODE_A1)
+  {
     setModeFromTask(MODE_NORMAL);
-  } else if (keyCode == B_MODE_TURN && mode != MODE_A1) {
+  }
+  else if (keyCode == B_MODE_TURN && mode != MODE_A1)
+  {
     setModeFromTask(MODE_TURN);
-  } else if (keyCode == B_MODE_FACE) {
+  }
+  else if (keyCode == B_MODE_FACE)
+  {
     mode == MODE_A1 ? buttonRightStopPress(&a1) : setModeFromTask(MODE_FACE);
-  } else if (keyCode == B_MODE_CONE) {
+  }
+  else if (keyCode == B_MODE_CONE)
+  {
     mode == MODE_A1 ? buttonLeftStopPress(&a1) : setModeFromTask(MODE_CONE);
-  } else if (keyCode == B_MODE_CUT) {
-    if (mode == MODE_A1) {
+  }
+  else if (keyCode == B_MODE_CUT)
+  {
+    if (mode == MODE_A1)
+    {
       a1.disabled = !a1.disabled;
       updateEnable(&a1);
-    } else {
+    }
+    else
+    {
       setModeFromTask(MODE_CUT);
     }
-  } else if (keyCode == B_MODE_THREAD) {
+  }
+  else if (keyCode == B_MODE_THREAD)
+  {
     mode == MODE_A1 || (mode == MODE_GCODE && ACTIVE_A1) ? markAxis0(&a1) : setModeFromTask(MODE_THREAD);
   }
 }
