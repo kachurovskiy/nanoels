@@ -2408,7 +2408,7 @@ void processKeyEvent(int event) {
     if (mode == MODE_A1) {
       a1.disabled = !a1.disabled;
       updateEnable(&a1);
-    } else{
+    } else {
       setModeFromTask(MODE_CUT);
     }
   } else if (keyCode == B_MODE_THREAD) {
