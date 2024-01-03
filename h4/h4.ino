@@ -84,7 +84,7 @@ const float LINEAR_INTERPOLATION_PRECISION = 0.1; // 0 < x <= 1, smaller values 
 const long GCODE_WAIT_EPSILON_STEPS = 10;
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 9
+#define SOFTWARE_VERSION 10
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 4
@@ -545,6 +545,9 @@ bool gcodeInitialized = false;
 bool gcodeAbsolutePositioning = true;
 bool gcodeInBrace = false;
 bool gcodeInSemicolon = false;
+bool serialInKeycode = false;
+int serialKeycode = 0;
+String keycodeCommand = "";
 
 hw_timer_t *async_timer = timerBegin(0, 80, true);
 bool timerAttached = false;
@@ -1337,10 +1340,7 @@ void taskGcode(void *param) {
   while (emergencyStop == ESTOP_NONE) {
     if (mode != MODE_GCODE) {
       gcodeInitialized = false;
-      taskYIELD();
-      continue;
-    }
-    if (!gcodeInitialized) {
+    } else if (!gcodeInitialized) {
       gcodeInitialized = true;
       gcodeCommand = "";
       gcodeAbsolutePositioning = true;
@@ -1354,6 +1354,19 @@ void taskGcode(void *param) {
       int charCode = int(receivedChar);
       if (gcodeInBrace) {
         if (receivedChar == ')') gcodeInBrace = false;
+      } else if (serialInKeycode) {
+        if (charCode < 32) {
+          if (serialKeycode == 0) {
+            serialKeycode = keycodeCommand.toInt();
+            Serial.println(serialKeycode);
+          } else {
+            Serial.println("slower");
+          }
+          serialInKeycode = false;
+          keycodeCommand = "";
+        } else {
+          keycodeCommand += receivedChar;
+        }
       } else if (receivedChar == '(') {
         gcodeInBrace = true;
       } else if (receivedChar == ';' /* start of comment till end of line */) {
@@ -1378,6 +1391,8 @@ void taskGcode(void *param) {
         Serial.print(round(gcodeFeedDuPerSec * 60 / 10000.0));
         Serial.print(",");
         Serial.print(getApproxRpm());
+        Serial.print("|Id:");
+        Serial.print("H" + String(HARDWARE_VERSION) + "V" + String(SOFTWARE_VERSION));
         Serial.print(">"); // no new line to allow client to easily cut out the status response
       } else if (isOn) {
         if (gcodeInBrace && charCode < 32) {
@@ -1398,6 +1413,9 @@ void taskGcode(void *param) {
         } else if (charCode >= 32) {
           gcodeCommand += receivedChar;
         }
+      } else if (receivedChar == '=' /* start of keycode command */) {
+        serialInKeycode = true;
+        keycodeCommand = "";
       } else {
         // ignoring non-realtime command input when off
         // to flush any commands coming after an error
@@ -2259,8 +2277,14 @@ bool processNumpadResult(int keyCode) {
 }
 
 void processKeypadEvent() {
-  if (keypad.available() == 0) return;
-  int event = keypad.getEvent();
+  int event = 0;
+  if (serialKeycode != 0) {
+    event = serialKeycode;
+    serialKeycode = 0;
+  } else if (keypad.available() > 0) {
+    event = keypad.getEvent();
+  }
+  if (event == 0) return;
   int keyCode = event;
   bitWrite(keyCode, 7, 0);
   bool isPress = bitRead(event, 7) == 1; // 1 - press, 0 - release
