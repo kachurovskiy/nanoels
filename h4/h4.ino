@@ -1387,8 +1387,7 @@ void taskGcode(void *param) {
     // Implementing a relevant subset of RS274 (Gcode) and GRBL (state management) covering basic use cases.
     if (!keyEmulation) {
       if (gcodeInBrace) {
-        if (receivedChar == ')')
-          gcodeInBrace = false;
+        if (receivedChar == ')') gcodeInBrace = false;
       } else if (receivedChar == '(') {
         gcodeInBrace = true;
       } else if (receivedChar == ';' /* start of comment till end of line */) {
@@ -1421,8 +1420,7 @@ void taskGcode(void *param) {
           Serial.println("error: comment not closed");
           setIsOnFromTask(false);
         } else if (charCode < 32 && gcodeCommand.length() > 1) {
-          if (handleGcodeCommand(gcodeCommand))
-            Serial.println("ok");
+          if (handleGcodeCommand(gcodeCommand)) Serial.println("ok");
           gcodeCommand = "";
           gcodeInSemicolon = false;
         } else if (charCode < 32) {
@@ -2327,8 +2325,7 @@ void processKeyEvent(int event) {
 
   if (mode == MODE_GCODE && isOn) {
     // Not allowed to interfere other than turn off.
-    if (isPress && keyCode != B_OFF)
-      beep();
+    if (isPress && keyCode != B_OFF) beep();
     return;
   }
 
