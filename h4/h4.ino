@@ -287,8 +287,8 @@ int nextStarts = starts; // number of starts that should be used asap
 bool nextStartsFlag = false; // whether nextStarts requires attention
 
 struct ToolOffset {
-    float xOffset;
-    float zOffset;
+    float xOffsetDu;
+    float zOffsetDu;
 };
 
 // Tool offsets in deci-microns (DU). 1mm = 10000 DU.
@@ -299,8 +299,8 @@ ToolOffset toolOffsets[4] = {
     {0, 0}
 };
 
-ToolOffset currentOffset = {0, 0};
-int currentTool = 0;
+ToolOffset toolOffset = {0, 0};
+int tool = 0;
 
 struct Axis {
   SemaphoreHandle_t mutex;
@@ -871,16 +871,17 @@ void updateDisplay() {
   long zDisplayPos = z.pos + z.originPos;
   long xDisplayPos = x.pos + x.originPos;
   long a1DisplayPos = a1.pos + a1.originPos;
-  long newHashLine2 = zDisplayPos + xDisplayPos + a1DisplayPos + measure + z.disabled + x.disabled + mode;
+  long newHashLine2 = zDisplayPos + xDisplayPos + a1DisplayPos + measure + z.disabled + x.disabled + mode + tool;
   if (lcdHashLine2 != newHashLine2) {
     lcdHashLine2 = newHashLine2;
     charIndex = 0;
     lcd.setCursor(0, 2);
 
-    // Display current tool
-    charIndex += lcd.print("T");
-    charIndex += lcd.print(currentTool);
-    charIndex += lcd.print(" "); // Add a space after the tool information
+    if (tool != 0 && mode == MODE_GCODE) {
+      charIndex += lcd.print("T");
+      charIndex += lcd.print(tool);
+      charIndex += lcd.print(" ");
+    }
 
     charIndex += printAxisPosWithName(&z, true);
     while (charIndex < 10) charIndex += lcd.print(" ");
@@ -1555,7 +1556,7 @@ void setup() {
   savedConeRatio = coneRatio = pref.getFloat(PREF_CONE_RATIO, coneRatio);
   savedTurnPasses = turnPasses = pref.getInt(PREF_TURN_PASSES, turnPasses);
   savedAuxForward = auxForward = pref.getBool(PREF_AUX_FORWARD, true);
-  savedTool = currentTool = pref.getInt(PREF_TOOL, 0);
+  savedTool = tool = pref.getInt(PREF_TOOL, 0);
   pref.end();
 
   if (!z.needsRest && !z.disabled) {
@@ -1612,7 +1613,7 @@ bool saveIfChanged() {
       spindlePos == savedSpindlePos && spindlePosAvg == savedSpindlePosAvg && spindlePosSync == savedSpindlePosSync && savedSpindlePosGlobal == spindlePosGlobal && showAngle == savedShowAngle && showTacho == savedShowTacho && moveStep == savedMoveStep &&
       mode == savedMode && measure == savedMeasure && x.pos == x.savedPos && x.originPos == x.savedOriginPos && x.posGlobal == x.savedPosGlobal && x.motorPos == x.savedMotorPos && x.leftStop == x.savedLeftStop && x.rightStop == x.savedRightStop && x.disabled == x.savedDisabled &&
       a1.pos == a1.savedPos && a1.originPos == a1.savedOriginPos && a1.posGlobal == a1.savedPosGlobal && a1.motorPos == a1.savedMotorPos && a1.leftStop == a1.savedLeftStop && a1.rightStop == a1.savedRightStop && a1.disabled == a1.savedDisabled &&
-      coneRatio == savedConeRatio && turnPasses == savedTurnPasses && savedAuxForward == auxForward && currentTool == savedTool) return false;
+      coneRatio == savedConeRatio && turnPasses == savedTurnPasses && savedAuxForward == auxForward && tool == savedTool) return false;
 
   Preferences pref;
   pref.begin(PREF_NAMESPACE);
@@ -1651,7 +1652,7 @@ bool saveIfChanged() {
   if (coneRatio != savedConeRatio) pref.putFloat(PREF_CONE_RATIO, savedConeRatio = coneRatio);
   if (turnPasses != savedTurnPasses) pref.putInt(PREF_TURN_PASSES, savedTurnPasses = turnPasses);
   if (auxForward != savedAuxForward) pref.putBool(PREF_AUX_FORWARD, savedAuxForward = auxForward);
-  if (currentTool != savedTool) pref.putInt(PREF_TOOL, savedTool = currentTool);
+  if (tool != savedTool) pref.putInt(PREF_TOOL, savedTool = tool);
   pref.end();
   return true;
 }
@@ -2967,7 +2968,7 @@ bool handleMcode(const String& command) {
 
 bool handleChangeToolCommand(String command) {
   int toolNumber = command.substring(1).toInt();
-  if (toolNumber >= 0 && toolNumber < 4) {
+  if (toolNumber >= 0 && toolNumber < sizeof(toolOffsets)/sizeof(toolOffsets[0])) {
     changeTool(toolNumber);
     return true;
   } else {
@@ -2977,24 +2978,22 @@ bool handleChangeToolCommand(String command) {
 }
 
 void changeTool(int newToolNumber) {
-    currentTool = newToolNumber;
+    tool = newToolNumber;
     ToolOffset newToolOffset = toolOffsets[newToolNumber];
 
     // Calculate the net offset needed to apply
     ToolOffset netOffset = {
-        newToolOffset.xOffset - currentOffset.xOffset,
-        newToolOffset.zOffset - currentOffset.zOffset
+        newToolOffset.xOffsetDu - toolOffset.xOffsetDu,
+        newToolOffset.zOffsetDu - toolOffset.zOffsetDu
     };
 
     applyToolOffset(netOffset);
-    currentOffset = newToolOffset;
-
-    Serial.println("Tool changed to T" + String(newToolNumber));
+    toolOffset = newToolOffset;
 }
 
 void applyToolOffset(ToolOffset offset) {
-    long xOffsetSteps = duToSteps(&x, offset.xOffset);
-    long zOffsetSteps = duToSteps(&z, offset.zOffset);
+    long xOffsetSteps = duToSteps(&x, offset.xOffsetDu);
+    long zOffsetSteps = duToSteps(&z, offset.zOffsetDu);
 
     // Lock the axes before making changes
     xSemaphoreTake(x.mutex, portMAX_DELAY);
