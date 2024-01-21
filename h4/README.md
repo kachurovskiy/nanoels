@@ -284,8 +284,8 @@ This mode allows to control tool movement from the PC. Programs can be generated
 
 Before the program runs, it's critical to zero the tool:
 
-- Set Z=0 at the point where the left edge of the cutting tool touches the right face of the stock - e.g. by taking a light facing cut and pressing ![IconZ](https://github.com/kachurovskiy/nanoels/assets/517919/32d95cce-d8be-4f8c-8a9c-399d278a2115)
-- Set X=0 at the point where the front edge of the cutting tool is on the centerline - e.g. by taking of a small amount of material from the outside diameter and entering the measuring the resulting stock diameter using the numpad followed by ![IconA](https://github.com/kachurovskiy/nanoels/assets/517919/3059b6ed-0197-4e48-91a7-80a7e1317176).
+- Set `Z=0` at the point where the left edge of the cutting tool touches the right face of the stock - e.g. by taking a light facing cut and pressing ![IconZ](https://github.com/kachurovskiy/nanoels/assets/517919/32d95cce-d8be-4f8c-8a9c-399d278a2115)
+- Set `X=0` at the point where the front edge of the cutting tool is on the centerline - e.g. take of a small amount of material from the outside diameter, enter the measured diameter using the numpad, press ![IconA](https://github.com/kachurovskiy/nanoels/assets/517919/3059b6ed-0197-4e48-91a7-80a7e1317176)
 
 Before cutting your first part, zero the tool "in the air" and check that your program is doing what you expect.
 
