@@ -24,12 +24,11 @@ Controller itself is available for purchase on https://kachurovskiy.com/ or you 
 - Backlash compensation
 - Rotary encoders to move axes
 - Rotary or linear 3rd axis
-- GCode over USB (work in progress)
 
-No computer or CAD software needed! Coming soon:
+Advanced CNC features via [lathecode online CAD](https://github.com/kachurovskiy/lathecode):
 
-- Automatic conical threads
-- Spheres and curves
+- Running GCode over USB
+- Saving GCode to device to run later
 
 ## Hardware
 
@@ -279,7 +278,28 @@ Operation can be stopped at any time by pressing ![IconStop](https://github.com/
 
 ### GCode
 
-🚧 GCode support and lathecode editor are not ready for general use, below is a preview of what's coming 🚧
+**WARNING:** GCode mode ignores automatic stops. Use ![IconStop](https://github.com/kachurovskiy/nanoels/assets/517919/cf4b9b31-dda3-4469-9667-1d1c44ea39b4) or emergency stop. Clicking `Stop` in the Web UI has a delay.
+
+This mode allows to control tool movement from the PC. Programs can be generated automatically using textual part description - see [lathecode README](https://github.com/kachurovskiy/lathecode) for more info.
+
+Before the program runs, it's critical to zero the tool:
+
+- Set Z=0 at the point where the left edge of the cutting tool touches the right face of the stock - e.g. by taking a light facing cut and pressing ![IconZ](https://github.com/kachurovskiy/nanoels/assets/517919/32d95cce-d8be-4f8c-8a9c-399d278a2115)
+- Set X=0 at the point where the front edge of the cutting tool is on the centerline - e.g. by taking of a small amount of material from the outside diameter and entering the measuring the resulting stock diameter using the numpad followed by ![IconA](https://github.com/kachurovskiy/nanoels/assets/517919/3059b6ed-0197-4e48-91a7-80a7e1317176).
+
+Before cutting your first part, zero the tool "in the air" and check that your program is doing what you expect.
+
+Use [**lathecode online editor**](https://kachurovskiy.com/lathecode/) to define your part and run or save the GCode program to H4.
+
+#### Saved programs
+
+Switch to `GCODE` mode and press ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/1bf41a47-f4b5-4896-96a6-72c97ae472e2).
+
+Use ![IconArrowUp](https://github.com/kachurovskiy/nanoels/assets/517919/ac350635-4424-4438-bcfb-3cb0431345f8) and ![IconArrowDown](https://github.com/kachurovskiy/nanoels/assets/517919/897b4005-45d0-46ed-977e-b25a98983961) to select the program, ![IconMinus](https://github.com/kachurovskiy/nanoels/assets/517919/ed05b417-5714-4e31-9f17-9ff646c85214) to delete the program, ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0ef5-94d7-4b42-b1a3-4c85c704e80d) to run it.
+
+#### Technical details of the GCode mode
+
+This section is intended for the few people sending raw serial commands to H4 - not for regular lathecode users.
 
 Commands can be sent to device e.g. using [our Web-based GCode sender](https://kachurovskiy.github.io/nanoels/h4/sender.html) while connected over USB. The following commands are currently implemented:
 
@@ -292,10 +312,4 @@ Commands can be sent to device e.g. using [our Web-based GCode sender](https://k
 
 Sample command `G1 X5 Z2 F100` will move the cutter to X=5mm, Z=2mm at 100 mm/sec in absolute metric mode.
 
-GCode can be generated using e.g. https://kachurovskiy.github.io/lathecode/
-
-**WARNING:** GCode commands currently ignore automatic stops / soft limits. To stop GCode from executing use ![IconStop](https://github.com/kachurovskiy/nanoels/assets/517919/cf4b9b31-dda3-4469-9667-1d1c44ea39b4) or emergency stop. Clicking `Stop` in the Web UI has a delay and only stops when current command is finished.
-
-### More modes are coming!
-
-Please [start a new discussion](https://github.com/kachurovskiy/nanoels/discussions) to let us know which mode you think should be added next.
+To save a program `X0\n\Z10` under a name `Part1`, send `"Part1\nX0\n\Z10"`. To remove it, send `"Part1"`. To remove all saved programs, send `""`.

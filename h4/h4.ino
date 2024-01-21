@@ -78,13 +78,16 @@ const long STEPPED_ENABLE_DELAY_MS = 100; // Delay after stepper is enabled and 
 // changes are made to the storage logic, resulting in Preferences wipe on first start.
 #define PREFERENCES_VERSION 1
 #define PREF_NAMESPACE "h4"
+#define GCODE_NAMESPACE "gc"
 
 // GCode-related constants.
 const float LINEAR_INTERPOLATION_PRECISION = 0.1; // 0 < x <= 1, smaller values make for quicker G0 and G1 moves
 const long GCODE_WAIT_EPSILON_STEPS = 10;
+const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle stops
+const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 10
+#define SOFTWARE_VERSION 11
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 4
@@ -548,14 +551,23 @@ bool gcodeInSemicolon = false;
 bool serialInKeycode = false;
 int serialKeycode = 0;
 String keycodeCommand = "";
+bool gcodeInSave = false;
+bool gcodeInSaveFirstLine = false;
+String gcodeSaveName = "";
+String gcodeSaveValue = "";
+int gcodeProgramIndex = 0;
+int gcodeProgramCount = 0;
+String gcodeProgram = "";
+int gcodeProgramCharIndex = 0;
 
 hw_timer_t *async_timer = timerBegin(0, 80, true);
 bool timerAttached = false;
 
 int getApproxRpm() {
   unsigned long t = micros();
-  if (t > spindleEncTime + 100000) {
+  if (t > spindleEncTime + 50000) {
     // RPM less than 10.
+    spindleEncTimeDiffBulk = 0;
     return 0;
   }
   if (t < shownRpmTime + RPM_UPDATE_INTERVAL_MICROS) {
@@ -565,9 +577,10 @@ int getApproxRpm() {
   int rpm = 0;
   if (spindleEncTimeDiffBulk > 0) {
     rpm = 60000000 / spindleEncTimeDiffBulk;
-    if (abs(rpm - shownRpm) < (rpm < 1000 ? 2 : 5)) {
+    if (abs(rpm - shownRpm) > (rpm < 1000 ? 3 : 5)) {
       // Don't update RPM with insignificant differences.
-      rpm = shownRpm;
+      shownRpm = rpm;
+      shownRpmTime = t;
     }
   }
   return rpm;
@@ -713,8 +726,12 @@ bool isPassMode() {
   return mode == MODE_TURN || mode == MODE_FACE || mode == MODE_CUT || mode == MODE_THREAD || mode == MODE_ELLIPSE;
 }
 
+bool manualMovesAllowedWhenOn() {
+  return mode == MODE_NORMAL || mode == MODE_ASYNC || mode == MODE_CONE || mode == MODE_A1;
+}
+
 int getLastSetupIndex() {
-  if (mode == MODE_CONE) return 2;
+  if (mode == MODE_CONE || mode == MODE_GCODE) return 2;
   if (mode == MODE_TURN || mode == MODE_FACE || mode == MODE_CUT || mode == MODE_THREAD || mode == MODE_ELLIPSE) return 3;
   return 0;
 }
@@ -785,7 +802,7 @@ void updateDisplay() {
     lcdHashLine3 = LCD_HASH_INITIAL;
   }
 
-  long newHashLine0 = isOn + (z.leftStop - z.rightStop) + (x.leftStop - x.rightStop) + spindlePosSync + moveStep + mode + measure + setupIndex;
+  long newHashLine0 = isOn + (z.leftStop - z.rightStop) + (x.leftStop - x.rightStop) + spindlePosSync + moveStep + mode + measure + setupIndex * 10;
   if (lcdHashLine0 != newHashLine0) {
     lcdHashLine0 = newHashLine0;
     charIndex = 0;
@@ -865,8 +882,9 @@ void updateDisplay() {
   for (int i = 0; i < gcodeCommand.length(); i++) {
     gcodeCommandHash += gcodeCommand.charAt(i);
   }
+  bool spindleStopped = micros() > spindleEncTime + 100000;
   long newHashLine3 = z.pos + (showAngle ? spindlePos : -1) + (showTacho ? rpm : -2) + measure + (numpadResult > 0 ? numpadResult : -1) + mode * 5 + dupr +
-      (mode == MODE_CONE ? round(coneRatio * 10000) : 0) + turnPasses + opIndex + setupIndex + (isOn ? 139 : -117) + (inNumpad ? 10 : 0) + (auxForward ? 17 : -31) +
+      (mode == MODE_CONE ? round(coneRatio * 10000) : 0) + turnPasses + opIndex + setupIndex + gcodeProgramIndex + gcodeProgramCount + spindleStopped * 3 + (isOn ? 139 : -117) + (inNumpad ? 10 : 0) + (auxForward ? 17 : -31) +
       (z.leftStop == LONG_MAX ? 123 : z.leftStop) + (z.rightStop == LONG_MIN ? 1234 : z.rightStop) +
       (x.leftStop == LONG_MAX ? 1235 : x.leftStop) + (x.rightStop == LONG_MIN ? 123456 : x.rightStop) + gcodeCommandHash +
       (mode == MODE_A1 ? a1.pos + a1.originPos + (a1.leftStop == LONG_MAX ? 123 : a1.leftStop) + (a1.rightStop == LONG_MIN ? 1234 : a1.rightStop) + a1.disabled : 0) + x.pos + z.pos;
@@ -887,7 +905,25 @@ void updateDisplay() {
       }
       charIndex += printAxisPosWithName(&a1, false);
     } else if (mode == MODE_GCODE) {
-      charIndex += lcd.print(gcodeCommand.substring(0, 20));
+      if (setupIndex == 1 && gcodeProgramCount == 0) {
+        charIndex += lcd.print("No stored programs");
+      } else if (setupIndex == 1) {
+        Preferences pref;
+        pref.begin(GCODE_NAMESPACE);
+        if (gcodeProgramIndex >= gcodeProgramCount) {
+          charIndex += lcd.print("Program deleted");
+        } else {
+          String programName = pref.getString(String(gcodeProgramIndex).c_str());
+          if (programName.length() == 0) charIndex += lcd.print("(empty name)");
+          else charIndex += lcd.print(programName.substring(0, 20));
+        }
+        pref.end();
+      } else if (setupIndex == 2) {
+        if (spindleStopped) charIndex += lcd.print("Turn on the spindle!");
+        else charIndex += lcd.print("Spindle on. Go?");
+      } else if (isOn) {
+        charIndex += lcd.print(gcodeCommand.substring(0, 20));
+      }
     } else if (isPassMode()) {
       bool missingZStops = needZStops() && (z.leftStop == LONG_MAX || z.rightStop == LONG_MIN);
       bool missingStops = missingZStops || x.leftStop == LONG_MAX || x.rightStop == LONG_MIN;
@@ -965,10 +1001,6 @@ void updateDisplay() {
     } else if (showTacho) {
       charIndex += lcd.print("Tacho ");
       charIndex += lcd.print(rpm);
-      if (shownRpm != rpm) {
-        shownRpm = rpm;
-        shownRpmTime = micros();
-      }
       charIndex += lcd.print("rpm");
     }
     printLcdSpaces(charIndex);
@@ -1148,7 +1180,7 @@ void taskMoveZ(void *param) {
       taskYIELD();
       continue;
     }
-    if (isOn && isPassMode()) {
+    if (isOn && !manualMovesAllowedWhenOn()) {
       setIsOnFromTask(false);
     }
     int sign = pulseDelta == 0 ? (left ? 1 : -1) : (pulseDelta > 0 ? 1 : -1);
@@ -1247,7 +1279,7 @@ void taskMoveX(void *param) {
       taskYIELD();
       continue;
     }
-    if (isOn && isPassMode()) {
+    if (isOn && !manualMovesAllowedWhenOn()) {
       setIsOnFromTask(false);
     }
     x.movingManually = true;
@@ -1349,9 +1381,17 @@ void taskGcode(void *param) {
       gcodeInSemicolon = false;
     }
     // Implementing a relevant subset of RS274 (Gcode) and GRBL (state management) covering basic use cases.
-    if (Serial.available() > 0) {
-      char receivedChar = Serial.read();
-      int charCode = int(receivedChar);
+    char receivedChar = '\0';
+    bool isSerial = false;
+    if (mode == MODE_GCODE && isOn && gcodeProgramCharIndex < gcodeProgram.length()) {
+      receivedChar = gcodeProgram.charAt(gcodeProgramCharIndex);
+      gcodeProgramCharIndex++;
+    } else if (Serial.available() > 0) {
+      isSerial = true;
+      receivedChar = Serial.read();
+    }
+    int charCode = int(receivedChar);
+    if (charCode > 0) {
       if (gcodeInBrace) {
         if (receivedChar == ')') gcodeInBrace = false;
       } else if (serialInKeycode) {
@@ -1394,16 +1434,56 @@ void taskGcode(void *param) {
         Serial.print("|Id:");
         Serial.print("H" + String(HARDWARE_VERSION) + "V" + String(SOFTWARE_VERSION));
         Serial.print(">"); // no new line to allow client to easily cut out the status response
+      } else if (gcodeInSave && receivedChar == '"' /* end of saved program */) {
+        gcodeInSave = false;
+        if (gcodeSaveName.length() == 0) {
+          if (removeAllGcode()) Serial.println("ok");
+        } else if (gcodeSaveValue.length() > 1) {
+          if (saveGcode()) Serial.println("ok");
+        } else if (gcodeSaveName.length() == 1) {
+          Serial.println("error: name must be at least 2 chars");
+        } else {
+          Preferences pref;
+          pref.begin(GCODE_NAMESPACE);
+          bool found = false;
+          for (int i = 0; i < 256; i++) {
+            if (!pref.isKey(String(i).c_str())) break;
+            if (gcodeSaveName.equals(pref.getString(String(i).c_str()))) {
+              found = true;
+              if (removeGcode(i)) Serial.println("ok");
+              break;
+            }
+          }
+          if (!found) Serial.println("error: name not found");
+          pref.end();
+        }
+        gcodeSaveName = "";
+        gcodeSaveValue = "";
+      } else if (!gcodeInSave && receivedChar == '"' /* start of save program */) {
+        gcodeInSave = true;
+        gcodeInSaveFirstLine = true;
+      } else if (gcodeInSaveFirstLine && receivedChar >= 32) {
+        gcodeSaveName += receivedChar;
+      } else if (gcodeInSaveFirstLine && receivedChar < 32) {
+        gcodeInSaveFirstLine = false;
+        Serial.println("ok");
+      } else if (gcodeInSave) {
+        gcodeSaveValue += receivedChar;
+        if (receivedChar < 32) {
+          gcodeInBrace = false;
+          gcodeInSemicolon = false;
+          Serial.println("ok");
+        }
       } else if (isOn) {
         if (gcodeInBrace && charCode < 32) {
           Serial.println("error: comment not closed");
           setIsOnFromTask(false);
         } else if (charCode < 32 && gcodeCommand.length() > 1) {
-          if (handleGcodeCommand(gcodeCommand)) Serial.println("ok");
+          if (handleGcodeCommand(gcodeCommand) && isSerial) Serial.println("ok");
           gcodeCommand = "";
           gcodeInSemicolon = false;
         } else if (charCode < 32) {
-          Serial.println("ok");
+          if (isSerial) Serial.println("ok");
           gcodeCommand = "";
         } else if (charCode >= 32 && (charCode == 'G' || charCode == 'M')) {
           // Split consequent G and M commands on one line.
@@ -1421,9 +1501,80 @@ void taskGcode(void *param) {
         // to flush any commands coming after an error
       }
     }
+    if (mode == MODE_GCODE && isOn && gcodeProgramCharIndex > 0 && gcodeProgramCharIndex == gcodeProgram.length()) {
+      setIsOnFromTask(false);
+    }
     taskYIELD();
   }
   vTaskDelete(NULL);
+}
+
+bool saveGcode() {
+  Preferences pref;
+  pref.begin(GCODE_NAMESPACE);
+  bool success = false;
+  if (gcodeSaveName.length() < 2) {
+    Serial.println("error: name must be at least 2 chars");
+  } else if (gcodeSaveValue.length() < 2) {
+    Serial.println("error: program too short");
+  } else if (pref.freeEntries() < 2 || gcodeProgramCount >= 256) {
+    Serial.println("error: memory full");
+  } else if (pref.isKey(gcodeSaveName.c_str())) {
+    if (pref.putString(gcodeSaveName.c_str(), gcodeSaveValue) != gcodeSaveValue.length()) {
+      Serial.println("error: failed to overwrite");
+    } else {
+      success = true;
+    }
+  } else {
+    if (pref.putString(String(gcodeProgramCount).c_str(), gcodeSaveName) == 0) {
+      Serial.println("error: not enough memory for program name");
+    } else if (pref.putString(gcodeSaveName.c_str(), gcodeSaveValue) != gcodeSaveValue.length()) {
+      pref.remove(String(gcodeProgramCount).c_str());
+      Serial.println("error: not enough memory for program text");
+    } else {
+      gcodeProgramCount++;
+      success = true;
+    }
+  }
+  pref.end();
+  return success;
+}
+
+bool removeGcode(int indexToRemove) {
+  Preferences pref;
+  pref.begin(GCODE_NAMESPACE);
+  bool success = false;
+  if (indexToRemove >= 0 && indexToRemove < 256 && pref.isKey(String(indexToRemove).c_str())) {
+    success = true;
+    String programName = pref.getString(String(indexToRemove).c_str());
+    pref.remove(String(indexToRemove).c_str());
+    if (programName.length() > 0) {
+      pref.remove(programName.c_str());
+    }
+    // Move all the following program names down to avoid holes.
+    for (int i = indexToRemove + 1; pref.isKey(String(i).c_str()); i++) {
+      pref.putString(String(i - 1).c_str(), pref.getString(String(i).c_str()));
+      pref.remove(String(i).c_str());
+    }
+    if (gcodeProgramCount > 0) gcodeProgramCount--;
+    if (gcodeProgramCount > 0 && gcodeProgramIndex >= gcodeProgramCount) {
+      gcodeProgramIndex = gcodeProgramCount - 1;
+    }
+  } else {
+    Serial.print("error: program to delete not found at index ");
+    Serial.println(indexToRemove);
+  }
+  pref.end();
+  return success;
+}
+
+bool removeAllGcode() {
+  Preferences pref;
+  pref.begin(GCODE_NAMESPACE);
+  bool success = pref.clear();
+  if (!success) Serial.println("error: failed clearing GCODE_NAMESPACE");
+  pref.end();
+  return true;
 }
 
 void taskAttachInterrupts(void *param) {
@@ -1538,6 +1689,17 @@ void setup() {
   if (a1.active && !a1.needsRest && !a1.disabled) {
     DHIGH(a1.ena);
   }
+
+  pref.begin(GCODE_NAMESPACE);
+  gcodeProgramCount = 0;
+  for (int i = 0; i < 256; i++) {
+    if (pref.isKey(String(i).c_str())) {
+      gcodeProgramCount++;
+    } else {
+      break;
+    }
+  }
+  pref.end();
 
   lcd.begin(20, 4);
   lcd.createChar(customCharMmCode, customCharMm);
@@ -1913,6 +2075,8 @@ void buttonOnOffPress(bool on) {
   bool missingZStops = needZStops() && (z.leftStop == LONG_MAX || z.rightStop == LONG_MIN);
   if (on && isPassMode() && (missingZStops || x.leftStop == LONG_MAX || x.rightStop == LONG_MIN)) {
     beep();
+  } else if (!isOn && on && mode == MODE_GCODE && gcodeProgramIndex >= gcodeProgramCount && setupIndex == 1) {
+    beep();
   } else if (!isOn && on && setupIndex < getLastSetupIndex()) {
     // Move to the next setup step.
     setupIndex++;
@@ -1921,6 +2085,25 @@ void buttonOnOffPress(bool on) {
     opIndexAdvanceFlag = true;
   } else if (!on && (z.movingManually || x.movingManually || x.movingManually)) {
     setEmergencyStop(ESTOP_OFF_MANUAL_MOVE);
+  } else if (!isOn && on && mode == MODE_GCODE && gcodeProgramIndex >= gcodeProgramCount) {
+    beep();
+  } else if (!isOn && on && mode == MODE_GCODE) {
+    Preferences pref;
+    pref.begin(GCODE_NAMESPACE);
+    if (!pref.isKey(String(gcodeProgramIndex).c_str())) {
+      beep();
+    } else {
+      String programName = pref.getString(String(gcodeProgramIndex).c_str());
+      if (programName.length() == 0) {
+        beep();
+      } else {
+        gcodeProgramCharIndex = 0;
+        gcodeProgram = pref.getString(programName.c_str());
+        gcodeProgram += '\n'; // ensures the last line is executed
+        setIsOnFromTask(on);
+      }
+    }
+    pref.end();
   } else {
     setIsOnFromTask(on);
   }
@@ -2310,6 +2493,14 @@ void processKeypadEvent() {
   // Setup wizard navigation.
   if (isPress && setupIndex == 2 && (keyCode == B_LEFT || keyCode == B_RIGHT)) {
     auxForward = !auxForward;
+  } else if (isPress && mode == MODE_GCODE && setupIndex == 1 && (keyCode == B_UP || keyCode == B_DOWN)) {
+    if (gcodeProgramIndex > 0 && keyCode == B_UP) gcodeProgramIndex--;
+    else if (gcodeProgramIndex == 0 && gcodeProgramCount > 0 && keyCode == B_UP) gcodeProgramIndex = gcodeProgramCount - 1;
+    else if ((gcodeProgramIndex < gcodeProgramCount - 1) && keyCode == B_DOWN) gcodeProgramIndex++;
+    else if (keyCode == B_DOWN) gcodeProgramIndex = 0;
+  } else if (isPress && mode == MODE_GCODE && setupIndex == 1 && keyCode == B_MINUS) {
+    removeGcode(gcodeProgramIndex);
+    return;
   } else if (keyCode == B_LEFT) { // Make sure isPress=false propagates to motion flags.
     buttonLeftPressed = isPress;
   } else if (keyCode == B_RIGHT) {
@@ -2861,7 +3052,7 @@ void setFeedRate(const String& command) {
 }
 
 void gcodeWaitEpsilon(int epsilon) {
-  while (abs(x.pendingPos) > epsilon || abs(z.pendingPos) > epsilon || abs(a1.pendingPos) > epsilon) {
+  while (abs(x.pendingPos) > epsilon || abs(z.pendingPos) > epsilon || abs(a1.pendingPos) > epsilon || (SPINDLE_PAUSES_GCODE && getApproxRpm() < GCODE_MIN_RPM)) {
     taskYIELD();
   }
 }
