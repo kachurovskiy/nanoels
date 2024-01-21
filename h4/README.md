@@ -278,6 +278,8 @@ Operation can be stopped at any time by pressing ![IconStop](https://github.com/
 
 ### GCode
 
+![image](https://github.com/kachurovskiy/nanoels/assets/517919/36c18783-e229-4531-a2e8-bc68c17727fb)
+
 **WARNING:** GCode mode ignores automatic stops. Use ![IconStop](https://github.com/kachurovskiy/nanoels/assets/517919/cf4b9b31-dda3-4469-9667-1d1c44ea39b4) or emergency stop. Clicking `Stop` in the Web UI has a delay.
 
 This mode allows to control tool movement from the PC. Programs can be generated automatically using textual part description - see [lathecode README](https://github.com/kachurovskiy/lathecode) for more info.
