@@ -39,9 +39,7 @@ Features:
 - RV09 10kOhm potentiometer
 - 6 M3 threaded inserts
 
-All of this can easily be found on AliExpress, eBay or Amazon. Alternatively, try the [official kit](https://kachurovskiy.com/).
-
-[![kit](kit.jpg)](https://kachurovskiy.com/)
+All of this can easily be found on AliExpress, eBay or Amazon.
 
 ## Case
 
