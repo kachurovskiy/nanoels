@@ -8,11 +8,9 @@ CNC and electronic lead screw controller based on ESP32-S3 that supports up to 4
 - Multi-pass turning, facing and cones
 - Precise movements, soft limits and much more
 
-[![h4-600px](https://github.com/kachurovskiy/nanoels/assets/517919/4090779c-ef88-4402-aeef-644f7a086ff2)](https://kachurovskiy.com/)
+![h4-600px](https://github.com/kachurovskiy/nanoels/assets/517919/4090779c-ef88-4402-aeef-644f7a086ff2)
 
 See [h4 folder for hardware files, software, assembly and usage manual](https://github.com/kachurovskiy/nanoels/tree/main/h4).
-
-Controller is available for purchase on https://kachurovskiy.com
 
 ## Build examples
 
@@ -21,17 +19,13 @@ Controller is available for purchase on https://kachurovskiy.com
 
 # NanoEls H2
 
-Cheap DIY Electronic Lead Screw (ELS) based on Arduino Nano for metal lathes.
-
-No more greasy gear swapping! Control your metal lathe lead screw with a few clicks.
+Cheap DIY Electronic Lead Screw (ELS) based on Arduino Nano for metal lathes. No more greasy gear swapping! Control your metal lathe lead screw with a few clicks.
 
 - Set leadscrew pitch for feed or thread
 - Soft limits for the carriage
 - Multi-start threads in 1 start of the spindle
 
-See [h2 folder for parts list, software, assembly and usage manual](https://github.com/kachurovskiy/nanoels/blob/main/h2/). Controller can be built from [generally available components](https://github.com/kachurovskiy/nanoels/tree/main/h2#components) or from the [official kit](https://kachurovskiy.com/):
-
-[![kit](h2/kit.jpg)](https://kachurovskiy.com/)
+See [h2 folder for parts list, software, assembly and usage manual](https://github.com/kachurovskiy/nanoels/blob/main/h2/). Controller can be built from [generally available components](https://github.com/kachurovskiy/nanoels/tree/main/h2#components).
 
 It's suggested to use STEPPERONLINE CL57T closed-loop driver with NEMA 23 3NM motor or stronger with 200 step resolution mode (full step) and a 600 PPR optical rotary encoder. [See hardware.md for more info.](hardware.md)
 
