@@ -3,7 +3,7 @@
 /* Change values in this section to suit your hardware. */
 
 // Define your hardware parameters here.
-const int ENCODER_STEPS_INT = 600; // 600 step spindle optical rotary encoder. Fractional values not supported.
+const int ENCODER_PPR = 600; // 600 step spindle optical rotary encoder. Fractional values not supported.
 const int ENCODER_BACKLASH = 3; // Numer of impulses encoder can issue without movement of the spindle
 
 // Spindle rotary encoder pins. Swap values if the rotation direction is wrong.
@@ -66,6 +66,10 @@ const float PULSE_PER_REVOLUTION = 100; // PPR of handwheels used on A1 and/or A
 const long PULSE_MIN_WIDTH_US = 1000; // Microseconds width of the pulse that is required for it to be registered. Prevents noise.
 const long PULSE_HALF_BACKLASH = 2; // Prevents spurious reverses when moving using a handwheel. Raise to 3 or 4 if they still happen.
 
+const int ENCODER_STEPS_INT = ENCODER_PPR * 2; // Number of encoder impulses PCNT counts per revolution of the spindle
+const int ENCODER_FILTER = 2; // Encoder pulses shorter than this will be ignored. Clock cycles, 1 - 1023.
+const int PCNT_LIM = 31000; // Limit used in hardware pulse counter logic.
+const int PCNT_CLEAR = 30000; // Limit where we reset hardware pulse counter value to avoid overflow. Less than PCNT_LIM.
 const long DUPR_MAX = 254000; // No more than 1 inch pitch
 const int STARTS_MAX = 124; // No more than 124-start thread
 const long PASSES_MAX = 999; // No more turn or face passes than this
@@ -87,7 +91,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 11
+#define SOFTWARE_VERSION 12
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 4
@@ -236,6 +240,9 @@ const float GCODE_FEED_MIN_DU_SEC = 167; // Minimum feed in du/sec in GCode mode
 #define DWRITE(x, y) digitalWrite(x, y)
 
 #define DELAY(x) vTaskDelay(x / portTICK_PERIOD_MS);
+
+// ESP32 hardware pulse counter library used to count spindle encoder pulses.
+#include "driver/pcnt.h"
 
 #include <SPI.h>
 #include <Wire.h>
@@ -419,7 +426,7 @@ long spindlePos = 0; // Spindle position
 long spindlePosAvg = 0; // Spindle position accounting for encoder backlash
 long savedSpindlePosAvg = 0; // spindlePosAvg saved in Preferences
 long savedSpindlePos = 0; // spindlePos value saved in Preferences
-volatile long spindlePosDelta = 0; // Unprocessed encoder ticks.
+int spindleCount = 0; // Last processed spindle encoder pulse counter value.
 int spindlePosSync = 0; // Non-zero if gearbox is on and a soft limit was removed while axis was on it
 int savedSpindlePosSync = 0; // spindlePosSync saved in Preferences
 long spindlePosGlobal = 0; // global spindle position that is unaffected by e.g. zeroing
@@ -1007,11 +1014,6 @@ void updateDisplay() {
   }
 }
 
-// Called on a FALLING interrupt for the spindle rotary encoder pin.
-void IRAM_ATTR spinEnc() {
-  spindlePosDelta += DREAD(ENC_B) ? -1 : 1;
-}
-
 unsigned long pulse1HighMicros = 0;
 unsigned long pulse2HighMicros = 0;
 
@@ -1577,9 +1579,29 @@ bool removeAllGcode() {
   return true;
 }
 
+void startPulseCounter(pcnt_unit_t unit, int gpioA, int gpioB) {
+  pcnt_config_t pcntConfig;
+  pcntConfig.pulse_gpio_num = gpioA;
+  pcntConfig.ctrl_gpio_num = gpioB;
+  pcntConfig.channel = PCNT_CHANNEL_0;
+  pcntConfig.unit = unit;
+  pcntConfig.pos_mode = PCNT_COUNT_INC;
+  pcntConfig.neg_mode = PCNT_COUNT_DEC;
+  pcntConfig.lctrl_mode = PCNT_MODE_REVERSE;
+  pcntConfig.hctrl_mode = PCNT_MODE_KEEP;
+  pcntConfig.counter_h_lim = PCNT_LIM;
+  pcntConfig.counter_l_lim = -PCNT_LIM;
+  pcnt_unit_config(&pcntConfig);
+  pcnt_set_filter_value(unit, ENCODER_FILTER);
+	pcnt_filter_enable(unit);
+  pcnt_counter_pause(unit);
+  pcnt_counter_clear(unit);
+  pcnt_counter_resume(unit);
+}
+
+// Attaching interrupt on core 0 to have more time on core 1 where axes are moved.
 void taskAttachInterrupts(void *param) {
-  // Attaching interrupt on core 0 to have more time on core 1 where axes are moved.
-  attachInterrupt(digitalPinToInterrupt(ENC_A), spinEnc, FALLING);
+  startPulseCounter(PCNT_UNIT_0, ENC_A, ENC_B);
   if (PULSE_1_USE) attachInterrupt(digitalPinToInterrupt(A12), pulse1Enc, CHANGE);
   if (PULSE_2_USE) attachInterrupt(digitalPinToInterrupt(A22), pulse2Enc, CHANGE);
   vTaskDelete(NULL);
@@ -3195,15 +3217,19 @@ void discountFullSpindleTurns() {
   }
 }
 
-void processSpindlePosDelta() {
-  if (spindlePosDelta == 0) {
+void processSpindleCounter() {
+  int16_t count;
+  pcnt_get_counter_value(PCNT_UNIT_0, &count);
+  int delta = count - spindleCount;
+  if (delta == 0) {
     return;
   }
-
-  noInterrupts();
-  long delta = spindlePosDelta;
-  spindlePosDelta = 0;
-  interrupts();
+  if (count >= PCNT_CLEAR || count <= -PCNT_CLEAR) {
+    pcnt_counter_clear(PCNT_UNIT_0);
+    spindleCount = 0;
+  } else {
+    spindleCount = count;
+  }
 
   unsigned long microsNow = micros();
   if (showTacho || mode == MODE_GCODE) {
@@ -3297,7 +3323,7 @@ void loop() {
     return;
   }
   applySettings();
-  processSpindlePosDelta();
+  processSpindleCounter();
   discountFullSpindleTurns();
   if (!isOn || dupr == 0 || spindlePosSync != 0) {
     // None of the modes work.
