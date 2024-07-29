@@ -1666,7 +1666,7 @@ void setup() {
   isOn = false;
   savedDupr = dupr = pref.getLong(PREF_DUPR);
   motionMutex = xSemaphoreCreateMutex();
-  savedStarts = starts = min(STARTS_MAX, max(1, pref.getInt(PREF_STARTS)));
+  savedStarts = starts = min(static_cast<long>(STARTS_MAX), max(static_cast<int32_t>(1), pref.getInt(PREF_STARTS)));
   z.savedPos = z.pos = pref.getLong(PREF_POS_Z);
   z.savedPosGlobal = z.posGlobal = pref.getLong(PREF_POS_GLOBAL_Z);
   z.savedOriginPos = z.originPos = pref.getLong(PREF_ORIGIN_POS_Z);
