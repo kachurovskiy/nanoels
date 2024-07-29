@@ -567,7 +567,7 @@ int gcodeProgramCount = 0;
 String gcodeProgram = "";
 int gcodeProgramCharIndex = 0;
 
-hw_timer_t *async_timer = timerBegin(0, 80, true);
+hw_timer_t *async_timer = timerBegin(80);
 bool timerAttached = false;
 
 int getApproxRpm() {
