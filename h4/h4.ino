@@ -1039,9 +1039,9 @@ void IRAM_ATTR pulse2Enc() {
 
 void setAsyncTimerEnable(bool value) {
   if (value) {
-    timerAlarmEnable(async_timer);
+    timerStart(async_timer);
   } else {
-    timerAlarmDisable(async_timer);
+    timerStop(async_timer);
   }
 }
 
@@ -1862,9 +1862,7 @@ void updateAsyncTimerSettings() {
   setDir(getAsyncAxis(), dupr > 0);
 
   // dupr can change while we're in async mode, keep updating timer frequency.
-  timerAlarmWrite(async_timer, getTimerLimit(), true);
-  // without this timer stops working if already above new limit
-  timerWrite(async_timer, 0);
+  timerAlarm(async_timer, getTimerLimit(), true, 0);
 }
 
 void setDupr(long value) {
@@ -1965,7 +1963,7 @@ void setModeFromLoop(int value) {
   if (mode == MODE_ASYNC || mode == MODE_A1) {
     if (!timerAttached) {
       timerAttached = true;
-      timerAttachInterrupt(async_timer, &onAsyncTimer, true);
+      timerAttachInterrupt(async_timer, &onAsyncTimer);
     }
     updateAsyncTimerSettings();
     setAsyncTimerEnable(true);
