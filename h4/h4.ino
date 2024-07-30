@@ -354,6 +354,7 @@ struct Axis {
 
 void initAxis(Axis* a, char name, bool active, bool rotational, float motorSteps, float screwPitch, long speedStart, long speedManualMove,
     long acceleration, bool invertStepper, bool needsRest, long maxTravelMm, long backlashDu, int ena, int dir, int step) {
+  Wire.begin(SDA, SCL);
   a->mutex = xSemaphoreCreateMutex();
 
   a->name = name;
