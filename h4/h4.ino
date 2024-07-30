@@ -246,8 +246,8 @@ const float GCODE_FEED_MIN_DU_SEC = 167; // Minimum feed in du/sec in GCode mode
 
 #include <SPI.h>
 #include <Wire.h>
-#include <LiquidCrystal.h>
-LiquidCrystal lcd(21, 48, 47, 38, 39, 40, 41, 42, 2, 1);
+#include <LiquidCrystal_I2C.h>
+LiquidCrystal_I2C lcd(0x27, 20, 4);
 #define LCD_HASH_INITIAL -3845709 // Random number that's unlikely to naturally occur as an actual hash
 long lcdHashLine0 = LCD_HASH_INITIAL;
 long lcdHashLine1 = LCD_HASH_INITIAL;
