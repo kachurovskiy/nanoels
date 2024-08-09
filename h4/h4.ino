@@ -94,7 +94,7 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 #define SOFTWARE_VERSION 12
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
-#define HARDWARE_VERSION 4
+#define HARDWARE_VERSION 5
 
 #define Z_ENA 16
 #define Z_DIR 17
