@@ -1862,6 +1862,7 @@ void updateAsyncTimerSettings() {
   setDir(getAsyncAxis(), dupr > 0);
 
   // dupr can change while we're in async mode, keep updating timer frequency.
+  // without this timer stops working if already above new limit
   timerAlarm(async_timer, getTimerLimit(), true, 0);
 }
 
