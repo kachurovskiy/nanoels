@@ -115,24 +115,34 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 #define A21 12
 #define A22 13
 #define A23 14
-
+//code keypad
+/*
+   C0 C1 C2 C3 C4 C5 C6
+R0  1  2  3  4  5  6  7
+R1 11 12 13 14 15 16 17 
+R2 21 22 23 24 25 26 27
+R3 31 32 33 34 35 36 37
+R4 41 42 43 44 45 46 47
+R5 51 52 53 54 55 56 57
+R6 61 62 63 64 65 66 67
+*/
 #define B_LEFT 57
 #define B_RIGHT 37
 #define B_UP 47
 #define B_DOWN 67
 #define B_MINUS 5
 #define B_PLUS 64
-#define B_ON 17
-#define B_OFF 27
-#define B_STOPL 7
-#define B_STOPR 15
-#define B_STOPU 6
-#define B_STOPD 16
-#define B_DISPL 14
-#define B_STEP 24
-#define B_SETTINGS 34
-#define B_MEASURE 54
-#define B_REVERSE 44
+#define B_ON 17 //START
+#define B_OFF 27 //STOP
+#define B_STOPL 7 //LLEFT
+#define B_STOPR 15 //LRIGHT
+#define B_STOPU 6 //LUP
+#define B_STOPD 16 //LDOWN
+#define B_DISPL 14 //M5
+#define B_STEP 24 //M4
+#define B_SETTINGS 34 //M3
+#define B_MEASURE 54 //M1
+#define B_REVERSE 44 //M2
 #define B_0 51
 #define B_1 41
 #define B_2 61
@@ -143,18 +153,18 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 #define B_7 11
 #define B_8 22
 #define B_9 1
-#define B_BACKSPACE 32
-#define B_MODE_GEARS 42
-#define B_MODE_TURN 52
-#define B_MODE_FACE 62
-#define B_MODE_CONE 3
-#define B_MODE_CUT 13
-#define B_MODE_THREAD 23
-#define B_MODE_OTHER 33
-#define B_X 53
-#define B_Z 43
-#define B_A 4
-#define B_B 63
+#define B_BACKSPACE 32 //BS
+#define B_MODE_GEARS 42 //F1
+#define B_MODE_TURN 52 //F2
+#define B_MODE_FACE 62 //F3
+#define B_MODE_CONE 3 //F4
+#define B_MODE_CUT 13 //F5
+#define B_MODE_THREAD 23 //F6
+#define B_MODE_OTHER 33 //F7
+#define B_X 53 //M8
+#define B_Z 43 //M9
+#define B_A 4 //M6
+#define B_B 63 //M7
 
 #define PREF_VERSION "v"
 #define PREF_DUPR "d"
