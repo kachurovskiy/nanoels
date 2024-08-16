@@ -71,7 +71,7 @@ const int ENCODER_FILTER = 2; // Encoder pulses shorter than this will be ignore
 const int PCNT_LIM = 31000; // Limit used in hardware pulse counter logic.
 const int PCNT_CLEAR = 30000; // Limit where we reset hardware pulse counter value to avoid overflow. Less than PCNT_LIM.
 const long DUPR_MAX = 254000; // No more than 1 inch pitch
-const int STARTS_MAX = 124; // No more than 124-start thread
+const int32_t STARTS_MAX = 124; // No more than 124-start thread
 const long PASSES_MAX = 999; // No more turn or face passes than this
 const long SAFE_DISTANCE_DU = 5000; // Step back 0.5mm from the material when moving between cuts in automated modes
 const long SAVE_DELAY_US = 5000000; // Wait 5s after last save and last change of saveable data before saving again
@@ -1679,7 +1679,7 @@ void setup() {
   isOn = false;
   savedDupr = dupr = pref.getLong(PREF_DUPR);
   motionMutex = xSemaphoreCreateMutex();
-  savedStarts = starts = min(static_cast<long>(STARTS_MAX), max(static_cast<int32_t>(1), pref.getInt(PREF_STARTS)));
+  savedStarts = starts = min(STARTS_MAX, max(static_cast<int32_t>(1), pref.getInt(PREF_STARTS)));
   z.savedPos = z.pos = pref.getLong(PREF_POS_Z);
   z.savedPosGlobal = z.posGlobal = pref.getLong(PREF_POS_GLOBAL_Z);
   z.savedOriginPos = z.originPos = pref.getLong(PREF_ORIGIN_POS_Z);
