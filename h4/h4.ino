@@ -71,7 +71,7 @@ const int ENCODER_FILTER = 2; // Encoder pulses shorter than this will be ignore
 const int PCNT_LIM = 31000; // Limit used in hardware pulse counter logic.
 const int PCNT_CLEAR = 30000; // Limit where we reset hardware pulse counter value to avoid overflow. Less than PCNT_LIM.
 const long DUPR_MAX = 254000; // No more than 1 inch pitch
-const int STARTS_MAX = 124; // No more than 124-start thread
+const int32_t STARTS_MAX = 124; // No more than 124-start thread
 const long PASSES_MAX = 999; // No more turn or face passes than this
 const long SAFE_DISTANCE_DU = 5000; // Step back 0.5mm from the material when moving between cuts in automated modes
 const long SAVE_DELAY_US = 5000000; // Wait 5s after last save and last change of saveable data before saving again
@@ -567,7 +567,7 @@ int gcodeProgramCount = 0;
 String gcodeProgram = "";
 int gcodeProgramCharIndex = 0;
 
-hw_timer_t *async_timer = timerBegin(0, 80, true);
+hw_timer_t *async_timer = timerBegin(80);
 bool timerAttached = false;
 
 int getApproxRpm() {
@@ -1039,9 +1039,9 @@ void IRAM_ATTR pulse2Enc() {
 
 void setAsyncTimerEnable(bool value) {
   if (value) {
-    timerAlarmEnable(async_timer);
+    timerStart(async_timer);
   } else {
-    timerAlarmDisable(async_timer);
+    timerStop(async_timer);
   }
 }
 
@@ -1666,7 +1666,7 @@ void setup() {
   isOn = false;
   savedDupr = dupr = pref.getLong(PREF_DUPR);
   motionMutex = xSemaphoreCreateMutex();
-  savedStarts = starts = min(STARTS_MAX, max(1, pref.getInt(PREF_STARTS)));
+  savedStarts = starts = min(STARTS_MAX, max(static_cast<int32_t>(1), pref.getInt(PREF_STARTS)));
   z.savedPos = z.pos = pref.getLong(PREF_POS_Z);
   z.savedPosGlobal = z.posGlobal = pref.getLong(PREF_POS_GLOBAL_Z);
   z.savedOriginPos = z.originPos = pref.getLong(PREF_ORIGIN_POS_Z);
@@ -1862,7 +1862,7 @@ void updateAsyncTimerSettings() {
   setDir(getAsyncAxis(), dupr > 0);
 
   // dupr can change while we're in async mode, keep updating timer frequency.
-  timerAlarmWrite(async_timer, getTimerLimit(), true);
+  timerAlarm(async_timer, getTimerLimit(), true, 0);
   // without this timer stops working if already above new limit
   timerWrite(async_timer, 0);
 }
@@ -1965,7 +1965,7 @@ void setModeFromLoop(int value) {
   if (mode == MODE_ASYNC || mode == MODE_A1) {
     if (!timerAttached) {
       timerAttached = true;
-      timerAttachInterrupt(async_timer, &onAsyncTimer, true);
+      timerAttachInterrupt(async_timer, &onAsyncTimer);
     }
     updateAsyncTimerSettings();
     setAsyncTimerEnable(true);
