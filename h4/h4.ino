@@ -104,8 +104,8 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 #define Z_STEP 18
 
 #define X_ENA 8
-#define X_DIR 21
-#define X_STEP 48
+#define X_DIR 45
+#define X_STEP 19
 
 #define BUZZ 4
 #define KEYS_SCL 5
