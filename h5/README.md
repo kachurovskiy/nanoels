@@ -55,6 +55,12 @@ NOTE: throughout the assembly make sure to avoid static electricity accumulation
 9. Cut the keyboard cord to the suitable length, find which color corresponds to which line in your particular keyboard [using the port pinout](https://en.wikipedia.org/wiki/PS/2_port) and multimeter continuity tester.
 10. Supply up to 2A of power to the `POWER` terminal. You can flash the ESP32 via the USB but 0.5A provided by standard USB is not enough to start the screen.
 
+## Rear label
+
+Print [h5.pdf](case/h5.pdf) on a normal printer as A4 at 19% scale, cut out and glue to the back of the case using e.g. double-sided tape.
+
+If you want, you can modify the label by editing [h5.fig](case/h5.fig) file on figma.com and export a new PDF for printing.
+
 ## Wiring
 
 ENCODER terminal:
