@@ -15,17 +15,17 @@ const int ENCODER_BACKLASH = 3; // Numer of impulses encoder can issue without m
 // Main lead screw (Z) parameters.
 const long SCREW_Z_DU = 20000; // 2mm lead screw in deci-microns (10^-7 of a meter)
 const long MOTOR_STEPS_Z = 800;
-const long SPEED_START_Z = 1 * MOTOR_STEPS_Z; // Initial speed of a motor, steps / second.
-const long ACCELERATION_Z = 15 * MOTOR_STEPS_Z; // Acceleration of a motor, steps / second ^ 2.
-const long SPEED_MANUAL_MOVE_Z = 3 * MOTOR_STEPS_Z; // Maximum speed of a motor during manual move, steps / second.
+const long SPEED_START_Z = 0.1 * MOTOR_STEPS_Z; // Initial speed of a motor, steps / second.
+const long ACCELERATION_Z = 20 * MOTOR_STEPS_Z; // Acceleration of a motor, steps / second ^ 2.
+const long SPEED_MANUAL_MOVE_Z = 12 * MOTOR_STEPS_Z; // Maximum speed of a motor during manual move, steps / second.
 const bool INVERT_Z = true; // change (true/false) if the carriage moves e.g. "left" when you press "right".
 const bool NEEDS_REST_Z = true; // Set to false for closed-loop drivers, true for open-loop.
 const long MAX_TRAVEL_MM_Z = 300; // Lathe bed doesn't allow to travel more than this in one go, 30cm / ~1 foot
-const long BACKLASH_DU_Z = 6500; // 0.65mm backlash in deci-microns (10^-7 of a meter)
+const long BACKLASH_DU_Z = 4500; // 0.65mm backlash in deci-microns (10^-7 of a meter)
 const char NAME_Z = 'Z'; // Text shown on screen before axis position value, GCode axis name
 
 // Cross-slide lead screw (X) parameters.
-const long SCREW_X_DU = 20000; // 2mm lead screw with 3x reduction in deci-microns (10^-7) of a meter
+const long SCREW_X_DU = 10000; // 2mm lead screw with 3x reduction in deci-microns (10^-7) of a meter
 const long MOTOR_STEPS_X = 600; // 200 steps at 3x reduction
 const long SPEED_START_X = MOTOR_STEPS_X; // Initial speed of a motor, steps / second.
 const long ACCELERATION_X = 10 * MOTOR_STEPS_X; // Acceleration of a motor, steps / second ^ 2.
@@ -33,7 +33,7 @@ const long SPEED_MANUAL_MOVE_X = 3 * MOTOR_STEPS_X; // Maximum speed of a motor 
 const bool INVERT_X = true; // change (true/false) if the carriage moves e.g. "left" when you press "right".
 const bool NEEDS_REST_X = false; // Set to false for all kinds of drivers or X will be unlocked when not moving.
 const long MAX_TRAVEL_MM_X = 100; // Cross slide doesn't allow to travel more than this in one go, 10cm
-const long BACKLASH_DU_X = 1500; // 0.15mm backlash in deci-microns (10^-7 of a meter)
+const long BACKLASH_DU_X = 4700; // 0.15mm backlash in deci-microns (10^-7 of a meter)
 const char NAME_X = 'X'; // Text shown on screen before axis position value, GCode axis name
 
 // Manual stepping with left/right/up/down buttons. Only used when step isn't default continuous (1mm or 0.1").
@@ -70,7 +70,7 @@ const long PULSE_HALF_BACKLASH = 2; // Prevents spurious reverses when moving us
 
 const int ENCODER_STEPS_INT = ENCODER_PPR * 2; // Number of encoder impulses PCNT counts per revolution of the spindle
 //const int ENCODER_FILTER = 2; // Encoder pulses shorter than this will be ignored. Clock cycles, 1 - 1023.
-const int ENCODER_FILTER_NS = 25; // Encoder pulses shorter than this will be ignored. In ns ---> Todo, is this too short?
+const int ENCODER_FILTER_NS = 60; // Encoder pulses shorter than this will be ignored. In ns ---> Todo, is this too short?
 const int PCNT_LIM = 31000; // Limit used in hardware pulse counter logic.
 const int PCNT_CLEAR = 30000; // Limit where we reset hardware pulse counter value to avoid overflow. Less than PCNT_LIM.
 const long DUPR_MAX = 254000; // No more than 1 inch pitch
@@ -104,7 +104,7 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 #define Z_STEP 18
 
 #define X_ENA 8
-#define X_DIR 45
+#define X_DIR 20
 #define X_STEP 19
 
 #define BUZZ 4
