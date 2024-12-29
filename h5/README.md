@@ -86,6 +86,7 @@ Scale and joystick terminals aren't used in the code yet.
 - Install the [Arduino IDE](https://docs.arduino.cc/software/ide-v2)
 - Add `https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json` in [Preferences as "Additional board manager URLs"](https://github.com/kachurovskiy/nanoels/assets/517919/dcc023e6-20fc-4284-ba56-d466dbe4ce53)
 - Install `esp32` [via Board Manager](https://github.com/kachurovskiy/nanoels/assets/517919/094d00ff-1e51-4f26-bb81-aa4ad42bde2a)
+- Install `PS2KeyAdvanced` via Arduino IDE Library Manager
 - Download [this repository](https://github.com/kachurovskiy/nanoels/archive/refs/heads/main.zip), unzip, go to `h5` directory and open `h5.ino` file in the Arduino IDE
 - Check the top constants (e.g. encoder steps, motor steps, display offset) and adjust if needed
 - Select "ESP32S3 Dev Module" as device at the top, pick COM port that appears when you connect the device with a USB cable
@@ -109,4 +110,32 @@ On the back of the case there are 2 holes for M5 threaded inserts 130mm on cente
 
 ## Usage manual
 
-It's early days for H5. For now it mostly works the same as H4. See https://github.com/kachurovskiy/nanoels/blob/main/h5/h5.ino#L115 for mapping from keyboard keys to functions.
+It's early days for H5. For now it works the same as H4, [please read H4 manual if you've never used it](https://github.com/kachurovskiy/nanoels/blob/main/h4/README.md#usage-manual) - H4 keys correspond to the following keyboard keys:
+
+- Left, up, down, right arrows control the manual movement
+- Plus / minus control the pitch
+- Enter turns on the current mode
+- Esc is stop
+- A W D S control limits
+- Win controls angle / rpm display
+- Tilda / backtick (key under ESC) controls step
+- M changes metric / inch / tpi
+- R for reverse
+- Top row numbers 0-9 work as number input
+- Backspace removes last number
+- Modes:
+  - F1: gearbox
+  - F2: turning
+  - F3: facing
+  - F4: cone
+  - F5: parting
+  - F6: threading
+  - F7: cycle through other modes
+- X zeroes X axis
+- Z zeroes Z axis
+- C disables / enables X axis
+- `<>|` button left of Z disables / enables Z axis
+
+## Custom keyboard mapping
+
+Use https://github.com/kachurovskiy/nanoels/blob/main/h5/h5.ino#L118 to map the keys to your liking, uncomment a line in `void processKeypadEvent()` function to see on Nextion which key code your keyboard sends for any given key.
