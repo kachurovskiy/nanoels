@@ -2,7 +2,7 @@
 
 Latest version of the electronic lead screw controller for metal lathes.
 
-![image](https://github.com/user-attachments/assets/0a85636e-be05-4bb6-93ba-16217404e416)
+![PXL_20241218_185410002](https://github.com/user-attachments/assets/1614d9eb-5c23-4cba-9d8e-3f95d866bff7)
 
 ## Parts list
 
@@ -18,13 +18,25 @@ Latest version of the electronic lead screw controller for metal lathes.
 - 5x M3 bolts 5-8mm length
 - Optional curved 4-pin header to connect display wires to the PCB
 
-## PCB
+## Display options
+
+You can use any other Nextion display model including cheaper and smaller ones without touch.
+
+- Requires re-compiling the `h5.tft` file from the [h5.HMI](https://github.com/kachurovskiy/nanoels/blob/main/h5/screen/h5.HMI) for your display
+- Needs custom 3D-printed case since `case/h5case.step` will no longer fit
+
+## Ordering PCB
+
+1. Go to https://cart.jlcpcb.com/quote, click "Add gerber file"
+2. Use Gerber ZIP file supplied in https://github.com/kachurovskiy/nanoels/tree/main/h5/pcb/
+3. Select `LeadFree HASL` and `Global Standard Direct Line` shipping
+4. Should cost 5€ and arrive within 2 weeks
+
+## Schematics and PCB component placement
 
 ![schematics](pcb/schematics.png)
 
-![PCB rear](pcb/pcb1.PNG)
-
-![PCB front](pcb/pcb2.PNG)
+![image](https://github.com/user-attachments/assets/9f769450-df6a-4440-b288-81dae1a53ff5)
 
 ## Assembly instructions
 
@@ -32,20 +44,69 @@ NOTE: throughout the assembly make sure to avoid static electricity accumulation
 
 ![image](https://github.com/user-attachments/assets/8a630150-ad79-434e-bc0c-9a0f711de5bb)
 
-Check that ESP32-S3 board is working by uploading [h5.ino](h5.ino) onto it using Arduino IDE.
+1. Check that ESP32 board is working by uploading [h5.ino](h5.ino) onto it using Arduino IDE. See `Programming the controller` section below for more info.
+2. Solder ESP32, 2x SN74HCT245N and optional curved 4-pin header onto the PCB. **Triple check the side and orientation of each piece before soldering.**
+3. Insert USB extension into the COM port
+4. Separate all terminals into 2 pieces. Insert female terminals into the 3D-printed housing. Place the PCB on top and secure it with 4 M3 bolts. Secure the other end of the USB cable in the access hole with an M3 bolt.
+5. Solder 15 terminals to the PCB while everything is positioned in the case.
+6. Remove screen back cover. Attach the included 4-lead wire to the screen and to the PCB - each `RX` should be attached to `TX` on the other side.
+7. Bolt the case and screen together using the bolts that used to hold the back cover.
+8. Prepare MicroSD card with [h5.tft](screen/h5.tft), insert into the screen. Connect 5V power supply to the POWER terminal, wait for screen to report that flashing has finished. Disconnect the power, remove the card.
+9. Cut the keyboard cord to the suitable length, find which color corresponds to which line in your particular keyboard [using the port pinout](https://en.wikipedia.org/wiki/PS/2_port) and multimeter continuity tester.
+10. Supply up to 2A of power to the `POWER` terminal. You can flash the ESP32 via the USB but 0.5A provided by standard USB is not enough to start the screen.
 
-Solder ESP32, 2x SN74HCT245N and optional curved header onto the PCB. Double check the side and orientation of each piece before soldering.
+## Rear label
 
-Insert USB extension into the COM port.
+Print [h5.pdf](case/h5.pdf) on a normal printer as A4 at 19% scale, cut out and glue to the back of the case using e.g. double-sided tape.
 
-Separate all terminals into 2 pieces. Insert female terminals into the 3D-printed housing. Place the PCB on top and secure it with 4 M3 bolts. Secure the other end of the USB extension in the access hole with an M3 bolt.
+If you want, you can modify the label by editing [h5.fig](case/h5.fig) file on figma.com and export a new PDF for printing.
 
-Solder 15 terminals to the PCB while everything is positioned in the case.
+## Wiring
 
-Remove screen back cover. Attach the included 4-lead wire to the screen and to the PCB - each `RX` should be attached to `TX` on the other side.
+ENCODER terminal:
 
-Bolt the case and screen together using the bolts that used to hold the back cover.
+- 5V - connect to encoder power-in line (usually red)
+- GND - connect to encoder power-in line (usually black) and wire shielding if there's any
+- ENCB - connect to one of the encoder signal lines
+- ENCA - connect to one of the encoder signal lines
 
-Prepare MicroSD card with 1 file on it - [h5.tft](screen/h5.tft) - insert it into the screen. Connect 5V power supply to the POWER terminal, wait for screen to report that flashing has finished. Disconnect the power, remove the card.
+Z and X axes - stepper terminal for the lead screws:
 
-Cut the keyboard cord to the suitable length, find which color corresponds to which line in your particular keyboard [using the port pinout](https://en.wikipedia.org/wiki/PS/2_port) and multimeter continuity tester.
+- 5V - connect to stepper driver PUL+, DIR+, ENA+ and wire shielding if there's any
+- ENA - connect to stepper driver ENA-
+- DIR - connect to stepper driver DIR-
+- STEP - connect to stepper driver PUL-
+
+Pulse motion wheels for Z and X axes (`ZPULSE`, `XPULSE`) are wired in the same manner as the encoder. For any encoder terminal, switch `A` and `B` wires to invert the encoder direction.
+
+Scale and joystick terminals aren't used in the code yet.
+
+## Programming the controller
+
+- Install the [Arduino IDE](https://docs.arduino.cc/software/ide-v2)
+- Add `https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json` in [Preferences as "Additional board manager URLs"](https://github.com/kachurovskiy/nanoels/assets/517919/dcc023e6-20fc-4284-ba56-d466dbe4ce53)
+- Install `esp32` [via Board Manager](https://github.com/kachurovskiy/nanoels/assets/517919/094d00ff-1e51-4f26-bb81-aa4ad42bde2a)
+- Download [this repository](https://github.com/kachurovskiy/nanoels/archive/refs/heads/main.zip), unzip, go to `h5` directory and open `h5.ino` file in the Arduino IDE
+- Check the top constants (e.g. encoder steps, motor steps, display offset) and adjust if needed
+- Select "ESP32S3 Dev Module" as device at the top, pick COM port that appears when you connect the device with a USB cable
+- Upload the sketch to your H5 controller
+
+A few things to check after upload:
+
+- Spindle direction: show angle on screen using `Win` button on your keyboard. Rotate the chuck forward manually - angle should increase. If it decreases, swap `B` and `A` wires in the terminal
+- Motor direction: try moving motors using keyboard arrows - if motor is moving in the wrong direction, change `INVERT_Z` or `INVERT_X` in the code, re-upload the sketch (or swap the motor leads `A+` and `A-` in the stepper driver if it's open loop)
+
+Troubleshooting:
+
+- Arduino IDE doesn't detect NanoEls H5: try a different USB cable
+- Arduino IDE fails to upload the sketch: make sure you plugged the extension into the `COM` port, **not** the `USB` port on the ESP32
+- Not sure which COM port is NanoEls H5: unplug it, check the list of available ports in Arduino IDE, plug H5 in, see new port that appeared is H5
+- `ImportError: No module named serial` error on Linux: try `sudo apt install python3-serial`
+
+## Mounting options
+
+On the back of the case there are 2 holes for M5 threaded inserts 130mm on center.
+
+## Usage manual
+
+It's early days for H5. For now it mostly works the same as H4. See https://github.com/kachurovskiy/nanoels/blob/main/h5/h5.ino#L115 for mapping from keyboard keys to functions.

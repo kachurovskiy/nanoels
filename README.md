@@ -1,5 +1,19 @@
 This software and instructions are [provided as is](LICENSE), without warranty of any kind. [🇷🇺 Перевод на русский](https://translate.google.com/translate?hl=en&sl=en&tl=ru&u=https%3A%2F%2Fgithub.com%2Fkachurovskiy%2Fnanoels%2Fblob%2Fmain%2FREADME.md), [🇩🇪 deutsche Übersetzung](https://translate.google.com/translate?hl=en&sl=en&tl=de&u=https%3A%2F%2Fgithub.com%2Fkachurovskiy%2Fnanoels%2Fblob%2Fmain%2FREADME.md)
 
+# NanoEls H5
+
+CNC and electronic lead screw controller based on ESP32-S3 that supports up to 3 axes:
+
+- All the features of H4
+- Cheaper and much easier to make than H4
+- External PS2 keyboard
+- High resolution touch screen
+- More ports: joystick, MPGs, scales
+
+![image](https://github.com/user-attachments/assets/de30c2ee-14d5-483a-b23d-0edc43125bd0)
+
+See [h5 folder for hardware files, software and assembly](https://github.com/kachurovskiy/nanoels/tree/main/h5).
+
 # NanoEls H4
 
 CNC and electronic lead screw controller based on ESP32-S3 that supports up to 4 axes:
@@ -24,6 +38,8 @@ Cheap DIY Electronic Lead Screw (ELS) based on Arduino Nano for metal lathes. No
 - Set leadscrew pitch for feed or thread
 - Soft limits for the carriage
 - Multi-start threads in 1 start of the spindle
+
+![image](https://github.com/user-attachments/assets/0741438d-b3d3-4c8a-a816-9806e0ca6487)
 
 See [h2 folder for parts list, software, assembly and usage manual](https://github.com/kachurovskiy/nanoels/blob/main/h2/). Controller can be built from [generally available components](https://github.com/kachurovskiy/nanoels/tree/main/h2#components).
 
