@@ -38,6 +38,9 @@ const char NAME_X = 'X'; // Text shown on screen before axis position value, GCo
 const long STEP_TIME_MS = 500; // Time in milliseconds it should take to make 1 manual step.
 const long DELAY_BETWEEN_STEPS_MS = 80; // Time in milliseconds to wait between steps.
 
+// If you're getting "Keyboard not found", try increasing this value. If controller power-up feels too long, try reducing it.
+const int KEYBOARD_BOOT_TIME_MS = 1500;
+
 /* Changing anything below shouldn't be needed for basic use. */
 
 // Configuration for axis connected to Y. This is uncommon. Dividing head (C) motor parameters.
@@ -83,7 +86,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 1
+#define SOFTWARE_VERSION 2
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -112,45 +115,45 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 #define KEY_DATA 37
 #define KEY_CLOCK 36
 
-#define B_LEFT 107 // Left arrow
-#define B_RIGHT 116 // Right arrow
-#define B_UP 117 // Up arrow
-#define B_DOWN 114 // Down arrow
-#define B_MINUS 123 // Numpad minus
-#define B_PLUS 121 // Numpad plus
-#define B_ON 90 // Enter
-#define B_OFF 118 // ESC
-#define B_STOPL 28 // a
-#define B_STOPR 35 // d
-#define B_STOPU 29 // w
-#define B_STOPD 27 // s
-#define B_DISPL 31 // Win
-#define B_STEP 14 // Tilda
-#define B_SETTINGS 47 // Context menu
-#define B_MEASURE 58 // m
-#define B_REVERSE 45 // r
-#define B_0 69 // 0 top row
-#define B_1 22 // ...
-#define B_2 30
-#define B_3 38
-#define B_4 37
-#define B_5 46
+#define B_LEFT 21 // Left arrow
+#define B_RIGHT 22 // Right arrow
+#define B_UP 23 // Up arrow
+#define B_DOWN 24 // Down arrow
+#define B_MINUS 45 // Numpad minus
+#define B_PLUS 44 // Numpad plus
+#define B_ON 30 // Enter
+#define B_OFF 27 // ESC
+#define B_STOPL 65 // a
+#define B_STOPR 68 // d
+#define B_STOPU 87 // w
+#define B_STOPD 83 // s
+#define B_DISPL 12 // Win
+#define B_STEP 64 // Tilda
+#define B_SETTINGS 14 // Context menu
+#define B_MEASURE 77 // m
+#define B_REVERSE 82 // r
+#define B_0 48 // 0 top row
+#define B_1 49 // ...
+#define B_2 50
+#define B_3 51
+#define B_4 52
+#define B_5 53
 #define B_6 54
-#define B_7 61
-#define B_8 62
-#define B_9 70
-#define B_BACKSPACE 102
-#define B_MODE_GEARS 5 // F1
-#define B_MODE_TURN 6 // F2
-#define B_MODE_FACE 4 // F3
-#define B_MODE_CONE 12 // F4
-#define B_MODE_CUT 3 // F5
-#define B_MODE_THREAD 11 // F6
-#define B_MODE_OTHER 131 // F7
-#define B_X 34 // x
-#define B_Z 53 // z
-#define B_A 33 // c
-#define B_B 60 // u
+#define B_7 55
+#define B_8 56
+#define B_9 57
+#define B_BACKSPACE 28
+#define B_MODE_GEARS 97 // F1
+#define B_MODE_TURN 98 // F2
+#define B_MODE_FACE 99 // F3
+#define B_MODE_CONE 100 // F4
+#define B_MODE_CUT 101 // F5
+#define B_MODE_THREAD 102 // F6
+#define B_MODE_OTHER 103 // F7
+#define B_X 88 // x
+#define B_Z 90 // z
+#define B_A 67 // c
+#define B_B 139 // <>|
 
 #define PREF_VERSION "v"
 #define PREF_DUPR "d"
@@ -213,7 +216,6 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 #define MEASURE_TPI 2
 
 #define ESTOP_NONE 0
-#define ESTOP_KEY 1
 #define ESTOP_POS 2
 #define ESTOP_MARK_ORIGIN 3
 #define ESTOP_ON_OFF 4
@@ -225,7 +227,6 @@ const float TPI_ROUND_EPSILON = 0.03;
 
 const float ENCODER_STEPS_FLOAT = ENCODER_STEPS_INT; // Convenience float version of ENCODER_STEPS_INT
 const long RPM_BULK = ENCODER_STEPS_INT; // Measure RPM averaged over this number of encoder pulses
-const long RPM_UPDATE_INTERVAL_MICROS = 1000000; // Don't redraw RPM more often than once per second
 
 const long GCODE_FEED_DEFAULT_DU_SEC = 20000; // Default feed in du/sec in GCode mode
 const float GCODE_FEED_MIN_DU_SEC = 167; // Minimum feed in du/sec in GCode mode - F1
@@ -338,7 +339,7 @@ struct Axis {
   int ena; // Enable pin of this motor
   int dir; // Direction pin of this motor
   int step; // Step pin of this motor
-  
+
   int pulseA;
   int pulseB;
   int pulseCount;
@@ -484,43 +485,8 @@ int gcodeProgramCount = 0;
 String gcodeProgram = "";
 int gcodeProgramCharIndex = 0;
 
-// Keyboard
-volatile uint8_t scanCode = 0;
-volatile uint8_t bitCount = 0;
-volatile bool scanCodeAvailable = false;
-
-void IRAM_ATTR ps2ClockISR() {
-  static uint8_t buffer = 0;
-  static uint8_t parity = 0;
-
-  if (bitCount == 0) {
-    if (digitalRead(KEY_DATA) != LOW) {
-      return; // Ignore if start bit is incorrect
-    }
-    buffer = 0;
-    parity = 0;
-  } else if (bitCount >= 1 && bitCount <= 8) {
-    // Data bits (8 bits)
-    uint8_t bit = digitalRead(KEY_DATA);
-    buffer |= (bit << (bitCount - 1));
-    parity ^= bit;
-  } else if (bitCount == 9) {
-    // Parity bit (ignored for now)
-    parity ^= digitalRead(KEY_DATA);
-  } else if (bitCount == 10) {
-    // Stop bit (should be 1)
-    if (digitalRead(KEY_DATA) == HIGH && parity == 1) {
-      scanCode = buffer;
-      scanCodeAvailable = true;
-    }
-  }
-
-  bitCount = bitCount + 1;
-  if (bitCount >= 11) {
-    // Reset for the next scan code
-    bitCount = 0;
-  }
-}
+#include <PS2KeyAdvanced.h>
+PS2KeyAdvanced keyboard;
 
 hw_timer_t *async_timer = timerBegin(80);
 bool timerAttached = false;
@@ -532,10 +498,6 @@ int getApproxRpm() {
     // RPM less than 10.
     spindleEncTimeDiffBulk = 0;
     return 0;
-  }
-  if (elapsedTime < RPM_UPDATE_INTERVAL_MICROS) {
-    // Don't update RPM too often to avoid flickering.
-    return shownRpm;
   }
   int rpm = 0;
   if (spindleEncTimeDiffBulk > 0) {
@@ -752,8 +714,8 @@ void updateDisplay() {
     lcdHashLine0 = newHashLine0;
     String result = "";
     if (setupIndex == 0 || !isPassMode()) {
-      printMode();
-      result = isOn ? "ON " : "off ";
+      result = printMode();
+      result += isOn ? "ON " : "off ";
       int beforeStops = result.length();
       if (z.leftStop != LONG_MAX) result += "L";
       if (x.leftStop != LONG_MAX) result += "U";
@@ -886,7 +848,8 @@ void updateDisplay() {
     if (result != "") {
       // No space for shared RPM/angle text.
     } else if (showAngle) {
-      result = "Angle " + String(spindleModulo(spindlePos) * 360 / ENCODER_STEPS_FLOAT, 2) + String(char(223));
+      float turns = (float) abs(spindlePos) / ENCODER_STEPS_INT;
+      result = "Angle " + String(turns, turns < 100 ? 2 : (turns < 1000 ? 1 : 0)) + " " + String(spindleModulo(spindlePos) * 360 / ENCODER_STEPS_FLOAT, 2) + String(char(223));
     } else if (showTacho) {
       result = "Tacho " + String(rpm) + "rpm";
     }
@@ -921,10 +884,7 @@ void taskDisplay(void *param) {
   }
   screenClear();
   setText("t0", "EMERGENCY STOP");
-  if (emergencyStop == ESTOP_KEY) {
-    setText("t1", "Key down at power-up");
-    setText("t2", "Hardware failure?");
-  } else if (emergencyStop == ESTOP_POS) {
+  if (emergencyStop == ESTOP_POS) {
     setText("t2", "Requested position");
     setText("t3", "outside machine");
   } else if (emergencyStop == ESTOP_MARK_ORIGIN) {
@@ -1436,7 +1396,6 @@ void taskAttachInterrupts(void *param) {
   startPulseCounter(PCNT_UNIT_1, Z_PULSE_A, Z_PULSE_B);
   startPulseCounter(PCNT_UNIT_2, X_PULSE_A, X_PULSE_B);
   startPulseCounter(PCNT_UNIT_3, Y_PULSE_A, Y_PULSE_B);
-  attachInterrupt(digitalPinToInterrupt(KEY_CLOCK), ps2ClockISR, FALLING);
   vTaskDelete(NULL);
 }
 
@@ -1468,9 +1427,6 @@ void setup() {
     pinMode(A11, OUTPUT);
     DHIGH(A13);
   }
-
-  pinMode(KEY_CLOCK, INPUT_PULLUP);
-  pinMode(KEY_DATA, INPUT_PULLUP);
 
   Preferences pref;
   pref.begin(PREF_NAMESPACE);
@@ -1525,7 +1481,7 @@ void setup() {
   if (!z.needsRest && !z.disabled) DHIGH(z.ena);
   if (!x.needsRest && !x.disabled) DHIGH(x.ena);
   if (y.active && !y.needsRest && !y.disabled) DHIGH(y.ena);
-  
+
   pref.begin(GCODE_NAMESPACE);
   gcodeProgramCount = 0;
   for (int i = 0; i < 256; i++) {
@@ -1543,17 +1499,13 @@ void setup() {
   // Nextion.
   Serial1.begin(115200, SERIAL_8N1, 44, 43);
 
+  // Initialize the keyboard.
+  keyboard.begin(KEY_DATA, KEY_CLOCK);
+  xTaskCreatePinnedToCore(taskKeypad, "taskKeypad", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
+
   // Non-time-sensitive tasks on core 0.
+  delay(1000); // Nextion needs time to boot or first display update will be ignored.
   xTaskCreatePinnedToCore(taskDisplay, "taskDisplay", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
-
-  delay(100);
-  if (scanCodeAvailable) {
-    setEmergencyStop(ESTOP_KEY);
-    return;
-  } else {
-    xTaskCreatePinnedToCore(taskKeypad, "taskKeypad", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
-  }
-
   xTaskCreatePinnedToCore(taskMoveZ, "taskMoveZ", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   xTaskCreatePinnedToCore(taskMoveX, "taskMoveX", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   if (y.active) xTaskCreatePinnedToCore(taskMoveY, "taskMoveY", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
@@ -2281,27 +2233,27 @@ bool processNumpadResult(int keyCode) {
   return false;
 }
 
-bool nextIsRelease = false;
-
 void processKeypadEvent() {
   int event = 0;
   if (serialKeycode != 0) {
     event = serialKeycode;
     serialKeycode = 0;
-  } else if (scanCodeAvailable) {
-    event = scanCode;
-    scanCodeAvailable = false;
+  } else if (keyboard.available()) {
+    event = keyboard.read();
   }
   if (event == 0) return;
-  if (event == 0xF0) {
-    nextIsRelease = true;
+  int keyCode = event & 0xFF;
+  bool isPress = !(event & PS2_BREAK);
+  keypadTimeUs = micros();
+
+  // Uncomment the line below to see the key codes on screen.
+  // setText("t0", (isPress ? "Press " : "Release ") + String(keyCode));
+
+  // Some keyboards send this code and expect and answer to initialize.
+  if (keyCode == 170) {
+    keyboard.echo();
     return;
   }
-  int keyCode = event;
-  bool isPress = !nextIsRelease;
-  nextIsRelease = false;
-  keypadTimeUs = micros();
-  Serial.println((isPress ? "Press " : "Release ") + String(keyCode));
 
   // Off button always gets handled.
   if (keyCode == B_OFF) {
