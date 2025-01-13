@@ -38,9 +38,6 @@ const char NAME_X = 'X'; // Text shown on screen before axis position value, GCo
 const long STEP_TIME_MS = 500; // Time in milliseconds it should take to make 1 manual step.
 const long DELAY_BETWEEN_STEPS_MS = 80; // Time in milliseconds to wait between steps.
 
-// If you're getting "Keyboard not found", try increasing this value. If controller power-up feels too long, try reducing it.
-const int KEYBOARD_BOOT_TIME_MS = 1500;
-
 /* Changing anything below shouldn't be needed for basic use. */
 
 // Configuration for axis connected to Y. This is uncommon. Dividing head (C) motor parameters.
@@ -62,7 +59,7 @@ const char NAME_Y = 'Y'; // Text shown on screen before axis position value, GCo
 const float PULSE_PER_REVOLUTION = 100; // PPR of handwheels.
 
 const int ENCODER_STEPS_INT = ENCODER_PPR * 2; // Number of encoder impulses PCNT counts per revolution of the spindle
-const int ENCODER_FILTER = 2; // Encoder pulses shorter than this will be ignored. Clock cycles, 1 - 1023.
+const int ENCODER_FILTER = 1; // Encoder pulses shorter than this will be ignored. Clock cycles, 1 - 1023.
 const int PCNT_LIM = 31000; // Limit used in hardware pulse counter logic.
 const int PCNT_CLEAR = 30000; // Limit where we reset hardware pulse counter value to avoid overflow. Less than PCNT_LIM.
 const long DUPR_MAX = 254000; // No more than 1 inch pitch
@@ -86,7 +83,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 2
+#define SOFTWARE_VERSION 3
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -115,26 +112,27 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 #define KEY_DATA 37
 #define KEY_CLOCK 36
 
-#define B_LEFT 21 // Left arrow
-#define B_RIGHT 22 // Right arrow
-#define B_UP 23 // Up arrow
-#define B_DOWN 24 // Down arrow
-#define B_MINUS 45 // Numpad minus
-#define B_PLUS 44 // Numpad plus
-#define B_ON 30 // Enter
-#define B_OFF 27 // ESC
-#define B_STOPL 65 // a
-#define B_STOPR 68 // d
-#define B_STOPU 87 // w
-#define B_STOPD 83 // s
-#define B_DISPL 12 // Win
-#define B_STEP 64 // Tilda
-#define B_SETTINGS 14 // Context menu
-#define B_MEASURE 77 // m
-#define B_REVERSE 82 // r
-#define B_0 48 // 0 top row
-#define B_1 49 // ...
-#define B_2 50
+#define B_LEFT 21 // Left arrow - controls Z axis movement to the left
+#define B_RIGHT 22 // Right arrow - controls Z axis movement to the right
+#define B_UP 23 // Up arrow - controls X axis movement forwards
+#define B_DOWN 24 // Down arrow - controls X axis movement backwards
+#define B_MINUS 45 // Numpad minus - recrements the pitch or number of passes
+#define B_PLUS 44 // Numpad plus - increments the pitch or number of passes
+#define B_ON 30 // Enter - starts operation or mode
+#define B_OFF 27 // ESC - stops operation or mode
+#define B_STOPL 65 // a - sets left stop
+#define B_STOPR 68 // d - sets right stop
+#define B_STOPU 87 // w - sets forward stop
+#define B_STOPD 83 // s - sets rear stop
+#define B_DISPL 12 // Win - changes info displayed in the bottom line (angle, rpm, ...)
+#define B_STEP 64 // Tilda - changes distance moved when movement buttons are used
+#define B_SETTINGS 14 // Context menu - not used currently
+#define B_MEASURE 77 // m - controls metric / imperial / tpi
+#define B_REVERSE 82 // r - changes pitch sign (left / right thread)
+#define B_DIAMETER 79 // o - sets X0 so that centerline is at the middle of a given diameter value
+#define B_0 48 // 0 top row - for number entry
+#define B_1 49 // 1 top row
+#define B_2 50 // ...
 #define B_3 51
 #define B_4 52
 #define B_5 53
@@ -142,18 +140,21 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 #define B_7 55
 #define B_8 56
 #define B_9 57
-#define B_BACKSPACE 28
-#define B_MODE_GEARS 97 // F1
-#define B_MODE_TURN 98 // F2
+#define B_BACKSPACE 28 // removes the last entered number
+#define B_MODE_GEARS 97 // F1 - sets the mode to gearbox
+#define B_MODE_TURN 98 // F2 - ...
 #define B_MODE_FACE 99 // F3
 #define B_MODE_CONE 100 // F4
 #define B_MODE_CUT 101 // F5
 #define B_MODE_THREAD 102 // F6
-#define B_MODE_OTHER 103 // F7
-#define B_X 88 // x
-#define B_Z 90 // z
-#define B_A 67 // c
-#define B_B 139 // <>|
+#define B_MODE_ASYNC 103 // F7
+#define B_MODE_ELLIPSE 104 // F8
+#define B_MODE_GCODE 105 // F9
+#define B_MODE_Y 106 // F10
+#define B_X 88 // x - zeroes X axis
+#define B_Z 90 // z - zeroes Z axis
+#define B_X_ENA 67 // c - enables / disables X axis
+#define B_Z_ENA 81 // q - enables / disables Z axis
 
 #define PREF_VERSION "v"
 #define PREF_DUPR "d"
@@ -859,7 +860,11 @@ void updateDisplay() {
 }
 
 void setAsyncTimerEnable(bool value) {
-  value ? timerStart(async_timer) : timerStop(async_timer);
+  if (value) {
+    timerStart(async_timer);
+  } else {
+    timerStop(async_timer);
+  }
 }
 
 void taskDisplay(void *param) {
@@ -1504,7 +1509,7 @@ void setup() {
   xTaskCreatePinnedToCore(taskKeypad, "taskKeypad", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
 
   // Non-time-sensitive tasks on core 0.
-  delay(1000); // Nextion needs time to boot or first display update will be ignored.
+  delay(1300); // Nextion needs time to boot or first display update will be ignored.
   xTaskCreatePinnedToCore(taskDisplay, "taskDisplay", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   xTaskCreatePinnedToCore(taskMoveZ, "taskMoveZ", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   xTaskCreatePinnedToCore(taskMoveX, "taskMoveX", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
@@ -2007,20 +2012,6 @@ void setDir(Axis* a, bool dir) {
   }
 }
 
-void buttonModePress() {
-  if (mode == MODE_NORMAL) {
-    setModeFromTask(ACTIVE_Y ? MODE_Y : MODE_ELLIPSE);
-  } else if (mode == MODE_Y) {
-    setModeFromTask(MODE_ELLIPSE);
-  } else if (mode == MODE_ELLIPSE) {
-    setModeFromTask(MODE_GCODE);
-  } else if (mode == MODE_GCODE) {
-    setModeFromTask(MODE_ASYNC);
-  } else {
-    setModeFromTask(MODE_NORMAL);
-  }
-}
-
 void buttonMeasurePress() {
   if (measure == MEASURE_METRIC) {
     setMeasure(MEASURE_INCH);
@@ -2161,7 +2152,7 @@ bool processNumpadResult(int keyCode) {
 
   // Shared piece for stops and moves.
   Axis* a = (keyCode == B_STOPL || keyCode == B_STOPR || keyCode == B_LEFT || keyCode == B_RIGHT || keyCode == B_Z) ? &z : &x;
-  int sign = ((keyCode == B_STOPL || keyCode == B_STOPU || keyCode == B_LEFT || keyCode == B_UP || keyCode == B_Z || keyCode == B_X || keyCode == B_A) ? 1 : -1);
+  int sign = ((keyCode == B_STOPL || keyCode == B_STOPU || keyCode == B_LEFT || keyCode == B_UP || keyCode == B_Z || keyCode == B_X || keyCode == B_X_ENA) ? 1 : -1);
   if (mode == MODE_Y && (keyCode == B_MODE_GEARS || keyCode == B_MODE_TURN || keyCode == B_MODE_FACE || keyCode == B_MODE_CONE || keyCode == B_MODE_THREAD)) {
     a = &y;
     sign = (keyCode == B_MODE_GEARS || keyCode == B_MODE_FACE) ? -1 : 1;
@@ -2216,7 +2207,7 @@ bool processNumpadResult(int keyCode) {
   }
 
   // Set X axis 0 from diameter.
-  if (keyCode == B_A) {
+  if (keyCode == B_DIAMETER) {
     a->originPos = -(a->pos + pos) / 2;
     return true;
   }
@@ -2249,7 +2240,7 @@ void processKeypadEvent() {
   // Uncomment the line below to see the key codes on screen.
   // setText("t0", (isPress ? "Press " : "Release ") + String(keyCode));
 
-  // Some keyboards send this code and expect and answer to initialize.
+  // Some keyboards send this code and expect an answer to initialize.
   if (keyCode == 170) {
     keyboard.echo();
     return;
@@ -2317,18 +2308,24 @@ void processKeypadEvent() {
     buttonLeftStopPress(&x);
   } else if (keyCode == B_STOPD) {
     buttonRightStopPress(&x);
-  } else if (keyCode == B_MODE_OTHER) {
-    buttonModePress();
+  } else if (keyCode == B_MODE_Y) {
+    if (ACTIVE_Y) setModeFromTask(MODE_Y);
+  } else if (keyCode == B_MODE_ELLIPSE) {
+    setModeFromTask(MODE_ELLIPSE);
+  } else if (keyCode == B_MODE_GCODE) {
+    setModeFromTask(MODE_GCODE);
+  } else if (keyCode == B_MODE_ASYNC) {
+    setModeFromTask(MODE_ASYNC);
   } else if (keyCode == B_DISPL) {
     buttonDisplayPress();
   } else if (keyCode == B_X) {
     markAxis0(&x);
   } else if (keyCode == B_Z) {
     markAxis0(&z);
-  } else if (keyCode == B_A) {
+  } else if (keyCode == B_X_ENA) {
     x.disabled = !x.disabled;
     updateEnable(&x);
-  } else if (keyCode == B_B) {
+  } else if (keyCode == B_Z_ENA) {
     z.disabled = !z.disabled;
     updateEnable(&z);
   } else if (keyCode == B_STEP) {
@@ -2825,6 +2822,9 @@ void updateAxisSpeeds(long diffX, long diffZ, long diffY) {
   x.speedMax = sec > 0 ? absX / sec : x.speedManualMove;
   z.speedMax = sec > 0 ? absZ / sec : z.speedManualMove;
   y.speedMax = sec > 0 ? absC / sec : y.speedManualMove;
+  if (x.speedMax < minStepsPerSecX) x.speedMax = minStepsPerSecX;
+  if (z.speedMax < minStepsPerSecZ) z.speedMax = minStepsPerSecZ;
+  if (y.speedMax < minStepsPerSecY) y.speedMax = minStepsPerSecY;
 }
 
 void setFeedRate(const String& command) {

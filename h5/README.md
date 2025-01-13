@@ -130,12 +130,16 @@ It's early days for H5. For now it works the same as H4, [please read H4 manual 
   - F4: cone
   - F5: parting
   - F6: threading
-  - F7: cycle through other modes
+  - F7: async
+  - F8: ellipse
+  - F9: gcode
+  - F10: y axis (if configured)
 - X zeroes X axis
 - Z zeroes Z axis
 - C disables / enables X axis
-- `<>|` button left of Z disables / enables Z axis
+- Q disables / enables Z axis
+- O pressed while a number is entered zeroes X from diameter (on H4 this was on `A`)
 
 ## Custom keyboard mapping
 
-Use https://github.com/kachurovskiy/nanoels/blob/main/h5/h5.ino#L118 to map the keys to your liking, uncomment a line in `void processKeypadEvent()` function to see on Nextion which key code your keyboard sends for any given key.
+Use https://github.com/kachurovskiy/nanoels/blob/main/h5/h5.ino#L115 to map the keys to your liking, uncomment a line in `void processKeypadEvent()` function to see on Nextion which key code your keyboard sends for any given key.
