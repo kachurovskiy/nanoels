@@ -11,27 +11,27 @@ const int ENCODER_BACKLASH = 3; // Numer of impulses encoder can issue without m
 #define ENC_B 14
 
 // Main lead screw (Z) parameters.
-const long SCREW_Z_DU = 20000; // 2mm lead screw in deci-microns (10^-7 of a meter)
+const long SCREW_Z_DU = 40000; // 4mm SFU1204 ball screw in deci-microns (10^-7 of a meter)
 const long MOTOR_STEPS_Z = 800;
-const long SPEED_START_Z = 2 * MOTOR_STEPS_Z; // Initial speed of a motor, steps / second.
-const long ACCELERATION_Z = 30 * MOTOR_STEPS_Z; // Acceleration of a motor, steps / second ^ 2.
-const long SPEED_MANUAL_MOVE_Z = 6 * MOTOR_STEPS_Z; // Maximum speed of a motor during manual move, steps / second.
+const long SPEED_START_Z = MOTOR_STEPS_Z; // Initial speed of a motor, steps / second.
+const long ACCELERATION_Z = 25 * MOTOR_STEPS_Z; // Acceleration of a motor, steps / second ^ 2.
+const long SPEED_MANUAL_MOVE_Z = 8 * MOTOR_STEPS_Z; // Maximum speed of a motor during manual move, steps / second.
 const bool INVERT_Z = false; // change (true/false) if the carriage moves e.g. "left" when you press "right".
 const bool NEEDS_REST_Z = false; // Set to false for closed-loop drivers, true for open-loop.
 const long MAX_TRAVEL_MM_Z = 300; // Lathe bed doesn't allow to travel more than this in one go, 30cm / ~1 foot
-const long BACKLASH_DU_Z = 6500; // 0.65mm backlash in deci-microns (10^-7 of a meter)
+const long BACKLASH_DU_Z = 0; // 0mm backlash in deci-microns (10^-7 of a meter)
 const char NAME_Z = 'Z'; // Text shown on screen before axis position value, GCode axis name
 
 // Cross-slide lead screw (X) parameters.
-const long SCREW_X_DU = 12500; // 1.25mm lead screw with 3x reduction in deci-microns (10^-7) of a meter
-const long MOTOR_STEPS_X = 2400; // 800 steps at 3x reduction
+const long SCREW_X_DU = 40000; // 4mm SFU1204 ball screw in deci-microns (10^-7 of a meter)
+const long MOTOR_STEPS_X = 800;
 const long SPEED_START_X = MOTOR_STEPS_X; // Initial speed of a motor, steps / second.
-const long ACCELERATION_X = 10 * MOTOR_STEPS_X; // Acceleration of a motor, steps / second ^ 2.
-const long SPEED_MANUAL_MOVE_X = 3 * MOTOR_STEPS_X; // Maximum speed of a motor during manual move, steps / second.
+const long ACCELERATION_X = 25 * MOTOR_STEPS_X; // Acceleration of a motor, steps / second ^ 2.
+const long SPEED_MANUAL_MOVE_X = 8 * MOTOR_STEPS_X; // Maximum speed of a motor during manual move, steps / second.
 const bool INVERT_X = true; // change (true/false) if the carriage moves e.g. "left" when you press "right".
 const bool NEEDS_REST_X = false; // Set to false for all kinds of drivers or X will be unlocked when not moving.
 const long MAX_TRAVEL_MM_X = 100; // Cross slide doesn't allow to travel more than this in one go, 10cm
-const long BACKLASH_DU_X = 1500; // 0.15mm backlash in deci-microns (10^-7 of a meter)
+const long BACKLASH_DU_X = 0; // 0.15mm backlash in deci-microns (10^-7 of a meter)
 const char NAME_X = 'X'; // Text shown on screen before axis position value, GCode axis name
 
 // Manual stepping with left/right/up/down buttons. Only used when step isn't default continuous (1mm or 0.1").
@@ -56,7 +56,7 @@ const long BACKLASH_DU_Y = 0; // Assuming no backlash on the worm gear
 const char NAME_Y = 'Y'; // Text shown on screen before axis position value, GCode axis name
 
 // Manual handwheels. Ignore if you don't have them installed.
-const float PULSE_PER_REVOLUTION = 100; // PPR of handwheels.
+const float PULSE_PER_REVOLUTION = 600; // PPR of handwheels.
 
 const int ENCODER_STEPS_INT = ENCODER_PPR * 2; // Number of encoder impulses PCNT counts per revolution of the spindle
 const int ENCODER_FILTER = 1; // Encoder pulses shorter than this will be ignored. Clock cycles, 1 - 1023.
@@ -83,7 +83,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 3
+#define SOFTWARE_VERSION 4
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -2262,6 +2262,14 @@ void processKeypadEvent() {
   if (isPress && processNumpad(keyCode)) {
     return;
   }
+
+  // Keyboard may not send release event if another button is pressed before first one is released.
+  buttonLeftPressed = false;
+  buttonRightPressed = false;
+  buttonUpPressed = false;
+  buttonDownPressed = false;
+  buttonGearsPressed = false;
+  buttonTurnPressed = false;
 
   // Setup wizard navigation.
   if (isPress && setupIndex == 2 && (keyCode == B_LEFT || keyCode == B_RIGHT)) {
