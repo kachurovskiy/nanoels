@@ -117,7 +117,7 @@ It's early days for H5. For now it works the same as H4, [please read H4 manual 
 - Enter turns on the current mode
 - Esc is stop
 - A W D S control limits
-- Win controls angle / rpm display
+- Win controls angle / rpm display / WiFi status
 - Tilda / backtick (key under ESC) controls step
 - M changes metric / inch / tpi
 - R for reverse
@@ -139,6 +139,12 @@ It's early days for H5. For now it works the same as H4, [please read H4 manual 
 - C disables / enables X axis
 - Q disables / enables Z axis
 - O pressed while a number is entered zeroes X from diameter (on H4 this was on `A`)
+
+## GCode over WiFi for complex parts
+
+Specify your WiFi network name and password in https://github.com/kachurovskiy/nanoels/blob/main/h5/h5.ino#L43-L44 and use Win keyboard key to see the IP address NanoEls connected on. Enter that address in the browser to see the Web UI. It can be used to save GCode files onto controller and run them later at the machine in the GCODE mode.
+
+To generate GCode for your parts, upload STL model of your part to https://kachurovskiy.com/lathecode/ and specify parameters like stock diameter and tool used.
 
 ## Custom keyboard mapping
 
