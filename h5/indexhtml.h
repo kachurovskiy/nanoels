@@ -5,6 +5,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NanoEls H5</title>
+  <link rel="icon" href="data:;base64,">
   <style>
     body {
       font-family: Roboto, sans-serif;
@@ -16,7 +17,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     h1, h2 {
       color: #333;
     }
-    input, textarea {
+    input[type=text], textarea {
       width: 100%;
     }
     #log {
@@ -61,6 +62,10 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       border: 1px solid #ccc;
       border-radius: 4px;
     }
+    #gcode-list.empty {
+      padding: 10px;
+      text-align: center;
+    }
     #gcode-name, #gcode-content {
       box-sizing: border-box;
       padding: 10px;
@@ -76,6 +81,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       cursor: pointer;
       color: #dc3545;
       font-size: 16px;
+      width: 20px;
     }
     .remove-icon:hover {
       color: #c82333;
@@ -97,23 +103,48 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     .gcode-row:hover {
       background-color: #f0f0f0;
     }
+    .gcode-item {
+      flex: 1;
+    }
+    .gcode-size {
+      flex-basis: 80px;
+      font-size: 0.9em;
+      color: #666;
+    }
+    .checkbox-container {
+      align-items: center;
+      display: flex;
+      margin-bottom: 10px;
+    }
+    .checkbox-container input {
+      margin: 10px 10px 10px 20px;
+    }
   </style>
 </head>
 <body>
   <h1>NanoEls H5</h1>
   <p>This Web UI is served from your NanoEls controller memory. It doesn't need Internet connection. Anyone on your local network has access to it.</p>
-  <p>It communicates with NanoEls in 2 ways. For saving, loading and removing stored GCode files it uses HTTP calls that can succeed or fail individually and it doesn't
-    affect the realtime communication with the NanoEls controller. For realtime communication it uses WebSocket that is always open and can be used to send commands to the controller and receive responses from it.
+  <p>
+    It communicates with NanoEls in 2 ways. For saving, loading and removing stored GCode files it uses HTTP calls that can succeed or fail
+    individually and it doesn't affect the realtime communication with the NanoEls controller.
   </p>
-  <p>Realtime log can also be used for debugging since serial communication with NanoEls can be problematic as that channel is used by the screen.</p>
+  <p>
+    For realtime communication it uses WebSocket that is always open and can be used to send commands to the controller and receive responses from it.
+    Realtime log can also be used for debugging since serial communication with NanoEls can be problematic as that channel is used by the screen.
+  </p>
   <h2>Stored GCode</h2>
   <div id="gcode-list"></div>
+  <p id="free-space"></p>
   <h2>Add GCode</h2>
   <p>You can generate suitable GCode using <a href="https://kachurovskiy.com/lathecode/" target="_blank">lathecode</a> by uploading STL model of the part
     and specifying other parameters like tool and stock diameter.</p>
   <input type="text" id="gcode-name" placeholder="GCode name" required minlength="2">
   <textarea id="gcode-content" placeholder="GCode content" required minlength="2"></textarea>
-  <button id="add-gcode">Save</button>
+  <div class="checkbox-container">
+    <button id="add-gcode">Save</button>
+    <input type="checkbox" id="remove-comments" checked>
+    <label for="remove-comments">Remove comments before saving</label>
+  </div>
 
   <h2>WebSocket realtime communication</h2>
   <div id="log"></div>
@@ -138,6 +169,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     const gcodeNameInput = document.getElementById('gcode-name');
     const gcodeContentInput = document.getElementById('gcode-content');
     const addGcodeButton = document.getElementById('add-gcode');
+    const removeCommentsCheckbox = document.getElementById('remove-comments');
 
     const ws = new WebSocket(`ws://${window.location.host.split(':')[0]}:81`);
 
@@ -164,13 +196,15 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     gcodeNameInput.addEventListener('input', updateButtonStates);
     gcodeContentInput.addEventListener('input', updateButtonStates);
 
-    document.addEventListener('DOMContentLoaded', updateButtonStates);
+    document.addEventListener('DOMContentLoaded', () => {
+      updateButtonStates();
+    });
 
     function send() {
       const command = commandInput.value.trim();
       if (command) {
         logMessage('Sent: ' + command);
-        ws.send(command);
+        ws.send(command + '\n');
         commandInput.value = '';
         updateButtonStates();
       }
@@ -184,9 +218,16 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       send();
     });
 
+    function removeComments(content) {
+      return content.split('\n').map(line => line.split(';')[0].trim()).filter(line => !!line).join('\n');
+    }
+
     addGcodeButton.addEventListener('click', () => {
       const name = gcodeNameInput.value.trim();
-      const content = gcodeContentInput.value.trim();
+      let content = gcodeContentInput.value.trim();
+      if (removeCommentsCheckbox.checked) {
+        content = removeComments(content);
+      }
       if (name && content) {
         fetch('/gcode/add', {
           method: 'POST',
@@ -209,6 +250,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
         .then(response => response.text())
         .then(data => {
           gcodeList.innerHTML = '';
+          gcodeList.classList.toggle('empty', !data);
           if (data) {
             data.split('\n').map(g => g.trim()).filter(g => !!g).forEach(gcode => {
               const row = document.createElement('div');
@@ -216,6 +258,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
               row.dataset.name = gcode;
               row.innerHTML = `
                 <span class="gcode-item" data-name="${gcode}">${gcode}</span>
+                <span class="gcode-size"></span>
                 <span class="remove-icon" data-name="${gcode}">&times;</span>
               `;
               row.addEventListener('click', (event) => {
@@ -223,6 +266,11 @@ const char indexhtml[] PROGMEM = R"rawliteral(
               });
               row.title = 'Click to load G-code';
               gcodeList.appendChild(row);
+              fetch(`/gcode/get?name=${encodeURIComponent(gcode)}`)
+                .then(response => response.text())
+                .then(text => {
+                  row.querySelector('.gcode-size').textContent = `${(text.length / 1024).toFixed(1)} KB`;
+                })
             });
             document.querySelectorAll('.remove-icon').forEach(icon => {
               icon.title = 'Click to remove G-code';
@@ -234,6 +282,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
           } else {
             gcodeList.innerHTML = 'No G-code stored';
           }
+          fetchFreeSpace();
         });
     }
 
@@ -258,6 +307,18 @@ const char indexhtml[] PROGMEM = R"rawliteral(
         logMessage(data);
         listGcodes();
       });
+    }
+
+    function fetchFreeSpace() {
+      fetch('/status')
+        .then(response => response.text())
+        .then(data => {
+          const freeSpaceBytes = Number(data.split('\n').find(l => l.startsWith('LittleFS.freeSpace=')).substr('LittleFS.freeSpace='.length));
+          if (freeSpaceBytes) {
+            const freeSpaceElement = document.getElementById('free-space');
+            freeSpaceElement.textContent = `Free space: ${Math.floor(freeSpaceBytes / 1024)} KB`;
+          }
+        });
     }
 
     function logMessage(message) {

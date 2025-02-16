@@ -40,8 +40,8 @@ const long DELAY_BETWEEN_STEPS_MS = 80; // Time in milliseconds to wait between 
 
 // Connect to WiFi and expose web UI to control and receive GCode.
 const bool WIFI_ENABLED = true;
-const char* SSID = "K26";
-const char* PASSWORD = "rebus1135";
+const char* SSID = "your-wifi-name";
+const char* PASSWORD = "your-password";
 const long INCOMING_BUFFER_SIZE = 100000;
 const long OUTGOING_BUFFER_SIZE = 100000;
 
@@ -89,7 +89,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 5
+#define SOFTWARE_VERSION 6
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -639,20 +639,34 @@ void handleGcodeRemove() {
   }
 }
 
+void handleStatus() {
+  server.send(200, "text/plain", "LittleFS.freeSpace=" + String(LittleFS.totalBytes() - LittleFS.usedBytes()) + "\n");
+}
+
 void taskWiFi(void *param) {
   WiFi.begin(SSID, PASSWORD);
   wifiStatus = "Connecting to WiFi";
-  for (int i = 0; i < 120; i++) {
+  for (int i = 0; i < 40; i++) {
     if (WiFi.status() == WL_CONNECTED) break;
     DELAY(500);
     taskYIELD();
   }
   if (WiFi.status() != WL_CONNECTED) {
-    wifiStatus = "WiFi failure " + WiFi.status();
+    if (WiFi.status() == WL_NO_SSID_AVAIL) {
+      wifiStatus = "No SSID available";
+    } else if (WiFi.status() == WL_CONNECT_FAILED) {
+      wifiStatus = "WiFi connection failed";
+    } else if (WiFi.status() == WL_CONNECTION_LOST) {
+      wifiStatus = "WiFi connection lost";
+    } else if (WiFi.status() == WL_DISCONNECTED) {
+      wifiStatus = "WiFi disconnected"; // Likely wrong password
+    } else {
+      wifiStatus = "WiFi unknown error";
+    }
     vTaskDelete(NULL);
     return;
   }
-  wifiStatus = "Visit " + WiFi.localIP().toString();
+  wifiStatus = "See " + WiFi.localIP().toString();
 
   initBuffer(&inBuffer, 1024);
   initBuffer(&outBuffer, 1024);
@@ -662,6 +676,7 @@ void taskWiFi(void *param) {
   server.on("/gcode/list", HTTP_GET, handleGcodeList);
   server.on("/gcode/get", HTTP_GET, handleGcodeGet);
   server.on("/gcode/remove", HTTP_POST, handleGcodeRemove);
+  server.on("/status", HTTP_GET, handleStatus);
   server.begin();
 
   webSocket.begin();
@@ -1062,9 +1077,12 @@ String readGcodeProgram(const String& name) {
     return "";
   }
 
-  String result = "";
+  String result;
+  result.reserve(file.size());
+  char buf[64];
   while (file.available()) {
-    result += (char)file.read();
+    size_t bytesRead = file.readBytes(buf, sizeof(buf));
+    result += String(buf).substring(0, bytesRead);
   }
   file.close();
   return result;
@@ -1098,17 +1116,16 @@ bool removeAllGcode() {
 
   File file = root.openNextFile();
   while (file) {
-    String filename = file.name();
-    file.close();
-    if (filename.endsWith(".gcode")) {
-      if (!LittleFS.remove(filename)) {
-        writeBuffer(&outBuffer, "error: failed to delete " + filename + "\n");
+    String path = file.path();
+    file.close(); // can't remove while open
+    if (path.endsWith(".gcode")) {
+      if (!LittleFS.remove(path)) {
+        writeBuffer(&outBuffer, "error: failed to delete " + path + "\n");
       }
     }
     file = root.openNextFile();
   }
 
-  writeBuffer(&outBuffer, "success: all G-code files deleted\n");
   gcodeProgramCount = getGcodeProgramCount();
   return true;
 }
@@ -1961,7 +1978,7 @@ void taskGcode(void *param) {
         if (charCode < 32) {
           if (wsKeycode == 0) {
             wsKeycode = keycodeCommand.toInt();
-            writeBuffer(&outBuffer, wsKeycode);
+            writeBuffer(&outBuffer, String(wsKeycode));
             writeBuffer(&outBuffer, "\n");
           } else {
             writeBuffer(&outBuffer, "slower\n");
@@ -2012,7 +2029,6 @@ void taskGcode(void *param) {
         gcodeSaveName = "";
         gcodeSaveValue = "";
       } else if (!gcodeInSave && receivedChar == '"' /* start of save program */) {
-        writeBuffer(&outBuffer, "start of save program\n");
         gcodeInSave = true;
         gcodeInSaveFirstLine = true;
       } else if (gcodeInSaveFirstLine && receivedChar >= 32) {
@@ -2495,7 +2511,8 @@ bool processNumpadResult(int keyCode) {
     a = &y;
     sign = (keyCode == B_MODE_GEARS || keyCode == B_MODE_FACE) ? -1 : 1;
   }
-  long pos = a->pos + (a->rotational ? numpadResult * 10 : newDu) / a->screwPitch * a->motorSteps * sign;
+  long posDiffAbs = (a->rotational ? numpadResult * 10 : newDu) / a->screwPitch * a->motorSteps;
+  long pos = a->pos + posDiffAbs * sign;
 
   // Potentially assign a new value to a limit. Treat newDu as a relative distance from current position.
   if (keyCode == B_STOPL) {
@@ -2546,7 +2563,7 @@ bool processNumpadResult(int keyCode) {
 
   // Set X axis 0 from diameter.
   if (keyCode == B_DIAMETER) {
-    a->originPos = -(a->pos + pos) / 2;
+    a->originPos = -a->pos - posDiffAbs / 2;
     return true;
   }
 
