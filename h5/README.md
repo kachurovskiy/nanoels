@@ -146,6 +146,8 @@ Specify your WiFi network name and password in https://github.com/kachurovskiy/n
 
 To generate GCode for your parts, upload STL model of your part to https://kachurovskiy.com/lathecode/ and specify parameters like stock diameter and tool used.
 
+![image](https://github.com/user-attachments/assets/aa6fadc7-5d02-4daa-a4c3-610740492b99)
+
 ## Custom keyboard mapping
 
 Use https://github.com/kachurovskiy/nanoels/blob/main/h5/h5.ino#L115 to map the keys to your liking, uncomment a line in `void processKeypadEvent()` function to see on Nextion which key code your keyboard sends for any given key.
