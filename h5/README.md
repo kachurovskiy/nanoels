@@ -86,7 +86,7 @@ Scale and joystick terminals aren't used in the code yet.
 - Install the [Arduino IDE](https://docs.arduino.cc/software/ide-v2)
 - Add `https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json` in [Preferences as "Additional board manager URLs"](https://github.com/kachurovskiy/nanoels/assets/517919/dcc023e6-20fc-4284-ba56-d466dbe4ce53)
 - Install `esp32` [via Board Manager](https://github.com/kachurovskiy/nanoels/assets/517919/094d00ff-1e51-4f26-bb81-aa4ad42bde2a)
-- Install `PS2KeyAdvanced` via Arduino IDE Library Manager
+- Install `PS2KeyAdvanced` and `WebSockets` via Arduino IDE Library Manager
 - Download [this repository](https://github.com/kachurovskiy/nanoels/archive/refs/heads/main.zip), unzip, go to `h5` directory and open `h5.ino` file in the Arduino IDE
 - Check the top constants (e.g. encoder steps, motor steps, display offset) and adjust if needed
 - Select "ESP32S3 Dev Module" as device at the top, pick COM port that appears when you connect the device with a USB cable
