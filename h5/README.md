@@ -150,4 +150,4 @@ To generate GCode for your parts, upload STL model of your part to https://kachu
 
 ## Custom keyboard mapping
 
-Use https://github.com/kachurovskiy/nanoels/blob/main/h5/h5.ino#L115 to map the keys to your liking, uncomment a line in `void processKeypadEvent()` function to see on Nextion which key code your keyboard sends for any given key.
+Use [`#define B_...`](https://github.com/kachurovskiy/nanoels/blob/main/h5/h5.ino#L121) constants to adjust key mapping, uncomment [a line](https://github.com/kachurovskiy/nanoels/blob/main/h5/h5.ino#L2640) in `void processKeypadEvent()` function to see on Nextion which key code your keyboard sends for any given key.
