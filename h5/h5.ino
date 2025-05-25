@@ -89,7 +89,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 6
+#define SOFTWARE_VERSION 7
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -243,7 +243,342 @@ struct CircleBuffer {
 #include <driver/pcnt.h>
 #include <Preferences.h>
 #include <PS2KeyAdvanced.h> // install via Libraries as "PS2KeyAdvanced"
-#include "indexhtml.h" // Web UI HTML+JS code
+
+const char indexhtml[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NanoEls H5</title>
+  <link rel="icon" href="data:;base64,">
+  <style>
+    body {
+      font-family: Roboto, sans-serif;
+      margin: 0 auto;
+      max-width: 800px;
+      padding: 20px;
+      background-color: #f4f4f4;
+    }
+    h1, h2 {
+      color: #333;
+    }
+    input[type=text], textarea {
+      width: 100%;
+    }
+    #log {
+      height: 200px;
+      overflow-y: scroll;
+      border: 1px solid #ccc;
+      padding: 10px;
+      background-color: #fff;
+      margin-bottom: 20px;
+    }
+    #log p {
+      padding: 0;
+      margin: 0;
+    }
+    #command-container, #gcode-container {
+      display: flex;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    #command {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      margin-right: 10px;
+    }
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      color: #fff;
+      background-color: #218838;
+    }
+    button:hover {
+      background-color: #105b21;
+    }
+    #gcode-list {
+      margin-top: 20px;
+      background-color: #fff;
+      padding: 0;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    #gcode-list.empty {
+      padding: 10px;
+      text-align: center;
+    }
+    #gcode-name, #gcode-content {
+      box-sizing: border-box;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      margin-bottom: 10px;
+    }
+    #gcode-content {
+      height: 200px;
+      resize: vertical;
+    }
+    .remove-icon {
+      cursor: pointer;
+      color: #dc3545;
+      font-size: 16px;
+      width: 20px;
+    }
+    .remove-icon:hover {
+      color: #c82333;
+    }
+    button.disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+    button.disabled:hover {
+      background-color: #ccc;
+    }
+    .gcode-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px;
+      cursor: pointer;
+    }
+    .gcode-row:hover {
+      background-color: #f0f0f0;
+    }
+    .gcode-item {
+      flex: 1;
+    }
+    .gcode-size {
+      flex-basis: 80px;
+      font-size: 0.9em;
+      color: #666;
+    }
+    .checkbox-container {
+      align-items: center;
+      display: flex;
+      margin-bottom: 10px;
+    }
+    .checkbox-container input {
+      margin: 10px 10px 10px 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>NanoEls H5</h1>
+  <p>This Web UI is served from your NanoEls controller memory. It doesn't need Internet connection. Anyone on your local network has access to it.</p>
+  <p>
+    It communicates with NanoEls in 2 ways. For saving, loading and removing stored GCode files it uses HTTP calls that can succeed or fail
+    individually and it doesn't affect the realtime communication with the NanoEls controller.
+  </p>
+  <p>
+    For realtime communication it uses WebSocket that is always open and can be used to send commands to the controller and receive responses from it.
+    Realtime log can also be used for debugging since serial communication with NanoEls can be problematic as that channel is used by the screen.
+  </p>
+  <h2>Stored GCode</h2>
+  <div id="gcode-list"></div>
+  <p id="free-space"></p>
+  <h2>Add GCode</h2>
+  <p>You can generate suitable GCode using <a href="https://kachurovskiy.com/lathecode/" target="_blank">lathecode</a> by uploading STL model of the part
+    and specifying other parameters like tool and stock diameter.</p>
+  <input type="text" id="gcode-name" placeholder="GCode name" required minlength="2">
+  <textarea id="gcode-content" placeholder="GCode content" required minlength="2"></textarea>
+  <div class="checkbox-container">
+    <button id="add-gcode">Save</button>
+    <input type="checkbox" id="remove-comments" checked>
+    <label for="remove-comments">Remove comments before saving</label>
+  </div>
+
+  <h2>WebSocket realtime communication</h2>
+  <div id="log"></div>
+  <div id="command-container">
+    <input type="text" id="command" placeholder="Enter command" value="?" minlength="1" required>
+    <button id="send">Send</button>
+  </div>
+  <p>Supported websocket commands:</p>
+  <ul>
+    <li><code>?</code> requests controller status</li>
+    <li><code>=20</code> send key code 20 as if it's pressed on the keyboard</li>
+    <li><code>!</code> turns the controller off</li>
+    <li><code>~</code> turns the controller on</li>
+    <li><code>""</code> removes all GCode</li>
+  </ul>
+
+  <script>
+    const log = document.getElementById('log');
+    const commandInput = document.getElementById('command');
+    const sendButton = document.getElementById('send');
+    const gcodeList = document.getElementById('gcode-list');
+    const gcodeNameInput = document.getElementById('gcode-name');
+    const gcodeContentInput = document.getElementById('gcode-content');
+    const addGcodeButton = document.getElementById('add-gcode');
+    const removeCommentsCheckbox = document.getElementById('remove-comments');
+
+    const ws = new WebSocket(`ws://${window.location.host.split(':')[0]}:81`);
+
+    ws.onopen = () => {
+      logMessage('Connected to server');
+    };
+
+    ws.onmessage = (event) => {
+      logMessage('Received: ' + event.data);
+    };
+
+    ws.onclose = () => {
+      logMessage('Disconnected from server');
+    };
+
+    function updateButtonStates() {
+      sendButton.disabled = commandInput.value.trim().length < 1;
+      addGcodeButton.disabled = gcodeNameInput.value.trim().length < 2 || gcodeContentInput.value.trim().length < 2;
+      sendButton.classList.toggle('disabled', sendButton.disabled);
+      addGcodeButton.classList.toggle('disabled', addGcodeButton.disabled);
+    }
+
+    commandInput.addEventListener('input', updateButtonStates);
+    gcodeNameInput.addEventListener('input', updateButtonStates);
+    gcodeContentInput.addEventListener('input', updateButtonStates);
+
+    document.addEventListener('DOMContentLoaded', () => {
+      updateButtonStates();
+    });
+
+    function send() {
+      const command = commandInput.value.trim();
+      if (command) {
+        logMessage('Sent: ' + command);
+        ws.send(command + '\n');
+        commandInput.value = '';
+        updateButtonStates();
+      }
+    }
+
+    commandInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') send();
+    });
+
+    sendButton.addEventListener('click', () => {
+      send();
+    });
+
+    function removeComments(content) {
+      return content.split('\n').map(line => line.split(';')[0].trim()).filter(line => !!line).join('\n');
+    }
+
+    addGcodeButton.addEventListener('click', () => {
+      const name = gcodeNameInput.value.trim();
+      let content = gcodeContentInput.value.trim();
+      if (removeCommentsCheckbox.checked) {
+        content = removeComments(content);
+      }
+      if (name && content) {
+        fetch('/gcode/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ name, gcode: content })
+        })
+        .then(response => response.text())
+        .then(data => {
+          logMessage(data);
+          listGcodes();
+          gcodeNameInput.value = '';
+          gcodeContentInput.value = '';
+          updateButtonStates();
+        });
+      }
+    });
+
+    function listGcodes() {
+      fetch('/gcode/list')
+        .then(response => response.text())
+        .then(data => {
+          gcodeList.innerHTML = '';
+          gcodeList.classList.toggle('empty', !data);
+          if (data) {
+            data.split('\n').map(g => g.trim()).filter(g => !!g).forEach(gcode => {
+              const row = document.createElement('div');
+              row.className = 'gcode-row';
+              row.dataset.name = gcode;
+              row.innerHTML = `
+                <span class="gcode-item" data-name="${gcode}">${gcode}</span>
+                <span class="gcode-size"></span>
+                <span class="remove-icon" data-name="${gcode}">&times;</span>
+              `;
+              row.addEventListener('click', (event) => {
+                loadGcode(event.target.dataset.name);
+              });
+              row.title = 'Click to load G-code';
+              gcodeList.appendChild(row);
+              fetch(`/gcode/get?name=${encodeURIComponent(gcode)}`)
+                .then(response => response.text())
+                .then(text => {
+                  row.querySelector('.gcode-size').textContent = `${(text.length / 1024).toFixed(1)} KB`;
+                })
+            });
+            document.querySelectorAll('.remove-icon').forEach(icon => {
+              icon.title = 'Click to remove G-code';
+              icon.addEventListener('click', (event) => {
+                const name = event.target.getAttribute('data-name');
+                removeGcode(name);
+              });
+            });
+          } else {
+            gcodeList.innerHTML = 'No G-code stored';
+          }
+          fetchFreeSpace();
+        });
+    }
+
+    function loadGcode(name) {
+      fetch(`/gcode/get?name=${encodeURIComponent(name)}`)
+        .then(response => response.text())
+        .then(data => {
+          gcodeNameInput.value = name;
+          gcodeContentInput.value = data;
+          updateButtonStates();
+        });
+    }
+
+    function removeGcode(name) {
+      fetch('/gcode/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ name })
+      })
+      .then(response => response.text())
+      .then(data => {
+        logMessage(data);
+        listGcodes();
+      });
+    }
+
+    function fetchFreeSpace() {
+      fetch('/status')
+        .then(response => response.text())
+        .then(data => {
+          const freeSpaceBytes = Number(data.split('\n').find(l => l.startsWith('LittleFS.freeSpace=')).substr('LittleFS.freeSpace='.length));
+          if (freeSpaceBytes) {
+            const freeSpaceElement = document.getElementById('free-space');
+            freeSpaceElement.textContent = `Free space: ${Math.floor(freeSpaceBytes / 1024)} KB`;
+          }
+        });
+    }
+
+    function logMessage(message) {
+      const p = document.createElement('p');
+      p.textContent = message;
+      log.appendChild(p);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    listGcodes();
+  </script>
+</body>
+</html>
+)rawliteral";
 
 #define FORMAT_LITTLEFS_IF_FAILED true
 
@@ -581,6 +916,89 @@ void handleWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t l
 
 void handleClientRequests() {
   server.send(200, "text/html", indexhtml);
+}
+
+int getGcodeProgramCount() {
+  File root = LittleFS.open("/");
+  if (!root || !root.isDirectory()) {
+    writeBuffer(&outBuffer, "error: failed to open directory\n");
+    return 0;
+  }
+
+  int count = 0;
+  File file = root.openNextFile();
+  while (file) {
+    String filename = file.name();
+    file.close();
+    if (filename.endsWith(".gcode")) {
+      count++;
+    }
+    file = root.openNextFile();
+  }
+
+  return count;
+}
+
+bool saveGcode() {
+  if (gcodeSaveName.length() < 2) {
+    writeBuffer(&outBuffer, "error: name must be at least 2 chars\n");
+    return false;
+  }
+  if (gcodeSaveValue.length() < 2) {
+    writeBuffer(&outBuffer, "error: program too short\n");
+    return false;
+  }
+
+  String filename = "/" + gcodeSaveName + ".gcode";
+  File file = LittleFS.open(filename, "w");
+  if (!file) {
+    writeBuffer(&outBuffer, "error: failed to open file\n");
+    return false;
+  }
+
+  file.print(gcodeSaveValue);
+  file.close();
+
+  writeBuffer(&outBuffer, "success: G-code saved\n");
+  gcodeProgramCount = getGcodeProgramCount();
+  return true;
+}
+
+bool removeGcodeByName(const String& name) {
+  if (name.length() == 0) return false;
+
+  String filename = "/" + name + ".gcode";
+  if (!LittleFS.exists(filename)) {
+    writeBuffer(&outBuffer, "error: file not found\n");
+    return false;
+  }
+
+  if (!LittleFS.remove(filename)) {
+    writeBuffer(&outBuffer, "error: failed to delete " + filename + "\n");
+    return false;
+  }
+
+  writeBuffer(&outBuffer, "success: " + name + " deleted\n");
+  gcodeProgramCount = getGcodeProgramCount();
+  return true;
+}
+
+String readGcodeProgram(const String& name) {
+  String filename = "/" + name + ".gcode";
+  File file = LittleFS.open(filename, "r");
+  if (!file) {
+    return "";
+  }
+
+  String result;
+  result.reserve(file.size());
+  char buf[64];
+  while (file.available()) {
+    size_t bytesRead = file.readBytes(buf, sizeof(buf));
+    result += String(buf).substring(0, bytesRead);
+  }
+  file.close();
+  return result;
 }
 
 void handleGcodeAdd() {
@@ -1022,89 +1440,6 @@ long spindleModulo(long value) {
     value += ENCODER_STEPS_INT;
   }
   return value;
-}
-
-int getGcodeProgramCount() {
-  File root = LittleFS.open("/");
-  if (!root || !root.isDirectory()) {
-    writeBuffer(&outBuffer, "error: failed to open directory\n");
-    return 0;
-  }
-
-  int count = 0;
-  File file = root.openNextFile();
-  while (file) {
-    String filename = file.name();
-    file.close();
-    if (filename.endsWith(".gcode")) {
-      count++;
-    }
-    file = root.openNextFile();
-  }
-
-  return count;
-}
-
-bool saveGcode() {
-  if (gcodeSaveName.length() < 2) {
-    writeBuffer(&outBuffer, "error: name must be at least 2 chars\n");
-    return false;
-  }
-  if (gcodeSaveValue.length() < 2) {
-    writeBuffer(&outBuffer, "error: program too short\n");
-    return false;
-  }
-
-  String filename = "/" + gcodeSaveName + ".gcode";
-  File file = LittleFS.open(filename, "w");
-  if (!file) {
-    writeBuffer(&outBuffer, "error: failed to open file\n");
-    return false;
-  }
-
-  file.print(gcodeSaveValue);
-  file.close();
-
-  writeBuffer(&outBuffer, "success: G-code saved\n");
-  gcodeProgramCount = getGcodeProgramCount();
-  return true;
-}
-
-String readGcodeProgram(const String& name) {
-  String filename = "/" + name + ".gcode";
-  File file = LittleFS.open(filename, "r");
-  if (!file) {
-    return "";
-  }
-
-  String result;
-  result.reserve(file.size());
-  char buf[64];
-  while (file.available()) {
-    size_t bytesRead = file.readBytes(buf, sizeof(buf));
-    result += String(buf).substring(0, bytesRead);
-  }
-  file.close();
-  return result;
-}
-
-bool removeGcodeByName(const String& name) {
-  if (name.length() == 0) return false;
-
-  String filename = "/" + name + ".gcode";
-  if (!LittleFS.exists(filename)) {
-    writeBuffer(&outBuffer, "error: file not found\n");
-    return false;
-  }
-
-  if (!LittleFS.remove(filename)) {
-    writeBuffer(&outBuffer, "error: failed to delete " + filename + "\n");
-    return false;
-  }
-
-  writeBuffer(&outBuffer, "success: " + name + " deleted\n");
-  gcodeProgramCount = getGcodeProgramCount();
-  return true;
 }
 
 bool removeAllGcode() {
@@ -3328,11 +3663,11 @@ void setup() {
 
   // Non-time-sensitive tasks on core 0.
   delay(1300); // Nextion needs time to boot or first display update will be ignored.
+  xTaskCreatePinnedToCore(taskAttachInterrupts, "taskAttachInterrupts", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   xTaskCreatePinnedToCore(taskDisplay, "taskDisplay", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   xTaskCreatePinnedToCore(taskMoveZ, "taskMoveZ", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   xTaskCreatePinnedToCore(taskMoveX, "taskMoveX", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   if (y.active) xTaskCreatePinnedToCore(taskMoveY, "taskMoveY", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
-  xTaskCreatePinnedToCore(taskAttachInterrupts, "taskAttachInterrupts", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   xTaskCreatePinnedToCore(taskGcode, "taskGcode", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   if (WIFI_ENABLED) xTaskCreatePinnedToCore(taskWiFi, "taskWiFI", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
 }
