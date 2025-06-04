@@ -89,7 +89,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 7
+#define SOFTWARE_VERSION 8
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -227,6 +227,8 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 #define ESTOP_MARK_ORIGIN 3
 #define ESTOP_ON_OFF 4
 #define ESTOP_OFF_MANUAL_MOVE 5
+
+#define TIMER_FREQ 1000000 // 1MHz async timer frequency
 
 struct CircleBuffer {
   char* buffer;
@@ -843,7 +845,7 @@ int gcodeProgramCharIndex = 0;
 
 PS2KeyAdvanced keyboard;
 
-hw_timer_t *async_timer = timerBegin(80);
+hw_timer_t *async_timer = timerBegin(TIMER_FREQ);
 bool timerAttached = false;
 
 CircleBuffer inBuffer;
@@ -1892,7 +1894,7 @@ unsigned int getTimerLimit() {
   if (dupr == 0) {
     return 65535;
   }
-  return min(long(65535), long(1000000 / (z.motorSteps * abs(dupr) / z.screwPitch)) - 1); // 1000000/Hz - 1
+  return min(long(65535), long(TIMER_FREQ / (z.motorSteps * abs(dupr) / z.screwPitch)) - 1);
 }
 
 void updateAsyncTimerSettings() {
