@@ -92,7 +92,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 9
+#define SOFTWARE_VERSION 10
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -125,8 +125,8 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 #define B_RIGHT 22 // Right arrow - controls Z axis movement to the right
 #define B_UP 23 // Up arrow - controls X axis movement forwards
 #define B_DOWN 24 // Down arrow - controls X axis movement backwards
-#define B_MINUS 45 // Numpad minus - recrements the pitch or number of passes
-#define B_PLUS 44 // Numpad plus - increments the pitch or number of passes
+#define B_MINUS 60 // Numpad minus - recrements the pitch or number of passes
+#define B_PLUS 95 // Numpad plus - increments the pitch or number of passes
 #define B_ON 30 // Enter - starts operation or mode
 #define B_OFF 27 // ESC - stops operation or mode
 #define B_STOPL 65 // a - sets left stop
@@ -1394,6 +1394,10 @@ bool manualMovesAllowedWhenOn() {
   return mode == MODE_NORMAL || mode == MODE_ASYNC || mode == MODE_CONE || mode == MODE_Y;
 }
 
+bool manualMovesIgnoredWhenOn() {
+  return mode == MODE_GCODE;
+}
+
 int getLastSetupIndex() {
   if (mode == MODE_CONE || mode == MODE_GCODE) return 2;
   if (mode == MODE_THREAD) return 4;
@@ -1842,8 +1846,13 @@ int getAndResetPulses(Axis* a) {
   pcnt_get_counter_value(a->pulseUnit, &count);
   int delta = count - a->pulseCount;
   if (delta == 0) return 0;
+  if (isOn && manualMovesIgnoredWhenOn()) {
+    pcnt_counter_clear(a->pulseUnit);
+    a->pulseCount = 0;
+    return 0;
+  }
   if (count >= PCNT_CLEAR || count <= -PCNT_CLEAR) {
-    pcnt_counter_clear(PCNT_UNIT_0);
+    pcnt_counter_clear(a->pulseUnit);
     a->pulseCount = 0;
   } else {
     a->pulseCount = count;
@@ -1943,6 +1952,8 @@ void taskMoveZ(void *param) {
     }
     if (isOn && !manualMovesAllowedWhenOn()) {
       setIsOnFromTask(false);
+      taskYIELD();
+      continue;
     }
     int sign = pulseDelta == 0 ? (left ? 1 : -1) : (pulseDelta > 0 ? 1 : -1);
     bool stepperOn = true;
@@ -2042,6 +2053,8 @@ void taskMoveX(void *param) {
     }
     if (isOn && !manualMovesAllowedWhenOn()) {
       setIsOnFromTask(false);
+      taskYIELD();
+      continue;
     }
     x.movingManually = true;
     x.speedMax = getStepMaxSpeed(&x);

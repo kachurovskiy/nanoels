@@ -140,6 +140,8 @@ It's early days for H5. For now it works the same as H4, [please read H4 manual 
 - Q disables / enables Z axis
 - O pressed while a number is entered zeroes X from diameter (on H4 this was on `A`)
 
+Handwheels and limits have no effect when GCODE is running.
+
 ## GCode over WiFi for complex parts
 
 Specify your WiFi network name and password in https://github.com/kachurovskiy/nanoels/blob/main/h5/h5.ino#L45-L46 and use Win keyboard key to see the IP address NanoEls connected on. Enter that address in the browser to see the Web UI. It can be used to save GCode files onto controller and run them later at the machine in the GCODE mode.
