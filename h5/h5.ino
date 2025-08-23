@@ -92,7 +92,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 10
+#define SOFTWARE_VERSION 11
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -125,6 +125,8 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 #define B_RIGHT 22 // Right arrow - controls Z axis movement to the right
 #define B_UP 23 // Up arrow - controls X axis movement forwards
 #define B_DOWN 24 // Down arrow - controls X axis movement backwards
+#define B_FORWARD 85 // u - Advance Y axis
+#define B_BACK 74 // j - Retreat Y axis
 #define B_MINUS 60 // Numpad minus - recrements the pitch or number of passes
 #define B_PLUS 95 // Numpad plus - increments the pitch or number of passes
 #define B_ON 30 // Enter - starts operation or mode
@@ -133,9 +135,11 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 #define B_STOPR 68 // d - sets right stop
 #define B_STOPU 87 // w - sets forward stop
 #define B_STOPD 83 // s - sets rear stop
+#define B_STOPF 73 // i - Y forward stop
+#define B_STOPB 75 // k - Y backward stop
+#define B_MULTISTART 84 // t - multi-start thread button
 #define B_DISPL 12 // Win - changes info displayed in the bottom line (angle, rpm, ...)
 #define B_STEP 64 // Tilda - changes distance moved when movement buttons are used
-#define B_SETTINGS 14 // Context menu - not used currently
 #define B_MEASURE 77 // m - controls metric / imperial / tpi
 #define B_REVERSE 82 // r - changes pitch sign (left / right thread)
 #define B_DIAMETER 79 // o - sets X0 so that centerline is at the middle of a given diameter value
@@ -160,10 +164,13 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 #define B_MODE_ELLIPSE 104 // F8
 #define B_MODE_GCODE 105 // F9
 #define B_MODE_Y 106 // F10
+#define B_MODE 107 // F11 - to cycle through modes
 #define B_X 88 // x - zeroes X axis
 #define B_Z 90 // z - zeroes Z axis
+#define B_Y 72 // h - zeroes Y axis
 #define B_X_ENA 67 // c - enables / disables X axis
 #define B_Z_ENA 81 // q - enables / disables Z axis
+#define B_Y_ENA 89 // y - enables / disables Y axis
 
 #define PREF_VERSION "v"
 #define PREF_DUPR "d"
@@ -618,8 +625,8 @@ bool buttonRightPressed = false;
 bool buttonUpPressed = false;
 bool buttonDownPressed = false;
 bool buttonOffPressed = false;
-bool buttonGearsPressed = false;
-bool buttonTurnPressed = false;
+bool buttonBackPressed = false;
+bool buttonForwardPressed = false;
 
 bool inNumpad = false;
 int numpadDigits[20];
@@ -1291,7 +1298,7 @@ String printDeciMicrons(long deciMicrons, int precisionPointsMax) {
   } else if ((v % 10000) != 0 && precisionPointsMax >= 1) {
     points = 1;
   }
-  return String(deciMicrons / (imperial ? 254000.0 : 10000.0), points) + (imperial ? "\\\"" : "mm");
+  return String(deciMicrons / (imperial ? 254000.0 : 10000.0), points);
 }
 
 String printDegrees(long degrees10000) {
@@ -1344,6 +1351,26 @@ String printAxisPos(Axis* a) {
   return printDeciMicrons(getAxisPosDu(a), 3);
 }
 
+long getAxisLeftStopDistanceDu(Axis* a) {
+  return stepsToDu(a, a->leftStop - a->pos);
+}
+
+String printDistanceToLeftStop(Axis* a) {
+  if (a->leftStop == LONG_MAX) return "";
+  if (a->rotational) return printDegrees(getAxisLeftStopDistanceDu(a));
+  return printDeciMicrons(getAxisLeftStopDistanceDu(a), 3);
+}
+
+long getAxisRightStopDistanceDu(Axis* a) {
+  return stepsToDu(a, a->pos - a->rightStop);
+}
+
+String printDistanceToRightStop(Axis* a) {
+  if (a->rightStop == LONG_MIN) return "";
+  if (a->rotational) return printDegrees(getAxisRightStopDistanceDu(a));
+  return printDeciMicrons(getAxisRightStopDistanceDu(a), 3);
+}
+
 String printAxisStopDiff(Axis* a, bool addTrailingSpace) {
   String result = "";
   if (a->rotational) {
@@ -1352,17 +1379,6 @@ String printAxisStopDiff(Axis* a, bool addTrailingSpace) {
     result = printDeciMicrons(getAxisStopDiffDu(a), 3);
   }
   return addTrailingSpace ? result + ' ' : result;
-}
-
-String printAxisPosWithName(Axis* a, bool addTrailingSpace, int padToLength = 0) {
-  if (!a->active || a->disabled) return "";
-  String result = String(a->name);
-  result += printAxisPos(a);
-  if (addTrailingSpace) result += ' ';
-  while (result.length() < padToLength) {
-    result += ' ';
-  }
-  return result;
 }
 
 String printNoTrailing0(float value) {
@@ -1506,95 +1522,63 @@ String getCurrentGcodeProgramName() {
 }
 
 String printMode() {
-  if (mode == MODE_ASYNC) return "ASY ";
-  if (mode == MODE_CONE) return "CONE ";
-  if (mode == MODE_TURN) return "TURN ";
-  if (mode == MODE_FACE) return "FACE ";
-  if (mode == MODE_CUT) return "CUT ";
-  if (mode == MODE_THREAD) return "THRD ";
-  if (mode == MODE_ELLIPSE) return "ELLI ";
-  if (mode == MODE_GCODE) return "GCODE ";
-  if (mode == MODE_Y) return "Y ";
+  if (mode == MODE_NORMAL) return "GEAR";
+  if (mode == MODE_ASYNC) return "ASYNC";
+  if (mode == MODE_CONE) return "CONE";
+  if (mode == MODE_TURN) return "TURN";
+  if (mode == MODE_FACE) return "FACE";
+  if (mode == MODE_CUT) return "CUT";
+  if (mode == MODE_THREAD) return "THREAD";
+  if (mode == MODE_ELLIPSE) return "ELLIP";
+  if (mode == MODE_GCODE) return "GCODE";
+  if (mode == MODE_Y) return "Y";
   return "";
 }
 
-void screenClear() {
-  setText("t0", "");
-  setText("t1", "");
-  setText("t2", "");
-  setText("t3", "");
-}
+unsigned long lastDisplayUpdateTime = 0;
 
 void updateDisplay() {
-  int rpm = showTacho ? getApproxRpm() : 0;
+  if (millis() - lastDisplayUpdateTime < 50) return;
+  lastDisplayUpdateTime = millis();
 
-  if (splashScreen) {
-    splashScreen = false;
-    screenClear();
-    setText("t0", "NanoEls H" + String(HARDWARE_VERSION) + " V" + String(SOFTWARE_VERSION));
-    lcdHashLine0 = LCD_HASH_INITIAL;
-    lcdHashLine1 = LCD_HASH_INITIAL;
-    lcdHashLine2 = LCD_HASH_INITIAL;
-    lcdHashLine3 = LCD_HASH_INITIAL;
-    delay(2000);
-  }
-  if (lcdHashLine0 == LCD_HASH_INITIAL) {
-    // First run after reset.
-    screenClear();
-    lcdHashLine1 = LCD_HASH_INITIAL;
-    lcdHashLine2 = LCD_HASH_INITIAL;
-    lcdHashLine3 = LCD_HASH_INITIAL;
-  }
-
-  long newHashLine0 = isOn + (z.leftStop - z.rightStop) + (x.leftStop - x.rightStop) + spindlePosSync + moveStep + mode + measure + setupIndex * 10;
+  long newHashLine0 = isOn + spindlePosSync + mode + measure + dupr + starts;
   if (lcdHashLine0 != newHashLine0) {
     lcdHashLine0 = newHashLine0;
-    String result = "";
-    if (setupIndex == 0 || !isPassMode()) {
-      result = printMode();
-      result += isOn ? "ON " : "off ";
-      int beforeStops = result.length();
-      if (z.leftStop != LONG_MAX) result += "L";
-      if (x.leftStop != LONG_MAX) result += "U";
-      if (x.rightStop != LONG_MIN) result += "D";
-      if (z.rightStop != LONG_MIN) result += "R";
-      if (beforeStops != result.length()) result += " ";
-
-      if (spindlePosSync && !isPassMode()) {
-        result += "SYN ";
-      }
-      if (mode == MODE_NORMAL && !spindlePosSync) {
-        result += "step ";
-      }
-      result += printDeciMicrons(moveStep, 5);
-    } else {
-      if (needZStops()) {
-        result += "LR";
-        result += printAxisStopDiff(&z, true);
-      } else {
-        result += printMode();
-      }
-      result += "UD";
-      result += printAxisStopDiff(&x, false);
-    }
-    setText("t0", result);
+    if (spindlePosSync) setText("bStatus", "SYN");
+    else setText("bStatus", isOn ? "ON" : "OFF");
+    setText("bMode", printMode());
+    String bPitchText = printDupr(dupr);
+    if (starts != 1) bPitchText += " x" + String(starts);
+    setText("tPitch", bPitchText);
+    setText("bMeasure", measure == MEASURE_INCH ? "IN" : measure == MEASURE_METRIC ? "MM" : "TPI");
   }
 
-  long newHashLine1 = dupr + starts + mode + measure + setupIndex;
+  int rpm = getApproxRpm();
+  long newHashLine1 = moveStep + rpm + spindlePos + measure;
   if (lcdHashLine1 != newHashLine1) {
     lcdHashLine1 = newHashLine1;
-    String result = "Pitch " + printDupr(dupr);
-    if (starts != 1) result += " x" + String(starts);
-    setText("t1", result);
+    setText("tStepVal", printDeciMicrons(moveStep, 5));
+    setText("tRPMVal", String(rpm));
+    float turns = (float) abs(spindlePos) / ENCODER_STEPS_INT;
+    setText("tTurnsVal", String(turns, turns < 100 ? 2 : (turns < 1000 ? 1 : 0)));
+    setText("tAngleVal", String(spindleModulo(spindlePos) * 360 / ENCODER_STEPS_FLOAT, 2) + String(char(223)));
   }
 
-  long zDisplayPos = z.pos + z.originPos;
-  long xDisplayPos = x.pos + x.originPos;
-  long yDisplayPos = y.pos + y.originPos;
-  long newHashLine2 = zDisplayPos + xDisplayPos + yDisplayPos + measure + z.disabled + x.disabled + mode;
+  long newHashLine2 =
+    x.pos + x.originPos + x.disabled + x.leftStop - x.rightStop +
+    z.pos + z.originPos + z.disabled + z.leftStop - z.rightStop +
+    y.pos + y.originPos + y.disabled + y.leftStop - y.rightStop + measure + x.pos % 100;
   if (lcdHashLine2 != newHashLine2) {
     lcdHashLine2 = newHashLine2;
-    setText("t2", printAxisPosWithName(&z, true, 10) + printAxisPosWithName(&x, true));
+    setText("tX", !x.active || x.disabled ? "" : printAxisPos(&x));
+    setText("tXUp", !x.active || x.disabled ? "" : printDistanceToLeftStop(&x));
+    setText("tXDown", !x.active || x.disabled ? "" : printDistanceToRightStop(&x));
+    setText("tY", !y.active || y.disabled ? "" : printAxisPos(&y));
+    setText("tYUp", !y.active || y.disabled ? "" : printDistanceToLeftStop(&y));
+    setText("tYDown", !y.active || y.disabled ? "" : printDistanceToRightStop(&y));
+    setText("tZ", !z.active || z.disabled ? "" : printAxisPos(&z));
+    setText("tZLeft", !z.active || z.disabled ? "" : printDistanceToLeftStop(&z));
+    setText("tZRight", !z.active || z.disabled ? "" : printDistanceToRightStop(&z));
   }
 
   long numpadResult = getNumpadResult();
@@ -1614,16 +1598,7 @@ void updateDisplay() {
   if (lcdHashLine3 != newHashLine3) {
     lcdHashLine3 = newHashLine3;
     String result = "";
-    if (mode == MODE_Y && !inNumpad) {
-      if (y.leftStop != LONG_MAX && y.rightStop != LONG_MIN) {
-        result = "UD ";
-      } else if (y.leftStop != LONG_MAX) {
-        result = "D ";
-      } else if (y.rightStop != LONG_MIN) {
-        result = "U ";
-      }
-      result += printAxisPosWithName(&y, false);
-    } else if (mode == MODE_GCODE) {
+    if (mode == MODE_GCODE) {
       if (setupIndex == 1 && gcodeProgramCount == 0) {
         result = "No stored programs";
       } else if (setupIndex == 1) {
@@ -1690,16 +1665,7 @@ void updateDisplay() {
 
     if (inNumpad && result == "") result = "Use " + printDupr(numpadToDeciMicrons()) + "?";
 
-    if (result != "") {
-      // No space for shared RPM/angle text.
-    } else if (showAngle) {
-      float turns = (float) abs(spindlePos) / ENCODER_STEPS_INT;
-      result = "Angle " + String(turns, turns < 100 ? 2 : (turns < 1000 ? 1 : 0)) + " " + String(spindleModulo(spindlePos) * 360 / ENCODER_STEPS_FLOAT, 2) + String(char(223));
-    } else if (showTacho) {
-      result = "Tacho " + String(rpm) + "rpm";
-    } else {
-      result = wifiStatus;
-    }
+    if (result == "") result = wifiStatus;
 
     setText("t3", result);
   }
@@ -1778,20 +1744,15 @@ void taskDisplay(void *param) {
     }
     taskYIELD();
   }
-  screenClear();
-  setText("t0", "EMERGENCY STOP");
+  setText("bMode", "ESTOP");
   if (emergencyStop == ESTOP_POS) {
-    setText("t2", "Requested position");
-    setText("t3", "outside machine");
+    setText("t3", "Requested position outside machine");
   } else if (emergencyStop == ESTOP_MARK_ORIGIN) {
-    setText("t1", "Unable to");
-    setText("t2", "mark origin");
+    setText("t3", "Unable to mark origin");
   } else if (emergencyStop == ESTOP_ON_OFF) {
-    setText("t0", "Unable to");
-    setText("t1", "turn on/off");
+    setText("t3", "Unable to turn on/off");
   } else if (emergencyStop == ESTOP_OFF_MANUAL_MOVE) {
-    setText("t1", "Off during");
-    setText("t2", "manual move");
+    setText("t3", "Off during manual move");
   }
   vTaskDelete(NULL);
 }
@@ -2103,9 +2064,9 @@ void taskMoveX(void *param) {
 
 void taskMoveY(void *param) {
   while (emergencyStop == ESTOP_NONE) {
-    bool plus = buttonTurnPressed;
-    bool minus = buttonGearsPressed;
-    if (mode != MODE_Y || (!plus && !minus)) {
+    bool plus = buttonForwardPressed;
+    bool minus = buttonBackPressed;
+    if (!plus && !minus) {
       taskYIELD();
       continue;
     }
@@ -2129,7 +2090,7 @@ void taskMoveY(void *param) {
       }
       stepToContinuous(&y, posCopy + delta);
       waitForStep(&y);
-    } while (plus ? buttonTurnPressed : buttonGearsPressed);
+    } while (plus ? buttonForwardPressed : buttonBackPressed);
     y.continuous = false;
     waitForPendingPos0(&y);
     // Restore async direction.
@@ -2381,7 +2342,7 @@ void taskGcode(void *param) {
         writeBuffer(&outBuffer, "|FS:");
         writeBuffer(&outBuffer, round(gcodeFeedDuPerSec * 60 / 10000.0));
         writeBuffer(&outBuffer, ",");
-        writeBuffer(&outBuffer, getApproxRpm());
+        writeBuffer(&outBuffer, String(getApproxRpm()));
         writeBuffer(&outBuffer, "|Id:");
         writeBuffer(&outBuffer, "H" + String(HARDWARE_VERSION) + "V" + String(SOFTWARE_VERSION));
         writeBuffer(&outBuffer, ">"); // no new line to allow client to easily cut out the status response
@@ -2853,6 +2814,17 @@ void numpadPlusMinus(bool plus) {
   // TODO: implement going over 9 and below 1.
 }
 
+unsigned long multistartPressMillis = 0;
+
+void buttonMultistartPress() {
+  if (millis() - multistartPressMillis > 3000 && starts > 1) {
+    setStarts(1);
+  } else {
+    setStarts(starts + 1);
+  }
+  multistartPressMillis = millis();
+}
+
 bool processNumpadResult(int keyCode) {
   long newDu = numpadToDeciMicrons();
   float newConeRatio = numpadToConeRatio();
@@ -2881,9 +2853,9 @@ bool processNumpadResult(int keyCode) {
   // Shared piece for stops and moves.
   Axis* a = (keyCode == B_STOPL || keyCode == B_STOPR || keyCode == B_LEFT || keyCode == B_RIGHT || keyCode == B_Z) ? &z : &x;
   int sign = ((keyCode == B_STOPL || keyCode == B_STOPU || keyCode == B_LEFT || keyCode == B_UP || keyCode == B_Z || keyCode == B_X || keyCode == B_X_ENA) ? 1 : -1);
-  if (mode == MODE_Y && (keyCode == B_MODE_GEARS || keyCode == B_MODE_TURN || keyCode == B_MODE_FACE || keyCode == B_MODE_CONE || keyCode == B_MODE_THREAD)) {
+  if (keyCode == B_STOPF || keyCode == B_STOPB || keyCode == B_FORWARD || keyCode == B_BACK || keyCode == B_Y) {
     a = &y;
-    sign = (keyCode == B_MODE_GEARS || keyCode == B_MODE_FACE) ? -1 : 1;
+    sign = (keyCode == B_BACK || keyCode == B_STOPB) ? -1 : 1;
   }
   long posDiffAbs = (a->rotational ? numpadResult * 10 : newDu) / a->screwPitch * a->motorSteps;
   long pos = a->pos + posDiffAbs * sign;
@@ -2901,19 +2873,17 @@ bool processNumpadResult(int keyCode) {
   } else if (keyCode == B_STOPD) {
     setRightStop(&x, pos);
     return true;
-  } else if (mode == MODE_Y) {
-    if (keyCode == B_MODE_CONE) {
-      setLeftStop(&y, pos);
-      return true;
-    } else if (keyCode == B_MODE_FACE) {
-      setRightStop(&y, pos);
-      return true;
-    }
+  } else if (keyCode == B_STOPF && ACTIVE_Y) {
+    setLeftStop(&y, pos);
+    return true;
+  } else if (keyCode == B_STOPB && ACTIVE_Y) {
+    setRightStop(&y, pos);
+    return true;
   }
 
   // Potentially move by newDu in the given direction.
   // We don't support precision manual moves when ON yet. Can't stay in the thread for most modes.
-  if (!isOn && (keyCode == B_LEFT || keyCode == B_RIGHT || keyCode == B_UP || keyCode == B_DOWN || (mode == MODE_Y && (keyCode == B_MODE_GEARS || keyCode == B_MODE_TURN)))) {
+  if (!isOn && (keyCode == B_LEFT || keyCode == B_RIGHT || keyCode == B_UP || keyCode == B_DOWN || keyCode == B_FORWARD || keyCode == B_BACK)) {
     if (pos < a->rightStop) {
       pos = a->rightStop;
       beep();
@@ -2930,13 +2900,13 @@ bool processNumpadResult(int keyCode) {
   }
 
   // Set axis 0 newDu ahead.
-  if (keyCode == B_Z || keyCode == B_X || (mode == MODE_Y && keyCode == B_MODE_THREAD)) {
+  if (keyCode == B_Z || keyCode == B_X || keyCode == B_Y) {
     a->originPos = -pos;
     return true;
   }
 
   // Set X axis 0 from diameter.
-  if (keyCode == B_DIAMETER) {
+  if (keyCode == B_DIAMETER || keyCode == B_X_ENA) {
     a->originPos = -a->pos - posDiffAbs / 2;
     return true;
   }
@@ -2997,6 +2967,82 @@ bool processNumpad(int keyCode) {
   return inNumpad;
 }
 
+const int NEXTION_BUFFER_LENGTH = 256;
+byte nextionBuffer[NEXTION_BUFFER_LENGTH];
+int nextionBufferIndex = 0;
+
+bool checkForTerminator() {
+  if (nextionBufferIndex < 3) return false;
+  return nextionBuffer[nextionBufferIndex - 3] == 0xFF &&
+      nextionBuffer[nextionBufferIndex - 2] == 0xFF &&
+      nextionBuffer[nextionBufferIndex - 1] == 0xFF;
+}
+
+const byte HEX_TO_KEYCODE[256] = {
+  // Array indexes are "id" attribute values in the Nextion h5.hmi
+  [0] = 0,
+  [1] = 0,
+  [2] = 0,
+  [3] = B_OFF,
+  [4] = B_MODE,
+  [5] = B_REVERSE,
+  [6] = B_MEASURE,
+  [7] = B_STEP,
+  [8] = 0,
+  [9] = B_OFF, // tTurns
+  [10] = B_OFF, // tAngle
+  [11] = B_X_ENA,
+  [12] = B_X,
+  [13] = 0,
+  [14] = 0,
+  [15] = B_Y_ENA,
+  [16] = 0,
+  [17] = B_Y,
+  [18] = 0,
+  [19] = B_Z_ENA,
+  [20] = 0,
+  [21] = B_Z,
+  [22] = 0,
+  [23] = B_OFF,
+  [24] = B_BACKSPACE,
+  [25] = B_ON,
+  [26] = B_0,
+  [27] = B_1,
+  [28] = B_2,
+  [29] = B_3,
+  [30] = B_4,
+  [31] = B_5,
+  [32] = B_6,
+  [33] = B_7,
+  [34] = B_8,
+  [35] = B_9,
+  [36] = B_STOPU,
+  [37] = B_STOPD,
+  [38] = B_STOPF,
+  [39] = B_STOPB,
+  [40] = B_STOPL,
+  [41] = B_STOPR,
+  [42] = B_PLUS,
+  [43] = B_MINUS,
+  [44] = B_UP,
+  [45] = B_DOWN,
+  [46] = B_FORWARD,
+  [47] = B_BACK,
+  [48] = B_LEFT,
+  [49] = B_RIGHT,
+  [50] = B_MULTISTART,
+};
+
+int processNextionMessage() {
+  if (nextionBufferIndex < 6) return 0;
+  if (nextionBuffer[0] == 0x65 && nextionBuffer[1] == 0x00) {
+    int code = HEX_TO_KEYCODE[nextionBuffer[2]];
+    if (nextionBuffer[3] == 0) code |= PS2_BREAK;
+    return code;
+  }
+  return 0;
+}
+
 void processKeypadEvent() {
   int event = 0;
   if (wsKeycode != 0) {
@@ -3004,6 +3050,18 @@ void processKeypadEvent() {
     wsKeycode = 0;
   } else if (keyboard.available()) {
     event = keyboard.read();
+  } else if (Serial1.available() > 0) {
+    byte incomingByte = Serial1.read();
+    if (nextionBufferIndex < NEXTION_BUFFER_LENGTH) {
+      nextionBuffer[nextionBufferIndex] = incomingByte;
+      nextionBufferIndex++;
+    } else {
+      nextionBufferIndex = 0;
+    }
+    if (checkForTerminator()) {
+      event = processNextionMessage();
+      nextionBufferIndex = 0;
+    }
   }
   if (event == 0) return;
   int keyCode = event & 0xFF;
@@ -3011,7 +3069,7 @@ void processKeypadEvent() {
   keypadTimeUs = micros();
 
   // Uncomment the line below to see the key codes on screen.
-  // setText("t0", (isPress ? "Press " : "Release ") + String(keyCode));
+  // setText("t3", (isPress ? "Press " : "Release ") + String(keyCode));
 
   // Some keyboards send this code and expect an answer to initialize.
   if (keyCode == 170) {
@@ -3041,8 +3099,8 @@ void processKeypadEvent() {
   buttonRightPressed = false;
   buttonUpPressed = false;
   buttonDownPressed = false;
-  buttonGearsPressed = false;
-  buttonTurnPressed = false;
+  buttonBackPressed = false;
+  buttonForwardPressed = false;
 
   // Setup wizard navigation.
   if (isPress && setupIndex == 2 && (keyCode == B_LEFT || keyCode == B_RIGHT)) {
@@ -3063,10 +3121,10 @@ void processKeypadEvent() {
     buttonUpPressed = isPress;
   } else if (keyCode == B_DOWN) {
     buttonDownPressed = isPress;
-  } else if (keyCode == B_MODE_GEARS) {
-    buttonGearsPressed = isPress;
-  } else if (keyCode == B_MODE_TURN) {
-    buttonTurnPressed = isPress;
+  } else if (keyCode == B_FORWARD) {
+    buttonForwardPressed = isPress;
+  } else if (keyCode == B_BACK) {
+    buttonBackPressed = isPress;
   }
 
   // For all other keys we have no "release" logic.
@@ -3089,51 +3147,66 @@ void processKeypadEvent() {
     buttonLeftStopPress(&x);
   } else if (keyCode == B_STOPD) {
     buttonRightStopPress(&x);
-  } else if (keyCode == B_MODE_Y) {
-    if (ACTIVE_Y) setModeFromTask(MODE_Y);
+  } else if (keyCode == B_STOPF && ACTIVE_Y) {
+    buttonLeftStopPress(&y);
+  } else if (keyCode == B_STOPB && ACTIVE_Y) {
+    buttonRightStopPress(&y);
+  } else if (keyCode == B_MODE_Y && ACTIVE_Y) {
+    setModeFromTask(MODE_Y);
   } else if (keyCode == B_MODE_ELLIPSE) {
     setModeFromTask(MODE_ELLIPSE);
   } else if (keyCode == B_MODE_GCODE) {
     setModeFromTask(MODE_GCODE);
   } else if (keyCode == B_MODE_ASYNC) {
     setModeFromTask(MODE_ASYNC);
+  } else if (keyCode == B_MULTISTART) {
+    buttonMultistartPress();
   } else if (keyCode == B_DISPL) {
     buttonDisplayPress();
   } else if (keyCode == B_X) {
     markAxis0(&x);
   } else if (keyCode == B_Z) {
     markAxis0(&z);
+  } else if (keyCode == B_Y && ACTIVE_Y) {
+    markAxis0(&y);
   } else if (keyCode == B_X_ENA) {
     x.disabled = !x.disabled;
     updateEnable(&x);
   } else if (keyCode == B_Z_ENA) {
     z.disabled = !z.disabled;
     updateEnable(&z);
+  } else if (keyCode == B_Y_ENA && ACTIVE_Y) {
+    y.disabled = !y.disabled;
+    updateEnable(&y);
   } else if (keyCode == B_STEP) {
     buttonMoveStepPress();
-  } else if (keyCode == B_SETTINGS) {
-    // TODO.
   } else if (keyCode == B_REVERSE) {
     buttonReversePress();
   } else if (keyCode == B_MEASURE) {
     buttonMeasurePress();
-  } else if (keyCode == B_MODE_GEARS && mode != MODE_Y) {
+  } else if (keyCode == B_MODE_GEARS) {
     setModeFromTask(MODE_NORMAL);
-  } else if (keyCode == B_MODE_TURN && mode != MODE_Y) {
+  } else if (keyCode == B_MODE_TURN) {
     setModeFromTask(MODE_TURN);
+  } else if (keyCode == B_MODE) {
+    if (mode == MODE_NORMAL) setModeFromTask(MODE_TURN);
+    else if (mode == MODE_TURN) setModeFromTask(MODE_FACE);
+    else if (mode == MODE_FACE) setModeFromTask(MODE_CONE);
+    else if (mode == MODE_CONE) setModeFromTask(MODE_CUT);
+    else if (mode == MODE_CUT) setModeFromTask(MODE_THREAD);
+    else if (mode == MODE_THREAD) setModeFromTask(MODE_ELLIPSE);
+    else if (mode == MODE_ELLIPSE) setModeFromTask(MODE_GCODE);
+    else if (mode == MODE_GCODE) setModeFromTask(MODE_ASYNC);
+    else if (mode == MODE_ASYNC) setModeFromTask(y.active ? MODE_Y : MODE_NORMAL);
+    else if (mode == MODE_Y) setModeFromTask(MODE_NORMAL);
   } else if (keyCode == B_MODE_FACE) {
-    mode == MODE_Y ? buttonRightStopPress(&y) : setModeFromTask(MODE_FACE);
+    setModeFromTask(MODE_FACE);
   } else if (keyCode == B_MODE_CONE) {
-    mode == MODE_Y ? buttonLeftStopPress(&y) : setModeFromTask(MODE_CONE);
+    setModeFromTask(MODE_CONE);
   } else if (keyCode == B_MODE_CUT) {
-    if (mode == MODE_Y) {
-      y.disabled = !y.disabled;
-      updateEnable(&y);
-    } else {
-      setModeFromTask(MODE_CUT);
-    }
+    setModeFromTask(MODE_CUT);
   } else if (keyCode == B_MODE_THREAD) {
-    mode == MODE_Y || (mode == MODE_GCODE && ACTIVE_Y) ? markAxis0(&y) : setModeFromTask(MODE_THREAD);
+    setModeFromTask(MODE_THREAD);
   }
 }
 
@@ -3538,16 +3611,12 @@ void processSpindleCounter() {
   }
 
   unsigned long microsNow = micros();
-  if (showTacho || mode == MODE_GCODE) {
-    if (spindleEncTimeIndex >= RPM_BULK) {
-      spindleEncTimeDiffBulk = microsNow - spindleEncTimeAtIndex0;
-      spindleEncTimeAtIndex0 = microsNow;
-      spindleEncTimeIndex = 0;
-    }
-    spindleEncTimeIndex += abs(delta);
-  } else {
-    spindleEncTimeDiffBulk = 0;
+  if (spindleEncTimeIndex >= RPM_BULK) {
+    spindleEncTimeDiffBulk = microsNow - spindleEncTimeAtIndex0;
+    spindleEncTimeAtIndex0 = microsNow;
+    spindleEncTimeIndex = 0;
   }
+  spindleEncTimeIndex += abs(delta);
 
   spindlePos += delta;
   spindlePosGlobal += delta;
@@ -3716,7 +3785,7 @@ void setup() {
   xTaskCreatePinnedToCore(taskDisplay, "taskDisplay", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   xTaskCreatePinnedToCore(taskMoveZ, "taskMoveZ", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   xTaskCreatePinnedToCore(taskMoveX, "taskMoveX", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
-  if (y.active) xTaskCreatePinnedToCore(taskMoveY, "taskMoveY", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
+  if (ACTIVE_Y) xTaskCreatePinnedToCore(taskMoveY, "taskMoveY", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   xTaskCreatePinnedToCore(taskGcode, "taskGcode", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   if (WIFI_ENABLED) xTaskCreatePinnedToCore(taskWiFi, "taskWiFI", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
 }
