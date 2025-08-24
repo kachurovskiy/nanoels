@@ -24,7 +24,7 @@ const long BACKLASH_DU_Z = 0; // 0mm backlash in deci-microns (10^-7 of a meter)
 const char NAME_Z = 'Z'; // Text shown on screen before axis position value, GCode axis name
 
 // Cross-slide lead screw (X) parameters.
-const long SCREW_X_DU = 40000; // 4mm SFU1204 ball screw in deci-microns (10^-7 of a meter)
+const long SCREW_X_DU = 40000; // 4mm lead screw pitch in deci-microns (10^-7 of a meter)
 const long MOTOR_STEPS_X = 800;
 const long SPEED_START_X = MOTOR_STEPS_X; // Initial speed of a motor, steps / second.
 const long ACCELERATION_X = 25 * MOTOR_STEPS_X; // Acceleration of a motor, steps / second ^ 2.
@@ -33,7 +33,7 @@ const bool INVERT_X = true; // change (true/false) if the carriage moves e.g. "l
 const bool INVERT_X_ENABLE = false; // change (true/false) if the X axis enable pin is inverted
 const bool NEEDS_REST_X = false; // Set to false for all kinds of drivers or X will be unlocked when not moving.
 const long MAX_TRAVEL_MM_X = 100; // Cross slide doesn't allow to travel more than this in one go, 10cm
-const long BACKLASH_DU_X = 0; // 0.15mm backlash in deci-microns (10^-7 of a meter)
+const long BACKLASH_DU_X = 0; // 0mm backlash in deci-microns (10^-7 of a meter)
 const char NAME_X = 'X'; // Text shown on screen before axis position value, GCode axis name
 
 // Manual stepping with left/right/up/down buttons. Only used when step isn't default continuous (1mm or 0.1").
@@ -67,9 +67,13 @@ const char NAME_Y = 'Y'; // Text shown on screen before axis position value, GCo
 
 // Manual handwheels. Ignore if you don't have them installed.
 const float PULSE_PER_REVOLUTION = 600; // PPR of handwheels.
+const bool INVERT_MPG_Z = false; // Invert MPG direction for Z axis
+const bool INVERT_MPG_X = false; // Invert MPG direction for X axis
+const float MPG_SCALE_DIVISOR = 16.0; // Sensitivity: lower = more movement per click
 
 const int ENCODER_STEPS_INT = ENCODER_PPR * 2; // Number of encoder impulses PCNT counts per revolution of the spindle
 const int ENCODER_FILTER = 1; // Encoder pulses shorter than this will be ignored. Clock cycles, 1 - 1023.
+const int MPG_PCNT_FILTER = 10; // Dedicated filter for MPG (handwheel) PCNT units
 const int PCNT_LIM = 31000; // Limit used in hardware pulse counter logic.
 const int PCNT_CLEAR = 30000; // Limit where we reset hardware pulse counter value to avoid overflow. Less than PCNT_LIM.
 const long DUPR_MAX = 254000; // No more than 1 inch pitch
@@ -121,6 +125,7 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 #define KEY_DATA 37
 #define KEY_CLOCK 36
 
+/* Removed duplicate keycode block to avoid redefinitions; keeping upstream mappings below */
 #define B_LEFT 21 // Left arrow - controls Z axis movement to the left
 #define B_RIGHT 22 // Right arrow - controls Z axis movement to the right
 #define B_UP 23 // Up arrow - controls X axis movement forwards
@@ -1100,8 +1105,8 @@ void taskWiFi(void *param) {
   }
   wifiStatus = "See " + WiFi.localIP().toString();
 
-  initBuffer(&inBuffer, 1024);
-  initBuffer(&outBuffer, 1024);
+  initBuffer(&inBuffer, INCOMING_BUFFER_SIZE);
+  initBuffer(&outBuffer, OUTGOING_BUFFER_SIZE);
 
   server.on("/", handleClientRequests);
   server.on("/gcode/add", HTTP_POST, handleGcodeAdd);
@@ -1959,7 +1964,13 @@ void taskMoveZ(void *param) {
       z.speedMax = getStepMaxSpeed(&z);
       int delta = 0;
       do {
-        float fractionalDelta = (pulseDelta == 0 ? moveStep * sign / z.screwPitch : pulseDelta / PULSE_PER_REVOLUTION) * z.motorSteps + z.fractionalPos;
+        int mpgDelta = pulseDelta;
+        if (mpgDelta != 0 && INVERT_MPG_Z) {
+          mpgDelta = -mpgDelta;
+        }
+        float fractionalDelta = (pulseDelta == 0
+            ? moveStep * sign / z.screwPitch
+            : (float)mpgDelta * moveStep / z.screwPitch / MPG_SCALE_DIVISOR) * z.motorSteps + z.fractionalPos;
         delta = round(fractionalDelta);
         // Don't lose fractional steps when moving by 0.01" or 0.001".
         z.fractionalPos = fractionalDelta - delta;
@@ -2024,7 +2035,13 @@ void taskMoveX(void *param) {
     int delta = 0;
     int sign = up ? 1 : -1;
     do {
-      float fractionalDelta = (pulseDelta == 0 ? moveStep * sign / x.screwPitch : pulseDelta / PULSE_PER_REVOLUTION) * x.motorSteps + x.fractionalPos;
+      int mpgDelta = pulseDelta;
+      if (mpgDelta != 0 && INVERT_MPG_X) {
+        mpgDelta = -mpgDelta;
+      }
+      float fractionalDelta = (pulseDelta == 0
+          ? moveStep * sign / x.screwPitch
+          : (float)mpgDelta * moveStep / x.screwPitch / MPG_SCALE_DIVISOR) * x.motorSteps + x.fractionalPos;
       delta = round(fractionalDelta);
       // Don't lose fractional steps when moving by 0.01" or 0.001".
       x.fractionalPos = fractionalDelta - delta;
@@ -2412,6 +2429,7 @@ void taskGcode(void *param) {
   vTaskDelete(NULL);
 }
 
+/* AI_DO_NOT_MODIFY: PCNT setup */
 void startPulseCounter(pcnt_unit_t unit, int gpioA, int gpioB) {
   pcnt_config_t pcntConfig;
   pcntConfig.pulse_gpio_num = gpioA;
@@ -2425,7 +2443,8 @@ void startPulseCounter(pcnt_unit_t unit, int gpioA, int gpioB) {
   pcntConfig.counter_h_lim = PCNT_LIM;
   pcntConfig.counter_l_lim = -PCNT_LIM;
   pcnt_unit_config(&pcntConfig);
-  pcnt_set_filter_value(unit, ENCODER_FILTER);
+  int filterValue = (unit == PCNT_UNIT_1 || unit == PCNT_UNIT_2) ? MPG_PCNT_FILTER : ENCODER_FILTER;
+  pcnt_set_filter_value(unit, filterValue);
 	pcnt_filter_enable(unit);
   pcnt_counter_pause(unit);
   pcnt_counter_clear(unit);
@@ -2433,6 +2452,7 @@ void startPulseCounter(pcnt_unit_t unit, int gpioA, int gpioB) {
 }
 
 // Attaching interrupt on core 0 to have more time on core 1 where axes are moved.
+/* AI_DO_NOT_MODIFY: attach PCNT/tasks */
 void taskAttachInterrupts(void *param) {
   startPulseCounter(PCNT_UNIT_0, ENC_A, ENC_B);
   startPulseCounter(PCNT_UNIT_1, Z_PULSE_A, Z_PULSE_B);
@@ -2476,6 +2496,7 @@ void applyStarts() {
 
 // Only used for async movement in ASYNC and Y modes.
 // Keep code in this method to absolute minimum to achieve high stepper speeds.
+/* AI_DO_NOT_MODIFY: PCNT + timer ISR */
 void IRAM_ATTR onAsyncTimer() {
   Axis* a = getAsyncAxis();
   if (!isOn || a->movingManually || (mode != MODE_ASYNC && mode != MODE_Y)) {
@@ -3218,6 +3239,7 @@ void taskKeypad(void *param) {
   vTaskDelete(NULL);
 }
 
+/* AI_DO_NOT_MODIFY: step timing loop */
 void moveAxis(Axis* a) {
   // Most of the time a step isn't needed.
   if (a->pendingPos == 0) {
@@ -3596,6 +3618,7 @@ void discountFullSpindleTurns() {
   }
 }
 
+/* AI_DO_NOT_MODIFY: spindle encoder handling */
 void processSpindleCounter() {
   int16_t count;
   pcnt_get_counter_value(PCNT_UNIT_0, &count);
@@ -3790,6 +3813,7 @@ void setup() {
   if (WIFI_ENABLED) xTaskCreatePinnedToCore(taskWiFi, "taskWiFI", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
 }
 
+/* AI_DO_NOT_MODIFY: main timing loop */
 void loop() {
   if (emergencyStop != ESTOP_NONE) {
     return;
