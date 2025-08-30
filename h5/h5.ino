@@ -73,6 +73,7 @@ const bool INVERT_MPG_Z = false; // Invert MPG direction for Z axis
 const bool INVERT_MPG_X = false; // Invert MPG direction for X axis
 const float MPG_SCALE_DIVISOR = 16.0; // Sensitivity: lower = more movement per click
 const int MPG_PCNT_FILTER = 10; // Dedicated filter for MPG (handwheel) PCNT units
+const int MPG_WAIT_DIVISOR = 10; // MPG responsiveness: 1=instant (no wait), 3=original, 10=more responsive, 100=smoother
 
 const int ENCODER_STEPS_INT = ENCODER_PPR * 2; // Number of encoder impulses PCNT counts per revolution of the spindle
 const int ENCODER_FILTER = 1; // Encoder pulses shorter than this will be ignored. Clock cycles, 1 - 1023.
@@ -1796,15 +1797,26 @@ long getStepMaxSpeed(Axis* a) {
   return isContinuousStep() ? a->speedManualMove : min(long(a->speedManualMove), abs(getMoveStepForAxis(a)) * 1000 / STEP_TIME_MS);
 }
 
-void waitForStep(Axis* a) {
+void waitForStep(Axis* a, bool isMPG = false) {
   if (isContinuousStep()) {
-    // Move continuously for default step.
-    waitForPendingPosNear0(a);
+    if (isMPG) {
+      // MPG FIX: Adjustable wait for MPG responsiveness - tune with MPG_WAIT_DIVISOR
+      // Lower MPG_WAIT_DIVISOR = more responsive, Higher = smoother
+      while (abs(a->pendingPos) > a->motorSteps / MPG_WAIT_DIVISOR && a->pendingPos != 0) {
+        taskYIELD();
+      }
+    } else {
+      // Move continuously for default step (keyboard input).
+      waitForPendingPosNear0(a);
+    }
   } else {
     // Move with tiny pauses allowing to stop precisely.
     a->continuous = false;
     waitForPendingPos0(a);
-    DELAY(DELAY_BETWEEN_STEPS_MS);
+    if (!isMPG) {
+      // MPG FIX: Skip 80ms delay for handwheel input to improve responsiveness
+      DELAY(DELAY_BETWEEN_STEPS_MS);
+    }
   }
 }
 
@@ -1994,7 +2006,7 @@ void taskMoveZ(void *param) {
         }
         z.speedMax = getStepMaxSpeed(&z);
         stepToContinuous(&z, posCopy + delta);
-        waitForStep(&z);
+        waitForStep(&z, pulseDelta != 0); // MPG FIX: Pass MPG flag to reduce handwheel lag
       } while (delta != 0 && (left ? buttonLeftPressed : buttonRightPressed));
       z.continuous = false;
       waitForPendingPos0(&z);
@@ -2068,7 +2080,7 @@ void taskMoveX(void *param) {
         delta = x.rightStop - posCopy;
       }
       stepToContinuous(&x, posCopy + delta);
-      waitForStep(&x);
+      waitForStep(&x, pulseDelta != 0); // MPG FIX: Pass MPG flag to reduce handwheel lag
       pulseDelta = getAndResetPulses(&x);
     } while (delta != 0 && (pulseDelta != 0 || (up ? buttonUpPressed : buttonDownPressed)));
     x.continuous = false;
