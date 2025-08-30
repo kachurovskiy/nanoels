@@ -1,0 +1,9 @@
+{
+  "name": "embedded-flash",
+  "description": "Compile, upload, and monitor serial for ESP32",
+  "shell": [
+    "arduino-cli compile -b esp32:esp32:esp32s3 h5",
+    "arduino-cli upload -b esp32:esp32:esp32s3 -p /dev/ttyUSB0 h5",
+    "arduino-cli monitor -p /dev/ttyUSB0 -c baudrate=115200 --timeout 30s"
+  ]
+}

@@ -1,0 +1,2 @@
+usage: arduino-cli-mcp [-h] [--workdir WORKDIR]
+arduino-cli-mcp: error: unrecognized arguments: --stdio

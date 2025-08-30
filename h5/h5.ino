@@ -1101,16 +1101,13 @@ void taskWiFi(void *param) {
     } else {
       wifiStatus = "WiFi unknown error";
     }
-    // Create hotspot instead of deleting task
-    WiFi.softAP("NanoEls-H5");
-    IPAddress IP = WiFi.softAPIP();
-    wifiStatus = "Hotspot " + IP.toString();
-  } else {
-    wifiStatus = "See " + WiFi.localIP().toString();
+    vTaskDelete(NULL);
+    return;
   }
+  wifiStatus = "See " + WiFi.localIP().toString();
 
-  initBuffer(&inBuffer, INCOMING_BUFFER_SIZE);
-  initBuffer(&outBuffer, OUTGOING_BUFFER_SIZE);
+  initBuffer(&inBuffer, 1024);
+  initBuffer(&outBuffer, 1024);
 
   server.on("/", handleClientRequests);
   server.on("/gcode/add", HTTP_POST, handleGcodeAdd);

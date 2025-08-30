@@ -1,0 +1,17 @@
+**/.pio/**
+**/.arduino-build/**
+**/build/**
+**/*.bin
+**/*.hex
+**/*.elf
+**/*.zip
+**/*.stl
+**/*.step
+**/*.FCStd
+**/*.png
+**/*.jpg
+**/*.pdf
+**/*.obj
+**/*.HMI
+**/*.tft
+**/*.zi

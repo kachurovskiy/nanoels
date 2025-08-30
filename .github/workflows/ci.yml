@@ -1,0 +1,10 @@
+name: build
+on: [push, pull_request]
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v1
+      - run: arduino-cli core update-index && arduino-cli core install esp32:esp32
+      - run: arduino-cli compile -b esp32:esp32:esp32s3 h5

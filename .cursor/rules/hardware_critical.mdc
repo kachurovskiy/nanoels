@@ -1,0 +1,11 @@
+alwaysApply: true
+description: Protect timing-critical/interrupt code from AI edits
+globs:
+  - "h5/h5.ino"
+rules:
+  - match: "/* AI_DO_NOT_MODIFY:"
+    action: blockEdits
+  - match: "TIMING_CRITICAL"
+    action: blockEdits
+notes: |
+  Only allow edits outside marked blocks. Functions that touch timers, PCNT, ISR, and step pulses must be gated.

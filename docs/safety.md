@@ -1,0 +1,3 @@
+- E-stop handling: hardware latch + software ESTOP paths
+- Soft limits: enforce before any automated motion
+- On errors: disable steppers, stop async timer, show error on LCD

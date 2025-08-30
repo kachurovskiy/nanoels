@@ -1,0 +1,67 @@
+# Comprehensive workflow setup for Cursor IDE embedded development
+
+This research provides a complete implementation guide for establishing a robust embedded development workflow using Cursor IDE with Claude Code subscription, optimized for Arduino, ESP32, and Teensy platforms in CNC-like hardware control applications.
+
+## Project architecture for maximum AI assistance with hardware protection
+
+The foundation of a reliable AI-assisted embedded workflow starts with strategic project organization. Create a hierarchical structure that clearly separates hardware-critical code from AI-modifiable sections. Place timing-critical interrupt handlers, DMA controllers, and register manipulations in a protected `src/hardware/` directory, while keeping application logic and middleware in AI-friendly zones. This separation enables Claude to assist with high-level functionality while preserving the integrity of real-time control systems.
+
+Configure Cursor's context awareness through `.cursor/rules/` markdown files that explicitly define modification policies. Create `hardware_critical.mdc` with glob patterns targeting ISR files and timer configurations, marking them with `alwaysApply: true` to prevent unintended modifications. These rules should specify that sections marked with `// CRITICAL: Timer configuration - DO NOT CHANGE` must remain untouched, while functions tagged `// CURSOR: SAFE TO MODIFY` can receive AI assistance.
+
+The `.cursorignore` file serves as your primary defense against context pollution. Beyond standard build artifacts like `.pio/` and `*.hex` files, exclude large data files, proprietary schematics, and sensitive credentials. This focused context ensures Claude's suggestions remain relevant and prevents exposure of confidential hardware designs. For a typical embedded project, maintaining context below 50KB of relevant source files maximizes AI effectiveness.
+
+## Claude Code integration strategies for embedded systems
+
+The $100/month Claude Code subscription becomes invaluable when properly configured for embedded development. Create a comprehensive `CLAUDE.md` file at your project root documenting hardware constraints, timing requirements, and platform-specific quirks. This file should explicitly state that ISR functions require manual approval before modification and that timing-critical sections marked with `TIMING_CRITICAL` comments must preserve microsecond precision.
+
+Implement a three-tier context management strategy to work within Claude's 200K token limit. Keep core hardware guidelines and current task files always loaded (Tier 1), load complete driver implementations on-demand (Tier 2), and reference full application code only during system-wide analysis (Tier 3). This hierarchical approach prevents context exhaustion while maintaining comprehensive coverage.
+
+For hardware-critical sections, use explicit annotation patterns that Claude recognizes. Functions handling real-time motor control should include headers like `/* AI_DO_NOT_MODIFY: Critical timing interrupt handler */`, while HAL implementations can use `/* AI_ASSISTED: GPIO HAL implementation */` to indicate safe modification zones. These patterns create a contract between developer and AI assistant, enabling productive collaboration without compromising system reliability.
+
+Create custom slash commands in `.claude/commands/` for common embedded workflows. An `/embedded-flash` command can compile code, verify timing constraints, flash to hardware, monitor serial output for 30 seconds, and commit changes if successful. This automation reduces manual overhead while maintaining safety checkpoints.
+
+## MCP integration for automated development workflows
+
+Model Context Protocol integration revolutionizes embedded development automation. The Arduino CLI MCP server provides immediate value with natural language control over compilation and upload processes. Install it via `pip install arduino-cli-mcp` and configure in Claude Desktop's settings to enable commands like "compile and upload the sketch to ESP32 on port COM3."
+
+While no official PlatformIO MCP server exists yet, the protocol's extensibility allows custom server development. Using the Python SDK, create servers that wrap PlatformIO CLI commands, automate hardware-in-the-loop testing, or manage J-Link debugging sessions. A basic server implementing `flash_firmware`, `read_serial`, and `compile_project` tools can eliminate repetitive command-line operations.
+
+Playwright MCP integration, though designed for web automation, proves surprisingly useful for testing embedded web interfaces common in IoT devices. Automate configuration changes, capture status screenshots, and verify WebSocket communications with connected devices. This creates a complete testing pipeline from firmware to user interface.
+
+For production environments, implement MCP servers with appropriate security controls. Tools that flash production firmware should require manual approval, while development operations can run automatically. Container-based execution with limited filesystem access prevents accidental system modifications while maintaining development velocity.
+
+## Workflow optimization and code protection mechanisms
+
+Protecting hardware-critical code requires multiple defensive layers. Beyond file-level protection through `.cursorignore`, implement function-level policies using standardized comment headers. Each function should declare its `@ai_policy` as either ASSISTED, PROTECTED, or REVIEW_REQUIRED, with additional metadata about timing constraints and hardware dependencies.
+
+Version control strategies must account for AI-assisted development patterns. Create protected branches for hardware-critical code with merge requirements that include timing analysis and hardware validation. Use git hooks to verify that protected files haven't been modified and that timing-critical sections maintain their performance characteristics.
+
+Establish a validation pipeline that runs static analysis, AI safety checks, and hardware-in-the-loop tests. The AI safety check phase should verify that protected files remain unmodified, timing constraints are preserved, and interrupt handlers maintain their optimized structure. Only after passing these gates should code proceed to hardware testing.
+
+For incremental AI adoption, start with application-layer code where mistakes have minimal hardware impact. Gradually expand to middleware and HAL interfaces as confidence grows, always keeping low-level hardware implementations protected. This measured approach builds team experience while maintaining system reliability.
+
+## Gemini Pro as a complementary tool
+
+Gemini Pro's 1M token context window and superior cost efficiency ($1.25/M tokens versus Claude's $3-15/M) make it an attractive complement to Claude Code. Its mathematical prowess excels at generating trajectory planning algorithms and kinematic calculations essential for CNC control. The massive context allows analysis of entire codebases including datasheets and hardware documentation simultaneously.
+
+However, Claude maintains advantages in safety-critical code generation and embedded-specific patterns. Claude better understands fail-safe programming requirements and generates more reliable interrupt handlers. The optimal approach leverages Gemini for mathematical algorithms and large-scale analysis while using Claude for safety-critical implementations and hardware-specific code.
+
+Configure both tools with clear boundaries: use Gemini for trajectory optimization, G-code parsing algorithms, and system-wide refactoring suggestions. Reserve Claude for interrupt handler implementation, real-time control loops, and safety interlock systems. This dual-tool approach maximizes strengths while mitigating individual weaknesses.
+
+## CNC controller development specifics
+
+CNC applications demand microsecond timing precision that standard AI workflows don't accommodate. Implement a dual-validation approach where AI-generated motion control algorithms undergo both simulation testing and oscilloscope verification. Real-time constraints must be documented in code comments specifying maximum execution times and deadline requirements.
+
+G-code parsing benefits from AI assistance for command interpretation and error handling, but execution paths must maintain deterministic timing. Structure the parser with a clear separation between interpretation (AI-assisted) and execution (protected). This allows AI to improve parsing logic while preserving real-time execution guarantees.
+
+Motion control algorithms require special consideration. While AI excels at generating spline interpolation and acceleration profiles, the implementation must guarantee bounded execution time. Use fixed-point arithmetic where possible, pre-calculate trajectory segments, and implement watchdog timers to detect timing violations.
+
+Hardware abstraction layers should expose consistent interfaces that AI can work with while hiding platform-specific implementations. Define a standard HAL structure with function pointers for GPIO, PWM, and encoder operations. This allows AI to generate platform-independent application code while maintaining hardware-specific optimizations in protected implementations.
+
+Safety interlocks represent non-negotiable requirements that must survive any AI modification. Implement emergency stops in hardware with software monitoring, validate motion limits before execution, and maintain fail-safe states for all error conditions. Document these safety requirements prominently in CLAUDE.md to ensure AI assistance doesn't compromise system safety.
+
+## Conclusion
+
+Successful AI-assisted embedded development requires careful balance between automation benefits and hardware reliability requirements. The combination of Cursor IDE's context awareness, Claude Code's embedded understanding, MCP protocol automation, and strategic Gemini Pro integration creates a powerful development environment that accelerates development while maintaining system integrity.
+
+Start implementation by establishing protected code zones and comprehensive documentation. Deploy Arduino CLI MCP for immediate automation benefits, then gradually expand AI assistance into appropriate code areas. Maintain rigorous validation procedures and never compromise on timing-critical or safety-related code integrity. With these foundations, teams can achieve significant productivity gains while building reliable embedded systems for CNC and similar hardware control applications.
