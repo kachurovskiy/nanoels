@@ -1902,7 +1902,12 @@ void updateAsyncTimerSettings() {
 }
 
 void taskMoveZ(void *param) {
+  static bool mpgFilterConfiguredZ = false;
   while (emergencyStop == ESTOP_NONE) {
+    if (!mpgFilterConfiguredZ) {
+      pcnt_set_filter_value(PCNT_UNIT_1, MPG_PCNT_FILTER);
+      mpgFilterConfiguredZ = true;
+    }
     int pulseDelta = getAndResetPulses(&z);
     bool left = buttonLeftPressed;
     bool right = buttonRightPressed;
@@ -2014,7 +2019,12 @@ void taskMoveZ(void *param) {
 }
 
 void taskMoveX(void *param) {
+  static bool mpgFilterConfiguredX = false;
   while (emergencyStop == ESTOP_NONE) {
+    if (!mpgFilterConfiguredX) {
+      pcnt_set_filter_value(PCNT_UNIT_2, MPG_PCNT_FILTER);
+      mpgFilterConfiguredX = true;
+    }
     int pulseDelta = getAndResetPulses(&x);
     bool up = buttonUpPressed || pulseDelta > 0;
     bool down = buttonDownPressed || pulseDelta < 0;
@@ -2441,7 +2451,8 @@ void startPulseCounter(pcnt_unit_t unit, int gpioA, int gpioB) {
   pcntConfig.counter_h_lim = PCNT_LIM;
   pcntConfig.counter_l_lim = -PCNT_LIM;
   pcnt_unit_config(&pcntConfig);
-  pcnt_set_filter_value(unit, ENCODER_FILTER);
+  int filterValue = (unit == PCNT_UNIT_1 || unit == PCNT_UNIT_2 || unit == PCNT_UNIT_3) ? MPG_PCNT_FILTER : ENCODER_FILTER;
+  pcnt_set_filter_value(unit, filterValue);
 	pcnt_filter_enable(unit);
   pcnt_counter_pause(unit);
   pcnt_counter_clear(unit);
