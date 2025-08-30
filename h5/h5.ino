@@ -18,6 +18,7 @@ const long ACCELERATION_Z = 25 * MOTOR_STEPS_Z; // Acceleration of a motor, step
 const long SPEED_MANUAL_MOVE_Z = 8 * MOTOR_STEPS_Z; // Maximum speed of a motor during manual move, steps / second.
 const bool INVERT_Z = false; // change (true/false) if the carriage moves e.g. "left" when you press "right".
 const bool INVERT_Z_ENABLE = false; // change (true/false) if the Z axis enable pin is inverted
+const bool INVERT_Z_STEP = false; // Step pin inversion for level shifting
 const bool NEEDS_REST_Z = false; // Set to false for closed-loop drivers, true for open-loop.
 const long MAX_TRAVEL_MM_Z = 300; // Lathe bed doesn't allow to travel more than this in one go, 30cm / ~1 foot
 const long BACKLASH_DU_Z = 0; // 0mm backlash in deci-microns (10^-7 of a meter)
@@ -31,6 +32,7 @@ const long ACCELERATION_X = 25 * MOTOR_STEPS_X; // Acceleration of a motor, step
 const long SPEED_MANUAL_MOVE_X = 8 * MOTOR_STEPS_X; // Maximum speed of a motor during manual move, steps / second.
 const bool INVERT_X = true; // change (true/false) if the carriage moves e.g. "left" when you press "right".
 const bool INVERT_X_ENABLE = false; // change (true/false) if the X axis enable pin is inverted
+const bool INVERT_X_STEP = false; // Step pin inversion for level shifting
 const bool NEEDS_REST_X = false; // Set to false for all kinds of drivers or X will be unlocked when not moving.
 const long MAX_TRAVEL_MM_X = 100; // Cross slide doesn't allow to travel more than this in one go, 10cm
 const long BACKLASH_DU_X = 0; // 0.15mm backlash in deci-microns (10^-7 of a meter)
@@ -2523,10 +2525,10 @@ void IRAM_ATTR onAsyncTimer() {
     return;
   }
 
-  DLOW(a->step);
+  if ((a == &z && INVERT_Z_STEP) || (a == &x && INVERT_X_STEP)) DHIGH(a->step); else DLOW(a->step);
   a->stepStartUs = micros();
   delayMicroseconds(10);
-  DHIGH(a->step);
+  if ((a == &z && INVERT_Z_STEP) || (a == &x && INVERT_X_STEP)) DLOW(a->step); else DHIGH(a->step);
 }
 
 void setModeFromTask(int value) {
@@ -3267,7 +3269,7 @@ void moveAxis(Axis* a) {
       bool dir = a->pendingPos > 0;
       setDir(a, dir);
 
-      DLOW(a->step);
+      if ((a == &z && INVERT_Z_STEP) || (a == &x && INVERT_X_STEP)) DHIGH(a->step); else DLOW(a->step);
       int delta = dir ? 1 : -1;
       a->pendingPos -= delta;
       if (dir && a->motorPos >= a->pos) {
@@ -3287,7 +3289,7 @@ void moveAxis(Axis* a) {
       }
       a->stepStartUs = nowUs;
 
-      DHIGH(a->step);
+      if ((a == &z && INVERT_Z_STEP) || (a == &x && INVERT_X_STEP)) DLOW(a->step); else DHIGH(a->step);
     }
     xSemaphoreGive(a->mutex);
   }
