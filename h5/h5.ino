@@ -18,6 +18,7 @@ const long ACCELERATION_Z = 25 * MOTOR_STEPS_Z; // Acceleration of a motor, step
 const long SPEED_MANUAL_MOVE_Z = 8 * MOTOR_STEPS_Z; // Maximum speed of a motor during manual move, steps / second.
 const bool INVERT_Z = false; // change (true/false) if the carriage moves e.g. "left" when you press "right".
 const bool INVERT_Z_ENABLE = false; // change (true/false) if the Z axis enable pin is inverted
+const bool INVERT_Z_STEP = false; // Step pin inversion for level shifting
 const bool NEEDS_REST_Z = false; // Set to false for closed-loop drivers, true for open-loop.
 const long MAX_TRAVEL_MM_Z = 300; // Lathe bed doesn't allow to travel more than this in one go, 30cm / ~1 foot
 const long BACKLASH_DU_Z = 0; // 0mm backlash in deci-microns (10^-7 of a meter)
@@ -31,6 +32,7 @@ const long ACCELERATION_X = 25 * MOTOR_STEPS_X; // Acceleration of a motor, step
 const long SPEED_MANUAL_MOVE_X = 8 * MOTOR_STEPS_X; // Maximum speed of a motor during manual move, steps / second.
 const bool INVERT_X = true; // change (true/false) if the carriage moves e.g. "left" when you press "right".
 const bool INVERT_X_ENABLE = false; // change (true/false) if the X axis enable pin is inverted
+const bool INVERT_X_STEP = false; // Step pin inversion for level shifting
 const bool NEEDS_REST_X = false; // Set to false for all kinds of drivers or X will be unlocked when not moving.
 const long MAX_TRAVEL_MM_X = 100; // Cross slide doesn't allow to travel more than this in one go, 10cm
 const long BACKLASH_DU_X = 0; // 0.15mm backlash in deci-microns (10^-7 of a meter)
@@ -67,6 +69,11 @@ const char NAME_Y = 'Y'; // Text shown on screen before axis position value, GCo
 
 // Manual handwheels. Ignore if you don't have them installed.
 const float PULSE_PER_REVOLUTION = 600; // PPR of handwheels.
+const bool INVERT_MPG_Z = false; // Invert MPG direction for Z axis
+const bool INVERT_MPG_X = false; // Invert MPG direction for X axis
+const float MPG_SCALE_DIVISOR = 16.0; // Sensitivity: lower = more movement per click
+const int MPG_PCNT_FILTER = 10; // Dedicated filter for MPG (handwheel) PCNT units
+const int MPG_WAIT_DIVISOR = 10; // MPG responsiveness: 1=instant (no wait), 3=original, 10=more responsive, 100=smoother
 
 const int ENCODER_STEPS_INT = ENCODER_PPR * 2; // Number of encoder impulses PCNT counts per revolution of the spindle
 const int ENCODER_FILTER = 1; // Encoder pulses shorter than this will be ignored. Clock cycles, 1 - 1023.
@@ -1790,15 +1797,26 @@ long getStepMaxSpeed(Axis* a) {
   return isContinuousStep() ? a->speedManualMove : min(long(a->speedManualMove), abs(getMoveStepForAxis(a)) * 1000 / STEP_TIME_MS);
 }
 
-void waitForStep(Axis* a) {
+void waitForStep(Axis* a, bool isMPG = false) {
   if (isContinuousStep()) {
-    // Move continuously for default step.
-    waitForPendingPosNear0(a);
+    if (isMPG) {
+      // MPG FIX: Adjustable wait for MPG responsiveness - tune with MPG_WAIT_DIVISOR
+      // Lower MPG_WAIT_DIVISOR = more responsive, Higher = smoother
+      while (abs(a->pendingPos) > a->motorSteps / MPG_WAIT_DIVISOR && a->pendingPos != 0) {
+        taskYIELD();
+      }
+    } else {
+      // Move continuously for default step (keyboard input).
+      waitForPendingPosNear0(a);
+    }
   } else {
     // Move with tiny pauses allowing to stop precisely.
     a->continuous = false;
     waitForPendingPos0(a);
-    DELAY(DELAY_BETWEEN_STEPS_MS);
+    if (!isMPG) {
+      // MPG FIX: Skip 80ms delay for handwheel input to improve responsiveness
+      DELAY(DELAY_BETWEEN_STEPS_MS);
+    }
   }
 }
 
@@ -1898,7 +1916,12 @@ void updateAsyncTimerSettings() {
 }
 
 void taskMoveZ(void *param) {
+  static bool mpgFilterConfiguredZ = false;
   while (emergencyStop == ESTOP_NONE) {
+    if (!mpgFilterConfiguredZ) {
+      pcnt_set_filter_value(PCNT_UNIT_1, MPG_PCNT_FILTER);
+      mpgFilterConfiguredZ = true;
+    }
     int pulseDelta = getAndResetPulses(&z);
     bool left = buttonLeftPressed;
     bool right = buttonRightPressed;
@@ -1959,7 +1982,13 @@ void taskMoveZ(void *param) {
       z.speedMax = getStepMaxSpeed(&z);
       int delta = 0;
       do {
-        float fractionalDelta = (pulseDelta == 0 ? moveStep * sign / z.screwPitch : pulseDelta / PULSE_PER_REVOLUTION) * z.motorSteps + z.fractionalPos;
+        int mpgDelta = pulseDelta;
+        if (mpgDelta != 0 && INVERT_MPG_Z) {
+          mpgDelta = -mpgDelta;
+        }
+        float fractionalDelta = (pulseDelta == 0
+            ? moveStep * sign / z.screwPitch
+            : (float)mpgDelta * moveStep / z.screwPitch / MPG_SCALE_DIVISOR) * z.motorSteps + z.fractionalPos;
         delta = round(fractionalDelta);
         // Don't lose fractional steps when moving by 0.01" or 0.001".
         z.fractionalPos = fractionalDelta - delta;
@@ -1977,7 +2006,7 @@ void taskMoveZ(void *param) {
         }
         z.speedMax = getStepMaxSpeed(&z);
         stepToContinuous(&z, posCopy + delta);
-        waitForStep(&z);
+        waitForStep(&z, pulseDelta != 0); // MPG FIX: Pass MPG flag to reduce handwheel lag
       } while (delta != 0 && (left ? buttonLeftPressed : buttonRightPressed));
       z.continuous = false;
       waitForPendingPos0(&z);
@@ -2004,7 +2033,12 @@ void taskMoveZ(void *param) {
 }
 
 void taskMoveX(void *param) {
+  static bool mpgFilterConfiguredX = false;
   while (emergencyStop == ESTOP_NONE) {
+    if (!mpgFilterConfiguredX) {
+      pcnt_set_filter_value(PCNT_UNIT_2, MPG_PCNT_FILTER);
+      mpgFilterConfiguredX = true;
+    }
     int pulseDelta = getAndResetPulses(&x);
     bool up = buttonUpPressed || pulseDelta > 0;
     bool down = buttonDownPressed || pulseDelta < 0;
@@ -2024,7 +2058,13 @@ void taskMoveX(void *param) {
     int delta = 0;
     int sign = up ? 1 : -1;
     do {
-      float fractionalDelta = (pulseDelta == 0 ? moveStep * sign / x.screwPitch : pulseDelta / PULSE_PER_REVOLUTION) * x.motorSteps + x.fractionalPos;
+      int mpgDelta = pulseDelta;
+      if (mpgDelta != 0 && INVERT_MPG_X) {
+        mpgDelta = -mpgDelta;
+      }
+      float fractionalDelta = (pulseDelta == 0
+          ? moveStep * sign / x.screwPitch
+          : (float)mpgDelta * moveStep / x.screwPitch / MPG_SCALE_DIVISOR) * x.motorSteps + x.fractionalPos;
       delta = round(fractionalDelta);
       // Don't lose fractional steps when moving by 0.01" or 0.001".
       x.fractionalPos = fractionalDelta - delta;
@@ -2040,7 +2080,7 @@ void taskMoveX(void *param) {
         delta = x.rightStop - posCopy;
       }
       stepToContinuous(&x, posCopy + delta);
-      waitForStep(&x);
+      waitForStep(&x, pulseDelta != 0); // MPG FIX: Pass MPG flag to reduce handwheel lag
       pulseDelta = getAndResetPulses(&x);
     } while (delta != 0 && (pulseDelta != 0 || (up ? buttonUpPressed : buttonDownPressed)));
     x.continuous = false;
@@ -2425,7 +2465,8 @@ void startPulseCounter(pcnt_unit_t unit, int gpioA, int gpioB) {
   pcntConfig.counter_h_lim = PCNT_LIM;
   pcntConfig.counter_l_lim = -PCNT_LIM;
   pcnt_unit_config(&pcntConfig);
-  pcnt_set_filter_value(unit, ENCODER_FILTER);
+  int filterValue = (unit == PCNT_UNIT_1 || unit == PCNT_UNIT_2 || unit == PCNT_UNIT_3) ? MPG_PCNT_FILTER : ENCODER_FILTER;
+  pcnt_set_filter_value(unit, filterValue);
 	pcnt_filter_enable(unit);
   pcnt_counter_pause(unit);
   pcnt_counter_clear(unit);
@@ -2496,10 +2537,10 @@ void IRAM_ATTR onAsyncTimer() {
     return;
   }
 
-  DLOW(a->step);
+  if ((a == &z && INVERT_Z_STEP) || (a == &x && INVERT_X_STEP)) DHIGH(a->step); else DLOW(a->step);
   a->stepStartUs = micros();
   delayMicroseconds(10);
-  DHIGH(a->step);
+  if ((a == &z && INVERT_Z_STEP) || (a == &x && INVERT_X_STEP)) DLOW(a->step); else DHIGH(a->step);
 }
 
 void setModeFromTask(int value) {
@@ -3240,7 +3281,7 @@ void moveAxis(Axis* a) {
       bool dir = a->pendingPos > 0;
       setDir(a, dir);
 
-      DLOW(a->step);
+      if ((a == &z && INVERT_Z_STEP) || (a == &x && INVERT_X_STEP)) DHIGH(a->step); else DLOW(a->step);
       int delta = dir ? 1 : -1;
       a->pendingPos -= delta;
       if (dir && a->motorPos >= a->pos) {
@@ -3260,7 +3301,7 @@ void moveAxis(Axis* a) {
       }
       a->stepStartUs = nowUs;
 
-      DHIGH(a->step);
+      if ((a == &z && INVERT_Z_STEP) || (a == &x && INVERT_X_STEP)) DLOW(a->step); else DHIGH(a->step);
     }
     xSemaphoreGive(a->mutex);
   }
