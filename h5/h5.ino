@@ -69,8 +69,6 @@ const char NAME_Y = 'Y'; // Text shown on screen before axis position value, GCo
 
 // Manual handwheels. Ignore if you don't have them installed.
 const float PULSE_PER_REVOLUTION = 600; // PPR of handwheels.
-const bool INVERT_MPG_Z = false; // Invert MPG direction for Z axis
-const bool INVERT_MPG_X = false; // Invert MPG direction for X axis
 const float MPG_SCALE_DIVISOR = 16.0; // Sensitivity: lower = more movement per click
 const int MPG_PCNT_FILTER = 10; // Dedicated filter for MPG (handwheel) PCNT units
 const int MPG_WAIT_DIVISOR = 10; // MPG responsiveness: 1=instant (no wait), 3=original, 10=more responsive, 100=smoother
@@ -1797,26 +1795,29 @@ long getStepMaxSpeed(Axis* a) {
   return isContinuousStep() ? a->speedManualMove : min(long(a->speedManualMove), abs(getMoveStepForAxis(a)) * 1000 / STEP_TIME_MS);
 }
 
-void waitForStep(Axis* a, bool isMPG = false) {
+void waitForStep(Axis* a) {
   if (isContinuousStep()) {
-    if (isMPG) {
-      // MPG FIX: Adjustable wait for MPG responsiveness - tune with MPG_WAIT_DIVISOR
-      // Lower MPG_WAIT_DIVISOR = more responsive, Higher = smoother
-      while (abs(a->pendingPos) > a->motorSteps / MPG_WAIT_DIVISOR && a->pendingPos != 0) {
-        taskYIELD();
-      }
-    } else {
-      // Move continuously for default step (keyboard input).
-      waitForPendingPosNear0(a);
-    }
+    // Move continuously for default step.
+    waitForPendingPosNear0(a);
   } else {
     // Move with tiny pauses allowing to stop precisely.
     a->continuous = false;
     waitForPendingPos0(a);
-    if (!isMPG) {
-      // MPG FIX: Skip 80ms delay for handwheel input to improve responsiveness
-      DELAY(DELAY_BETWEEN_STEPS_MS);
+    DELAY(DELAY_BETWEEN_STEPS_MS);
+  }
+}
+
+void waitForMpgStep(Axis* a) {
+  if (isContinuousStep()) {
+    // MPG: Adjustable wait for responsiveness - tune with MPG_WAIT_DIVISOR
+    // Lower MPG_WAIT_DIVISOR = more responsive, Higher = smoother
+    while (abs(a->pendingPos) > a->motorSteps / MPG_WAIT_DIVISOR && a->pendingPos != 0) {
+      taskYIELD();
     }
+  } else {
+    // MPG: No delay between steps for handwheel responsiveness
+    a->continuous = false;
+    waitForPendingPos0(a);
   }
 }
 
@@ -1916,12 +1917,7 @@ void updateAsyncTimerSettings() {
 }
 
 void taskMoveZ(void *param) {
-  static bool mpgFilterConfiguredZ = false;
   while (emergencyStop == ESTOP_NONE) {
-    if (!mpgFilterConfiguredZ) {
-      pcnt_set_filter_value(PCNT_UNIT_1, MPG_PCNT_FILTER);
-      mpgFilterConfiguredZ = true;
-    }
     int pulseDelta = getAndResetPulses(&z);
     bool left = buttonLeftPressed;
     bool right = buttonRightPressed;
@@ -1983,12 +1979,9 @@ void taskMoveZ(void *param) {
       int delta = 0;
       do {
         int mpgDelta = pulseDelta;
-        if (mpgDelta != 0 && INVERT_MPG_Z) {
-          mpgDelta = -mpgDelta;
-        }
-        float fractionalDelta = (pulseDelta == 0
-            ? moveStep * sign / z.screwPitch
-            : (float)mpgDelta * moveStep / z.screwPitch / MPG_SCALE_DIVISOR) * z.motorSteps + z.fractionalPos;
+        float fractionalDelta = ((pulseDelta == 0
+            ? moveStep * sign
+            : (float)mpgDelta * moveStep / MPG_SCALE_DIVISOR) / z.screwPitch) * z.motorSteps + z.fractionalPos;
         delta = round(fractionalDelta);
         // Don't lose fractional steps when moving by 0.01" or 0.001".
         z.fractionalPos = fractionalDelta - delta;
@@ -2006,7 +1999,11 @@ void taskMoveZ(void *param) {
         }
         z.speedMax = getStepMaxSpeed(&z);
         stepToContinuous(&z, posCopy + delta);
-        waitForStep(&z, pulseDelta != 0); // MPG FIX: Pass MPG flag to reduce handwheel lag
+        if (pulseDelta != 0) {
+          waitForMpgStep(&z); // Use MPG-specific wait for handwheel input
+        } else {
+          waitForStep(&z); // Use standard wait for keyboard input
+        }
       } while (delta != 0 && (left ? buttonLeftPressed : buttonRightPressed));
       z.continuous = false;
       waitForPendingPos0(&z);
@@ -2059,12 +2056,9 @@ void taskMoveX(void *param) {
     int sign = up ? 1 : -1;
     do {
       int mpgDelta = pulseDelta;
-      if (mpgDelta != 0 && INVERT_MPG_X) {
-        mpgDelta = -mpgDelta;
-      }
-      float fractionalDelta = (pulseDelta == 0
-          ? moveStep * sign / x.screwPitch
-          : (float)mpgDelta * moveStep / x.screwPitch / MPG_SCALE_DIVISOR) * x.motorSteps + x.fractionalPos;
+      float fractionalDelta = ((pulseDelta == 0
+          ? moveStep * sign
+          : (float)mpgDelta * moveStep / MPG_SCALE_DIVISOR) / x.screwPitch) * x.motorSteps + x.fractionalPos;
       delta = round(fractionalDelta);
       // Don't lose fractional steps when moving by 0.01" or 0.001".
       x.fractionalPos = fractionalDelta - delta;
@@ -2080,7 +2074,11 @@ void taskMoveX(void *param) {
         delta = x.rightStop - posCopy;
       }
       stepToContinuous(&x, posCopy + delta);
-      waitForStep(&x, pulseDelta != 0); // MPG FIX: Pass MPG flag to reduce handwheel lag
+      if (pulseDelta != 0) {
+        waitForMpgStep(&x); // Use MPG-specific wait for handwheel input
+      } else {
+        waitForStep(&x); // Use standard wait for keyboard input
+      }
       pulseDelta = getAndResetPulses(&x);
     } while (delta != 0 && (pulseDelta != 0 || (up ? buttonUpPressed : buttonDownPressed)));
     x.continuous = false;
@@ -2465,9 +2463,8 @@ void startPulseCounter(pcnt_unit_t unit, int gpioA, int gpioB) {
   pcntConfig.counter_h_lim = PCNT_LIM;
   pcntConfig.counter_l_lim = -PCNT_LIM;
   pcnt_unit_config(&pcntConfig);
-  int filterValue = (unit == PCNT_UNIT_1 || unit == PCNT_UNIT_2 || unit == PCNT_UNIT_3) ? MPG_PCNT_FILTER : ENCODER_FILTER;
-  pcnt_set_filter_value(unit, filterValue);
-	pcnt_filter_enable(unit);
+  pcnt_set_filter_value(unit, unit == PCNT_UNIT_0 ? ENCODER_FILTER : MPG_PCNT_FILTER);
+  pcnt_filter_enable(unit);
   pcnt_counter_pause(unit);
   pcnt_counter_clear(unit);
   pcnt_counter_resume(unit);
