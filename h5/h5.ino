@@ -172,6 +172,9 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 #define B_Z_ENA 81 // q - enables / disables Z axis
 #define B_Y_ENA 89 // y - enables / disables Y axis
 
+#define B_SEL_AXIS_PREV 19 // PageUp - select prev axis
+#define B_SEL_AXIS_NEXT 20 // PageDown - select next axis
+
 #define PREF_VERSION "v"
 #define PREF_DUPR "d"
 #define PREF_POS_Z "zp"
@@ -807,6 +810,11 @@ bool savedShowAngle = false; // showAngle value saved in Preferences
 bool savedShowTacho = false; // showTacho value saved in Preferences
 int shownRpm = 0;
 unsigned long shownRpmTime = 0; // micros() when shownRpm was set
+
+// Optional MPG pendant support: pointer to axis that receives MPG pulses
+// nullptr (NULL) = default: all axes use their own handwheels
+// non-null = single-axis MPG mode: only that axis reacts to pulses
+Axis* mpgSelectedAxis = NULL;
 
 long moveStep = 0; // thousandth of a mm
 long savedMoveStep = 0; // moveStep saved in Preferences
@@ -1812,6 +1820,14 @@ int getAndResetPulses(Axis* a) {
     a->pulseCount = 0;
     return 0;
   }
+
+  // In single-axis MPG mode, discard pulses for non-selected axes
+  if (mpgSelectedAxis && mpgSelectedAxis != a) {
+    pcnt_counter_clear(a->pulseUnit);
+    a->pulseCount = 0;
+    return 0;
+  }
+
   if (count >= PCNT_CLEAR || count <= -PCNT_CLEAR) {
     pcnt_counter_clear(a->pulseUnit);
     a->pulseCount = 0;
@@ -1819,6 +1835,30 @@ int getAndResetPulses(Axis* a) {
     a->pulseCount = count;
   }
   return delta;
+}
+  
+void cycleMpgSelectedAxis(int dir /* -1 prev, +1 next */) {
+  if (dir != -1 && dir != 1) return;
+  
+  Axis* order[3] = {&x, &z, NULL};
+  int n = 2;
+  if (ACTIVE_Y) order[n++] = &y;
+
+  int idx = 0;
+  if (mpgSelectedAxis == NULL) {
+    idx = (dir == 1) ? 0 : (n - 1);
+  } else {
+    for (int i = 0; i < n; i++) {
+      if (order[i] == mpgSelectedAxis) {
+        idx = i;
+        break;
+      }
+    }
+  }
+
+  int next = (idx + dir + n) % n;
+  mpgSelectedAxis = order[next];
+  setText("tSelectedAxis", mpgSelectedAxis ? String(mpgSelectedAxis->name) : "");
 }
 
 // Calculates stepper position from spindle position.
@@ -3031,6 +3071,9 @@ const byte HEX_TO_KEYCODE[256] = {
   [48] = B_LEFT,
   [49] = B_RIGHT,
   [50] = B_MULTISTART,
+  // Reserve two new Nextion component IDs for MPG axis selection
+  [51] = B_SEL_AXIS_PREV, // e.g. btnSelectAxisPrev
+  [52] = B_SEL_AXIS_NEXT, // e.g. btnSelectAxisNext
 };
 
 int processNextionMessage() {
@@ -3207,6 +3250,10 @@ void processKeypadEvent() {
     setModeFromTask(MODE_CUT);
   } else if (keyCode == B_MODE_THREAD) {
     setModeFromTask(MODE_THREAD);
+  } else if (keyCode == B_SEL_AXIS_PREV) {
+    cycleMpgSelectedAxis(-1);
+  } else if (keyCode == B_SEL_AXIS_NEXT) {
+    cycleMpgSelectedAxis(1);
   }
 }
 
