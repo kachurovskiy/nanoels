@@ -89,7 +89,7 @@ Troubleshooting:
 
 ## Usage manual
 
-**This manual corresponds to `NanoEls H4 V6`. To see your software version, hold ![IconStop](https://github.com/kachurovskiy/nanoels/assets/517919/9ed2da6c-7461-419f-827d-781980c9ddde) for 5 seconds. If you have a different version - e.g. `V5`, please update to the latest one.**
+**This manual corresponds to `NanoEls H4 V12`. To see your software version, hold ![IconStop](https://github.com/kachurovskiy/nanoels/assets/517919/9ed2da6c-7461-419f-827d-781980c9ddde) for 5 seconds. If you have a different version - e.g. `V5`, please update to the latest one.**
 
 ### Switching between metric and imperial
 
@@ -275,6 +275,14 @@ Pressing ![IconPlay](https://github.com/kachurovskiy/nanoels/assets/517919/c9fb0
 Turn on the spindle. Operation will proceed fully automatically and the cutter will return to the starting position when done. Adjusting the pitch on the fly is not supported.
 
 Operation can be stopped at any time by pressing ![IconStop](https://github.com/kachurovskiy/nanoels/assets/517919/cf4b9b31-dda3-4469-9667-1d1c44ea39b4) or using manual move buttons.
+
+### Async mode
+
+In this mode the carriage disregards spindle movements and instead moves with constant speed of `pitch` per second. When pitch is positive, `Z` axis moves to the left. When pitch is negative, `Z` axis moves to the right. If pitch is 0, `Z` axis doesn't move.
+
+You can adjust the pitch using ![IconMinus](https://github.com/kachurovskiy/nanoels/assets/517919/ed05b417-5714-4e31-9f17-9ff646c85214) or ![IconPlus](https://github.com/kachurovskiy/nanoels/assets/517919/0a5e045c-f670-4e45-8b26-e4e27de9ce7a) to adjust the movement speed.
+
+Async mode respects limits if they are set.
 
 ### GCode
 
