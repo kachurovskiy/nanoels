@@ -11,8 +11,8 @@ const int ENCODER_BACKLASH = 3; // Numer of impulses encoder can issue without m
 #define ENC_B 14
 
 // Main lead screw (Z) parameters.
-const long SCREW_Z_DU = 40000; // 4mm SFU1204 ball screw in deci-microns (10^-7 of a meter)
-const long MOTOR_STEPS_Z = 800;
+const long SCREW_Z_DU = 15000; // 4mm SFU1204 ball screw in deci-microns (10^-7 of a meter)
+const long MOTOR_STEPS_Z = 400;
 const long SPEED_START_Z = MOTOR_STEPS_Z; // Initial speed of a motor, steps / second.
 const long ACCELERATION_Z = 25 * MOTOR_STEPS_Z; // Acceleration of a motor, steps / second ^ 2.
 const long SPEED_MANUAL_MOVE_Z = 8 * MOTOR_STEPS_Z; // Maximum speed of a motor during manual move, steps / second.
