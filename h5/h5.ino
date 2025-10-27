@@ -1375,7 +1375,6 @@ void updateDiameter() {
 long xDU = getAxisPosDu(&x);
 long diameterDU = abs(2 * xDU);
 String result = printDeciMicrons2Dec(diameterDU);
-//setText("tD", result);
 setText("tD", !x.active || x.disabled ? "" : result);
 }
 //STR
@@ -1594,7 +1593,7 @@ void updateDisplay() {
     setText("tXUp", !x.active || x.disabled ? "" : printDistanceToLeftStop(&x));
     setText("tXDown", !x.active || x.disabled ? "" : printDistanceToRightStop(&x));
     //setText("tY", !y.active || y.disabled ? "" : printAxisPos(&y)); STR
-    //setText("tYUp", !y.active || y.disabled ? "" : printDistanceToLeftStop(&y));
+    //setText("tYUp", !y.active || y.disabled ? "" : printDistanceToLeftStop(&y)); STR
     setText("tYDown", !y.active || y.disabled ? "" : printDistanceToRightStop(&y));
     setText("tZ", !z.active || z.disabled ? "" : printAxisPos(&z));
     setText("tZLeft", !z.active || z.disabled ? "" : printDistanceToLeftStop(&z));
@@ -3089,7 +3088,7 @@ void processKeypadEvent() {
   keypadTimeUs = micros();
 
   // Uncomment the line below to see the key codes on screen.
-  //  setText("t3", (isPress ? "Press " : "Release ") + String(keyCode));
+  // setText("t3", (isPress ? "Press " : "Release ") + String(keyCode));
 
   // Some keyboards send this code and expect an answer to initialize.
   if (keyCode == 170) {
@@ -3335,13 +3334,13 @@ void modeTurn(Axis* main, Axis* aux) {
       opIndex += starts;
     }
     long auxPos = auxEndStop - (auxEndStop - auxStartStop) / turnPasses * (turnPasses - ceil(opIndex / float(starts)));
-        // STR
+    // STR
     if (mode == MODE_THREAD) {
       float fraction = (turnPasses - ceil(opIndex / float(starts))) / turnPasses;
       fraction = fraction * fraction; // make initial passed larger, final passes smaller
       auxPos = auxEndStop - (auxEndStop - auxStartStop) * fraction;
     }
-
+    //STR
     // Bringing X to starting position.
     if (opSubIndex == 0) {
       stepToFinal(aux, auxPos);
@@ -3378,22 +3377,22 @@ void modeTurn(Axis* main, Axis* aux) {
         opSubIndex = 3;
       }
     }
-    // Retracting the tool  STR
+    // Retracting the tool
     if (opSubIndex == 3) {
-    if (mode != MODE_THREAD) {
-      long targetPos = auxPos + auxSafeDistance;
-      stepToFinal(aux, targetPos);
-      if (aux->pos == targetPos) {
-        opSubIndex = 4;
+    if (mode != MODE_THREAD) { // STR
+        long targetPos = auxPos + auxSafeDistance;
+        stepToFinal(aux, targetPos);
+        if (aux->pos == targetPos) {
+          opSubIndex = 4;
+        }
+      } else { // STR
+        long auxPos = auxStartStop + auxSafeDistance;
+        stepToFinal(aux, auxPos);
+        if (aux->pos == auxPos) {
+          opSubIndex = 4;
+        }
       }
-    } else {
-      long auxPos = auxStartStop + auxSafeDistance;
-      stepToFinal(aux, auxPos);
-      if (aux->pos == auxPos) {
-        opSubIndex = 4;
-      }
-    }
-    }
+    } // STR
 
     // Returning to start of main.
     if (opSubIndex == 4) {
