@@ -1,5 +1,5 @@
 // https://github.com/kachurovskiy/nanoels
-//27.09.2025
+//27.10.2025
 /* Change values in this section to suit your hardware. */
 
 // Define your hardware parameters here.
