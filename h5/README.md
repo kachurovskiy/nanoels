@@ -94,7 +94,7 @@ Scale and joystick terminals aren't used in the code yet.
 
 A few things to check after upload:
 
-- Spindle direction: show angle on screen using `Win` button on your keyboard. Rotate the chuck forward manually - angle should increase. If it decreases, swap `B` and `A` wires in the terminal
+- Spindle direction: rotate the chuck forward manually - angle on screen should increase. If it decreases, swap `B` and `A` wires in the terminal
 - Motor direction: try moving motors using keyboard arrows - if motor is moving in the wrong direction, change `INVERT_Z` or `INVERT_X` in the code, re-upload the sketch (or swap the motor leads `A+` and `A-` in the stepper driver if it's open loop)
 
 Troubleshooting:
@@ -110,7 +110,7 @@ On the back of the case there are 2 holes for M5 threaded inserts 130mm on cente
 
 ## GCode over WiFi for complex parts
 
-Specify your WiFi network name and password in https://github.com/kachurovskiy/nanoels/blob/main/h5/h5.ino#L45-L46 and use Win keyboard key to see the IP address NanoEls connected on. Enter that address in the browser to see the Web UI. It can be used to save GCode files onto controller and run them later at the machine in the GCODE mode.
+Specify your WiFi network name and password in https://github.com/kachurovskiy/nanoels/blob/main/h5/h5.ino#L45-L46 and NanoEls will show the IP address on screen once it connects to the network. Enter that address in the browser to see the Web UI. It can be used to save GCode files onto controller and run them later at the machine in the GCODE mode.
 
 To generate GCode for your parts, upload STL model of your part to https://kachurovskiy.com/lathecode/ and specify parameters like stock diameter and tool used.
 
