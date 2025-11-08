@@ -1,5 +1,5 @@
 // https://github.com/kachurovskiy/nanoels
-//27.10.2025
+//08.11.2025
 /* Change values in this section to suit your hardware. */
 
 // Define your hardware parameters here.
@@ -11,16 +11,16 @@ const int ENCODER_BACKLASH = 8; // Numer of impulses encoder can issue without m
 #define ENC_B 14
 
 // Main lead screw (Z) parameters.
-const long SCREW_Z_DU = 20000; // 1.0mm lead screw in deci-microns (10^-7 of a meter) STR
-const long MOTOR_STEPS_Z = 800; // STR
-const long SPEED_START_Z = 10 * MOTOR_STEPS_Z; // Initial speed of a motor, steps / second. STR
+const long SCREW_Z_DU = 40000; // 4.0mm lead screw in deci-microns (10^-7 of a meter) STR 20000
+const long MOTOR_STEPS_Z = 1600; // STR
+const long SPEED_START_Z = 6 * MOTOR_STEPS_Z; // Initial speed of a motor, steps / second. STR
 const long ACCELERATION_Z = 10 * MOTOR_STEPS_Z; // Acceleration of a motor, steps / second ^ 2. STR
-const long SPEED_MANUAL_MOVE_Z = 20 * MOTOR_STEPS_Z; // Maximum speed of a motor during manual move, steps / second. STR
+const long SPEED_MANUAL_MOVE_Z = 8 * MOTOR_STEPS_Z; // Maximum speed of a motor during manual move, steps / second. STR
 const bool INVERT_Z = false; // change (true/false) if the carriage moves e.g. "left" when you press "right".
 const bool INVERT_Z_ENABLE = false; // change (true/false) if the Z axis enable pin is inverted
 const bool NEEDS_REST_Z = false; // Set to false for closed-loop drivers, true for open-loop.
 const long MAX_TRAVEL_MM_Z = 300; // Lathe bed doesn't allow to travel more than this in one go, 30cm / ~1 foot
-const long BACKLASH_DU_Z = 1100; // 0.1mm backlash in deci-microns (10^-7 of a meter) STR
+const long BACKLASH_DU_Z = 500; // 0.1mm backlash in deci-microns (10^-7 of a meter) STR
 const char NAME_Z = 'Z'; // Text shown on screen before axis position value, GCode axis name
 
 // Cross-slide lead screw (X) parameters.
@@ -33,7 +33,7 @@ const bool INVERT_X = false; // change (true/false) if the carriage moves e.g. "
 const bool INVERT_X_ENABLE = false; // change (true/false) if the X axis enable pin is inverted
 const bool NEEDS_REST_X = false; // Set to false for all kinds of drivers or X will be unlocked when not moving.
 const long MAX_TRAVEL_MM_X = 100; // Cross slide doesn't allow to travel more than this in one go, 10cm
-const long BACKLASH_DU_X = 2500; // 0.25mm backlash in deci-microns (10^-7 of a meter) STR
+const long BACKLASH_DU_X = 400; // 0.25mm backlash in deci-microns (10^-7 of a meter) STR
 const char NAME_X = 'X'; // Text shown on screen before axis position value, GCode axis name
 
 // Manual stepping with left/right/up/down buttons. Only used when step isn't default continuous (1mm or 0.1").
@@ -66,7 +66,7 @@ const long BACKLASH_DU_Y = 0; // Assuming no backlash on the worm gear
 const char NAME_Y = 'Y'; // Text shown on screen before axis position value, GCode axis name
 
 // Manual handwheels. Ignore if you don't have them installed.
-const float PULSE_PER_REVOLUTION = 400; // PPR of handwheels. STR
+const float PULSE_PER_REVOLUTION = 800; // PPR of handwheels. STR
 
 const int ENCODER_STEPS_INT = ENCODER_PPR * 2; // Number of encoder impulses PCNT counts per revolution of the spindle
 const int ENCODER_FILTER = 1; // Encoder pulses shorter than this will be ignored. Clock cycles, 1 - 1023.
