@@ -1,39 +1,39 @@
 // https://github.com/kachurovskiy/nanoels
-
+//08.11.2025
 /* Change values in this section to suit your hardware. */
 
 // Define your hardware parameters here.
-const int ENCODER_PPR = 1200; // 1200 step spindle optical rotary encoder. Fractional values not supported.
-const int ENCODER_BACKLASH = 3; // Numer of impulses encoder can issue without movement of the spindle
+const int ENCODER_PPR = 600; // 1200 step spindle optical rotary encoder. Fractional values not supported. STR
+const int ENCODER_BACKLASH = 8; // Numer of impulses encoder can issue without movement of the spindle STR
 
 // Spindle rotary encoder pins. Swap values if the rotation direction is wrong.
 #define ENC_A 13
 #define ENC_B 14
 
 // Main lead screw (Z) parameters.
-const long SCREW_Z_DU = 40000; // 4mm SFU1204 ball screw in deci-microns (10^-7 of a meter)
-const long MOTOR_STEPS_Z = 800;
-const long SPEED_START_Z = MOTOR_STEPS_Z; // Initial speed of a motor, steps / second.
-const long ACCELERATION_Z = 25 * MOTOR_STEPS_Z; // Acceleration of a motor, steps / second ^ 2.
-const long SPEED_MANUAL_MOVE_Z = 8 * MOTOR_STEPS_Z; // Maximum speed of a motor during manual move, steps / second.
+const long SCREW_Z_DU = 40000; // 4.0mm lead screw in deci-microns (10^-7 of a meter) STR
+const long MOTOR_STEPS_Z = 1600; // STR
+const long SPEED_START_Z = 1 * MOTOR_STEPS_Z; // Initial speed of a motor, steps / second. STR
+const long ACCELERATION_Z = 25 * MOTOR_STEPS_Z; // Acceleration of a motor, steps / second ^ 2. STR
+const long SPEED_MANUAL_MOVE_Z = 8 * MOTOR_STEPS_Z; // Maximum speed of a motor during manual move, steps / second. STR
 const bool INVERT_Z = false; // change (true/false) if the carriage moves e.g. "left" when you press "right".
 const bool INVERT_Z_ENABLE = false; // change (true/false) if the Z axis enable pin is inverted
 const bool NEEDS_REST_Z = false; // Set to false for closed-loop drivers, true for open-loop.
 const long MAX_TRAVEL_MM_Z = 300; // Lathe bed doesn't allow to travel more than this in one go, 30cm / ~1 foot
-const long BACKLASH_DU_Z = 0; // 0mm backlash in deci-microns (10^-7 of a meter)
+const long BACKLASH_DU_Z = 500; // 0.1mm backlash in deci-microns (10^-7 of a meter) STR
 const char NAME_Z = 'Z'; // Text shown on screen before axis position value, GCode axis name
 
 // Cross-slide lead screw (X) parameters.
-const long SCREW_X_DU = 40000; // 4mm SFU1204 ball screw in deci-microns (10^-7 of a meter)
-const long MOTOR_STEPS_X = 800;
-const long SPEED_START_X = MOTOR_STEPS_X; // Initial speed of a motor, steps / second.
-const long ACCELERATION_X = 25 * MOTOR_STEPS_X; // Acceleration of a motor, steps / second ^ 2.
-const long SPEED_MANUAL_MOVE_X = 8 * MOTOR_STEPS_X; // Maximum speed of a motor during manual move, steps / second.
-const bool INVERT_X = true; // change (true/false) if the carriage moves e.g. "left" when you press "right".
+const long SCREW_X_DU = 10000; // 1.0mm lead screw in deci-microns (10^-7 of a meter) STR
+const long MOTOR_STEPS_X = 1600; // STR
+const long SPEED_START_X = 1 * MOTOR_STEPS_X; // Initial speed of a motor, steps / second. STR
+const long ACCELERATION_X = 10 * MOTOR_STEPS_X; // Acceleration of a motor, steps / second ^ 2. STR
+const long SPEED_MANUAL_MOVE_X = 5 * MOTOR_STEPS_X; // Maximum speed of a motor during manual move, steps / second. STR
+const bool INVERT_X = false; // change (true/false) if the carriage moves e.g. "left" when you press "right". STR
 const bool INVERT_X_ENABLE = false; // change (true/false) if the X axis enable pin is inverted
 const bool NEEDS_REST_X = false; // Set to false for all kinds of drivers or X will be unlocked when not moving.
 const long MAX_TRAVEL_MM_X = 100; // Cross slide doesn't allow to travel more than this in one go, 10cm
-const long BACKLASH_DU_X = 0; // 0.15mm backlash in deci-microns (10^-7 of a meter)
+const long BACKLASH_DU_X = 400; // 0.25mm backlash in deci-microns (10^-7 of a meter) STR
 const char NAME_X = 'X'; // Text shown on screen before axis position value, GCode axis name
 
 // Manual stepping with left/right/up/down buttons. Only used when step isn't default continuous (1mm or 0.1").
@@ -42,8 +42,8 @@ const long DELAY_BETWEEN_STEPS_MS = 80; // Time in milliseconds to wait between 
 
 // Connect to WiFi and expose web UI to control and receive GCode.
 const bool WIFI_ENABLED = true;
-const char* SSID = "your-wifi-name";
-const char* PASSWORD = "your-password";
+const char* SSID = "duebelpapst"; //STR
+const char* PASSWORD = "sz-sk12/30verzinkt"; //STR
 const long INCOMING_BUFFER_SIZE = 100000;
 const long OUTGOING_BUFFER_SIZE = 100000;
 
@@ -66,7 +66,8 @@ const long BACKLASH_DU_Y = 0; // Assuming no backlash on the worm gear
 const char NAME_Y = 'Y'; // Text shown on screen before axis position value, GCode axis name
 
 // Manual handwheels. Ignore if you don't have them installed.
-const float PULSE_PER_REVOLUTION = 600; // PPR of handwheels.
+const float PULSE_PER_REVOLUTION_Z = 800; // PPR of handwheels. STR
+const float PULSE_PER_REVOLUTION_X = 400; // PPR of handwheels. STR
 
 const int ENCODER_STEPS_INT = ENCODER_PPR * 2; // Number of encoder impulses PCNT counts per revolution of the spindle
 const int ENCODER_FILTER = 1; // Encoder pulses shorter than this will be ignored. Clock cycles, 1 - 1023.
@@ -121,56 +122,56 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 #define KEY_DATA 37
 #define KEY_CLOCK 36
 
-#define B_LEFT 21 // Left arrow - controls Z axis movement to the left
-#define B_RIGHT 22 // Right arrow - controls Z axis movement to the right
-#define B_UP 23 // Up arrow - controls X axis movement forwards
-#define B_DOWN 24 // Down arrow - controls X axis movement backwards
-#define B_FORWARD 85 // u - Advance Y axis
-#define B_BACK 74 // j - Retreat Y axis
-#define B_MINUS 60 // Numpad minus - recrements the pitch or number of passes
-#define B_PLUS 95 // Numpad plus - increments the pitch or number of passes
-#define B_ON 30 // Enter - starts operation or mode
-#define B_OFF 27 // ESC - stops operation or mode
-#define B_STOPL 65 // a - sets left stop
-#define B_STOPR 68 // d - sets right stop
-#define B_STOPU 87 // w - sets forward stop
-#define B_STOPD 83 // s - sets rear stop
-#define B_STOPF 73 // i - Y forward stop
-#define B_STOPB 75 // k - Y backward stop
-#define B_MULTISTART 84 // t - multi-start thread button
+#define B_LEFT 68//21 // Left arrow - controls Z axis movement to the left
+#define B_RIGHT 100//22 // Right arrow - controls Z axis movement to the right
+#define B_UP 88//23 // Up arrow - controls X axis movement forwards
+#define B_DOWN 47//24 // Down arrow - controls X axis movement backwards
+#define B_FORWARD 30    //85 // u - Advance Y axis
+#define B_BACK 31    //74 // j - Retreat Y axis
+#define B_MINUS 53 //45 // Numpad minus - recrements the pitch or number of passes STR
+#define B_PLUS 54 // 44 // Numpad plus - increments the pitch or number of passes STR
+#define B_ON 67//30 // Enter - starts operation or mode
+#define B_OFF 46//27 // ESC - stops operation or mode
+#define B_STOPL 84//65 // a - sets left stop
+#define B_STOPR 52//68 // d - sets right stop
+#define B_STOPU 60//87 // w - sets forward stop
+#define B_STOPD 104//83 // s - sets rear stop
+#define B_STOPF 32    //73 // i - Y forward stop
+#define B_STOPB 33    /75 // k - Y backward stop
+#define B_MULTISTART 80//84 // t - multi-start thread button
 #define B_DISPL 12 // Win - changes info displayed in the bottom line (angle, rpm, ...)
-#define B_STEP 64 // Tilda - changes distance moved when movement buttons are used
+#define B_STEP 93//85 // u - changes distance moved when movement buttons are used STR
 #define B_MEASURE 77 // m - controls metric / imperial / tpi
-#define B_REVERSE 82 // r - changes pitch sign (left / right thread)
-#define B_DIAMETER 79 // o - sets X0 so that centerline is at the middle of a given diameter value
-#define B_0 48 // 0 top row - for number entry
-#define B_1 49 // 1 top row
-#define B_2 50 // ...
-#define B_3 51
-#define B_4 52
-#define B_5 53
-#define B_6 54
-#define B_7 55
-#define B_8 56
-#define B_9 57
-#define B_BACKSPACE 28 // removes the last entered number
-#define B_MODE_GEARS 97 // F1 - sets the mode to gearbox
-#define B_MODE_TURN 98 // F2 - ...
-#define B_MODE_FACE 99 // F3
-#define B_MODE_CONE 100 // F4
-#define B_MODE_CUT 101 // F5
-#define B_MODE_THREAD 102 // F6
-#define B_MODE_ASYNC 103 // F7
-#define B_MODE_ELLIPSE 104 // F8
-#define B_MODE_GCODE 105 // F9
+#define B_REVERSE 57//82 // r - changes pitch sign (left / right thread)
+#define B_DIAMETER 82//79 // o - sets X0 so that centerline is at the middle of a given diameter value
+#define B_0 148//48 // 0 top row - for number entry
+#define B_1 83//49 // 1 top row
+#define B_2 149//50 // ...
+#define B_3 139//51
+#define B_4 24//52
+#define B_5 22//53
+#define B_6 25//54
+#define B_7 20//55
+#define B_8 45//56
+#define B_9 26//57
+#define B_BACKSPACE 55//28 // removes the last entered number
+#define B_MODE_GEARS 43//97 // F1 - sets the mode to gearbox
+#define B_MODE_TURN 21//98 // F2 - ...
+#define B_MODE_FACE 23//99 // F3
+#define B_MODE_CONE 6//100 // F4
+#define B_MODE_CUT 94//101 // F5
+#define B_MODE_THREAD 73//102 // F6
+#define B_MODE_ASYNC 56//103 // F7
+#define B_MODE_ELLIPSE 95//104 // F8
+#define B_MODE_GCODE 48//105 // F9
 #define B_MODE_Y 106 // F10
 #define B_MODE 107 // F11 - to cycle through modes
-#define B_X 88 // x - zeroes X axis
-#define B_Z 90 // z - zeroes Z axis
-#define B_Y 72 // h - zeroes Y axis
-#define B_X_ENA 67 // c - enables / disables X axis
-#define B_Z_ENA 81 // q - enables / disables Z axis
-#define B_Y_ENA 89 // y - enables / disables Y axis
+#define B_X 85//88 // x - zeroes X axis
+#define B_Z 89//90 // z - zeroes Z axis
+#define B_Y 34    //72 // h - zeroes Y axis
+#define B_X_ENA 79//67 // c - enables / disables X axis
+#define B_Z_ENA 103//81 // q - enables / disables Z axis
+#define B_Y_ENA 35    //89 // y - enables / disables Y axis
 
 #define PREF_VERSION "v"
 #define PREF_DUPR "d"
@@ -1360,6 +1361,24 @@ String printDistanceToLeftStop(Axis* a) {
   if (a->rotational) return printDegrees(getAxisLeftStopDistanceDu(a));
   return printDeciMicrons(getAxisLeftStopDistanceDu(a), 3);
 }
+//STR
+String printDeciMicrons2Dec(long du) {
+bool negative = du < 0;
+du = abs(du);
+long mm = du / 10000;
+long frac = (du % 10000) / 100; // Solo 2 decimales
+String result = String(mm) + "." + (frac < 10 ? "0" : "") + String(frac);
+if (negative) result = "-" + result;
+return result;
+}
+
+void updateDiameter() {
+long xDU = getAxisPosDu(&x);
+long diameterDU = abs(2 * xDU);
+String result = printDeciMicrons2Dec(diameterDU);
+setText("tD", !x.active || x.disabled ? "" : result);
+}
+//STR
 
 long getAxisRightStopDistanceDu(Axis* a) {
   return stepsToDu(a, a->pos - a->rightStop);
@@ -1570,11 +1589,12 @@ void updateDisplay() {
     y.pos + y.originPos + y.disabled + y.leftStop - y.rightStop + measure + x.pos % 100;
   if (lcdHashLine2 != newHashLine2) {
     lcdHashLine2 = newHashLine2;
+    updateDiameter(); // STR
     setText("tX", !x.active || x.disabled ? "" : printAxisPos(&x));
     setText("tXUp", !x.active || x.disabled ? "" : printDistanceToLeftStop(&x));
     setText("tXDown", !x.active || x.disabled ? "" : printDistanceToRightStop(&x));
-    setText("tY", !y.active || y.disabled ? "" : printAxisPos(&y));
-    setText("tYUp", !y.active || y.disabled ? "" : printDistanceToLeftStop(&y));
+    //setText("tY", !y.active || y.disabled ? "" : printAxisPos(&y)); STR
+    //setText("tYUp", !y.active || y.disabled ? "" : printDistanceToLeftStop(&y)); STR
     setText("tYDown", !y.active || y.disabled ? "" : printDistanceToRightStop(&y));
     setText("tZ", !z.active || z.disabled ? "" : printAxisPos(&z));
     setText("tZLeft", !z.active || z.disabled ? "" : printDistanceToLeftStop(&z));
@@ -1959,7 +1979,7 @@ void taskMoveZ(void *param) {
       z.speedMax = getStepMaxSpeed(&z);
       int delta = 0;
       do {
-        float fractionalDelta = (pulseDelta == 0 ? moveStep * sign / z.screwPitch : pulseDelta / PULSE_PER_REVOLUTION) * z.motorSteps + z.fractionalPos;
+        float fractionalDelta = (pulseDelta == 0 ? moveStep * sign / z.screwPitch : pulseDelta / PULSE_PER_REVOLUTION_Z) * z.motorSteps + z.fractionalPos; // STR
         delta = round(fractionalDelta);
         // Don't lose fractional steps when moving by 0.01" or 0.001".
         z.fractionalPos = fractionalDelta - delta;
@@ -2024,7 +2044,7 @@ void taskMoveX(void *param) {
     int delta = 0;
     int sign = up ? 1 : -1;
     do {
-      float fractionalDelta = (pulseDelta == 0 ? moveStep * sign / x.screwPitch : pulseDelta / PULSE_PER_REVOLUTION) * x.motorSteps + x.fractionalPos;
+      float fractionalDelta = (pulseDelta == 0 ? moveStep * sign / x.screwPitch : pulseDelta / PULSE_PER_REVOLUTION_X) * x.motorSteps + x.fractionalPos; // STR
       delta = round(fractionalDelta);
       // Don't lose fractional steps when moving by 0.01" or 0.001".
       x.fractionalPos = fractionalDelta - delta;
@@ -3315,6 +3335,13 @@ void modeTurn(Axis* main, Axis* aux) {
       opIndex += starts;
     }
     long auxPos = auxEndStop - (auxEndStop - auxStartStop) / turnPasses * (turnPasses - ceil(opIndex / float(starts)));
+    // STR
+    if (mode == MODE_THREAD) {
+      float fraction = (turnPasses - ceil(opIndex / float(starts))) / turnPasses;
+      fraction = fraction * fraction; // make initial passed larger, final passes smaller
+      auxPos = auxEndStop - (auxEndStop - auxStartStop) * fraction;
+    }
+    //STR
     // Bringing X to starting position.
     if (opSubIndex == 0) {
       stepToFinal(aux, auxPos);
@@ -3353,12 +3380,21 @@ void modeTurn(Axis* main, Axis* aux) {
     }
     // Retracting the tool
     if (opSubIndex == 3) {
-      long auxPos = auxStartStop + auxSafeDistance;
-      stepToFinal(aux, auxPos);
-      if (aux->pos == auxPos) {
-        opSubIndex = 4;
+    if (mode != MODE_THREAD) { // STR
+        long targetPos = auxPos + auxSafeDistance;
+        stepToFinal(aux, targetPos);
+        if (aux->pos == targetPos) {
+          opSubIndex = 4;
+        }
+      } else { // STR
+        long auxPos = auxStartStop + auxSafeDistance;
+        stepToFinal(aux, auxPos);
+        if (aux->pos == auxPos) {
+          opSubIndex = 4;
+        }
       }
-    }
+    } // STR
+
     // Returning to start of main.
     if (opSubIndex == 4) {
       main->speedMax = main->speedManualMove;
