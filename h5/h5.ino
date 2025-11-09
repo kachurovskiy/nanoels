@@ -11,10 +11,10 @@ const int ENCODER_BACKLASH = 8; // Numer of impulses encoder can issue without m
 #define ENC_B 14
 
 // Main lead screw (Z) parameters.
-const long SCREW_Z_DU = 40000; // 4.0mm lead screw in deci-microns (10^-7 of a meter) STR 20000
+const long SCREW_Z_DU = 40000; // 4.0mm lead screw in deci-microns (10^-7 of a meter) STR
 const long MOTOR_STEPS_Z = 1600; // STR
-const long SPEED_START_Z = 6 * MOTOR_STEPS_Z; // Initial speed of a motor, steps / second. STR
-const long ACCELERATION_Z = 10 * MOTOR_STEPS_Z; // Acceleration of a motor, steps / second ^ 2. STR
+const long SPEED_START_Z = 1 * MOTOR_STEPS_Z; // Initial speed of a motor, steps / second. STR
+const long ACCELERATION_Z = 25 * MOTOR_STEPS_Z; // Acceleration of a motor, steps / second ^ 2. STR
 const long SPEED_MANUAL_MOVE_Z = 8 * MOTOR_STEPS_Z; // Maximum speed of a motor during manual move, steps / second. STR
 const bool INVERT_Z = false; // change (true/false) if the carriage moves e.g. "left" when you press "right".
 const bool INVERT_Z_ENABLE = false; // change (true/false) if the Z axis enable pin is inverted
@@ -24,8 +24,8 @@ const long BACKLASH_DU_Z = 500; // 0.1mm backlash in deci-microns (10^-7 of a me
 const char NAME_Z = 'Z'; // Text shown on screen before axis position value, GCode axis name
 
 // Cross-slide lead screw (X) parameters.
-const long SCREW_X_DU = 10000; // 1.0mm lead screw with 3x reduction in deci-microns (10^-7) of a meter STR
-const long MOTOR_STEPS_X = 1600; // 800 steps at 3x reduction STR
+const long SCREW_X_DU = 10000; // 1.0mm lead screw in deci-microns (10^-7 of a meter) STR
+const long MOTOR_STEPS_X = 1600; // STR
 const long SPEED_START_X = 1 * MOTOR_STEPS_X; // Initial speed of a motor, steps / second. STR
 const long ACCELERATION_X = 10 * MOTOR_STEPS_X; // Acceleration of a motor, steps / second ^ 2. STR
 const long SPEED_MANUAL_MOVE_X = 5 * MOTOR_STEPS_X; // Maximum speed of a motor during manual move, steps / second. STR
@@ -66,7 +66,8 @@ const long BACKLASH_DU_Y = 0; // Assuming no backlash on the worm gear
 const char NAME_Y = 'Y'; // Text shown on screen before axis position value, GCode axis name
 
 // Manual handwheels. Ignore if you don't have them installed.
-const float PULSE_PER_REVOLUTION = 800; // PPR of handwheels. STR
+const float PULSE_PER_REVOLUTION_Z = 800; // PPR of handwheels. STR
+const float PULSE_PER_REVOLUTION_X = 400; // PPR of handwheels. STR
 
 const int ENCODER_STEPS_INT = ENCODER_PPR * 2; // Number of encoder impulses PCNT counts per revolution of the spindle
 const int ENCODER_FILTER = 1; // Encoder pulses shorter than this will be ignored. Clock cycles, 1 - 1023.
@@ -1978,7 +1979,7 @@ void taskMoveZ(void *param) {
       z.speedMax = getStepMaxSpeed(&z);
       int delta = 0;
       do {
-        float fractionalDelta = (pulseDelta == 0 ? moveStep * sign / z.screwPitch : pulseDelta / PULSE_PER_REVOLUTION) * z.motorSteps + z.fractionalPos;
+        float fractionalDelta = (pulseDelta == 0 ? moveStep * sign / z.screwPitch : pulseDelta / PULSE_PER_REVOLUTION_Z) * z.motorSteps + z.fractionalPos; // STR
         delta = round(fractionalDelta);
         // Don't lose fractional steps when moving by 0.01" or 0.001".
         z.fractionalPos = fractionalDelta - delta;
@@ -2043,7 +2044,7 @@ void taskMoveX(void *param) {
     int delta = 0;
     int sign = up ? 1 : -1;
     do {
-      float fractionalDelta = (pulseDelta == 0 ? moveStep * sign / x.screwPitch : pulseDelta / PULSE_PER_REVOLUTION) * x.motorSteps + x.fractionalPos;
+      float fractionalDelta = (pulseDelta == 0 ? moveStep * sign / x.screwPitch : pulseDelta / PULSE_PER_REVOLUTION_X) * x.motorSteps + x.fractionalPos; // STR
       delta = round(fractionalDelta);
       // Don't lose fractional steps when moving by 0.01" or 0.001".
       x.fractionalPos = fractionalDelta - delta;
