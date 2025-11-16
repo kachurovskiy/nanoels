@@ -2982,6 +2982,7 @@ bool processNumpad(int keyCode) {
 const int NEXTION_BUFFER_LENGTH = 256;
 byte nextionBuffer[NEXTION_BUFFER_LENGTH];
 int nextionBufferIndex = 0;
+byte lastNextionPageId = 255;
 
 bool checkForTerminator() {
   if (nextionBufferIndex < 3) return false;
@@ -2991,7 +2992,7 @@ bool checkForTerminator() {
 }
 
 const byte HEX_TO_KEYCODE[256] = {
-  // Array indexes are "id" attribute values in the Nextion h5.hmi
+  // Page 0 array indexes are "id" attribute values in the Nextion h5.hmi
   [0] = 0,
   [1] = 0,
   [2] = 0,
@@ -3046,17 +3047,45 @@ const byte HEX_TO_KEYCODE[256] = {
 };
 
 int processNextionMessage() {
+  lastNextionPageId = 255;
   if (nextionBufferIndex < 6) return 0;
-  if (nextionBuffer[0] == 0x65 && nextionBuffer[1] == 0x00) {
-    int code = HEX_TO_KEYCODE[nextionBuffer[2]];
-    if (nextionBuffer[3] == 0) code |= PS2_BREAK;
+  if (nextionBuffer[0] == 0x65) {
+    byte pageId = nextionBuffer[1];
+    int code = 0;
+    if (pageId == 0x00) {
+      code = HEX_TO_KEYCODE[nextionBuffer[2]];
+    } else if (pageId == 0x01) {
+      switch (nextionBuffer[2]) {
+        case 12: code = B_MODE_GEARS; break;
+        case 13: code = B_MODE_TURN; break;
+        case 14: code = B_MODE_FACE; break;
+        case 15: code = B_MODE_CONE; break;
+        case 16: code = B_MODE_CUT; break;
+        case 17: code = B_MODE_THREAD; break;
+        case 18: code = B_MODE_ELLIPSE; break;
+        case 19: code = B_MODE_GCODE; break;
+        case 20: code = B_MODE_ASYNC; break;
+        case 21: code = B_MODE_Y; break;
+      }
+    }
+    if (code != 0) {
+      lastNextionPageId = pageId;
+      if (nextionBuffer[3] == 0) code |= PS2_BREAK;
+    }
     return code;
   }
   return 0;
 }
 
+void setModeFromUi(int modeToSet, bool eventFromNextion) {
+  setModeFromTask(modeToSet);
+  if (eventFromNextion && lastNextionPageId == 1) toScreen("page 0");
+}
+
 void processKeypadEvent() {
   int event = 0;
+  bool eventFromNextion = false;
+  lastNextionPageId = 255;
   if (wsKeycode != 0) {
     event = wsKeycode;
     wsKeycode = 0;
@@ -3072,6 +3101,7 @@ void processKeypadEvent() {
     }
     if (checkForTerminator()) {
       event = processNextionMessage();
+      eventFromNextion = event != 0 && lastNextionPageId != 255;
       nextionBufferIndex = 0;
     }
   }
@@ -3164,13 +3194,13 @@ void processKeypadEvent() {
   } else if (keyCode == B_STOPB && ACTIVE_Y) {
     buttonRightStopPress(&y);
   } else if (keyCode == B_MODE_Y && ACTIVE_Y) {
-    setModeFromTask(MODE_Y);
+    setModeFromUi(MODE_Y, eventFromNextion);
   } else if (keyCode == B_MODE_ELLIPSE) {
-    setModeFromTask(MODE_ELLIPSE);
+    setModeFromUi(MODE_ELLIPSE, eventFromNextion);
   } else if (keyCode == B_MODE_GCODE) {
-    setModeFromTask(MODE_GCODE);
+    setModeFromUi(MODE_GCODE, eventFromNextion);
   } else if (keyCode == B_MODE_ASYNC) {
-    setModeFromTask(MODE_ASYNC);
+    setModeFromUi(MODE_ASYNC, eventFromNextion);
   } else if (keyCode == B_MULTISTART) {
     buttonMultistartPress();
   } else if (keyCode == B_DISPL) {
@@ -3197,11 +3227,12 @@ void processKeypadEvent() {
   } else if (keyCode == B_MEASURE) {
     buttonMeasurePress();
   } else if (keyCode == B_MODE_GEARS) {
-    setModeFromTask(MODE_NORMAL);
+    setModeFromUi(MODE_NORMAL, eventFromNextion);
   } else if (keyCode == B_MODE_TURN) {
-    setModeFromTask(MODE_TURN);
+    setModeFromUi(MODE_TURN, eventFromNextion);
   } else if (keyCode == B_MODE) {
-    if (mode == MODE_NORMAL) setModeFromTask(MODE_TURN);
+    if (eventFromNextion) toScreen("page 1");
+    else if (mode == MODE_NORMAL) setModeFromTask(MODE_TURN);
     else if (mode == MODE_TURN) setModeFromTask(MODE_FACE);
     else if (mode == MODE_FACE) setModeFromTask(MODE_CONE);
     else if (mode == MODE_CONE) setModeFromTask(MODE_CUT);
@@ -3212,13 +3243,13 @@ void processKeypadEvent() {
     else if (mode == MODE_ASYNC) setModeFromTask(y.active ? MODE_Y : MODE_NORMAL);
     else if (mode == MODE_Y) setModeFromTask(MODE_NORMAL);
   } else if (keyCode == B_MODE_FACE) {
-    setModeFromTask(MODE_FACE);
+    setModeFromUi(MODE_FACE, eventFromNextion);
   } else if (keyCode == B_MODE_CONE) {
-    setModeFromTask(MODE_CONE);
+    setModeFromUi(MODE_CONE, eventFromNextion);
   } else if (keyCode == B_MODE_CUT) {
-    setModeFromTask(MODE_CUT);
+    setModeFromUi(MODE_CUT, eventFromNextion);
   } else if (keyCode == B_MODE_THREAD) {
-    setModeFromTask(MODE_THREAD);
+    setModeFromUi(MODE_THREAD, eventFromNextion);
   }
 }
 
