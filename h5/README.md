@@ -135,12 +135,12 @@ If descriptions of the buttons below are unclear, don't worry, skip this section
 Top line:
 
 - `bStatus` turns the controlled off - stops the ongoing operation or manual move, resets spindle angle and turns to 0
-- `bMode` turns the controlled off and changes the mode to the next
+- `bMode` turns the controlled off and changes the mode
 - `mMultistart` increases the amounts of starts by 1 when pressed in short intervals, sets amount of starts to 1 if pressed after a pause
 - `tPitch` reverses the pitch - makes it positive if it's negative, makes it negative if it's positive. Reversing makes the controller "loose the thread" so don't use it for returning back for another threading pass.
 - `bMeasure` changes measuring system between metric, imperial and tpi
 - `mPlus` increments the pitch or number of passes in a multi-pass operation
-- `mMinus` increments the pitch or number of passes in a multi-pass operation
+- `mMinus` decrements the pitch or number of passes in a multi-pass operation
 
 Middle line:
 
@@ -178,7 +178,7 @@ Z axis group:
 
 Lower part of the screen:
 
-- `t3` shows current WiFi status, pending numpad value or mode configuration prompt
+- `t3` shows diameter, current WiFi status, pending numpad value or mode configuration prompt
 - `mStop` turns the controlled off
 - `bD0` to `bD9` append a number at end of the numpad input
 - `mBack` works as backspace - deletes the last entered number
@@ -322,6 +322,10 @@ You can skip to the next pass using 🖥️`mPlay` / ⌨️`Enter` while the ope
 
 Operation can be stopped at any time by pressing 🖥️`mStop` / ⌨️`Esc` or using manual move buttons.
 
+In previous versions cross-slide would pull back all the way between the passes, starting from H5V12 we only pull back by a small safe distance.
+
+Handwheels are ignored when this mode is on.
+
 ### Automatic facing
 
 Press 🖥️`bMode` to switch to the automatic facing mode which is usually used to take large amount of material from the face of the part in 1 or more passes.
@@ -355,9 +359,13 @@ Turn on the spindle. Operation will proceed fully automatically and the cutter w
 
 Operation can be stopped at any time by pressing 🖥️`mStop` / ⌨️`Esc` or using manual move buttons.
 
+Handwheels are ignored when this mode is on.
+
 ### Automatic threading
 
 Press 🖥️`bMode` to switch to the automatic threading which will cut a thread (optionally multi-start one) in multiple passes.
+
+First passes are larger than average, final passes are shallower.
 
 Set the desired pitch to a suitable value e.g. `2mm` or `20tpi`. Negative pitch will result in a left thread and will make the operation start from the left limit, positive pitch will make the operation start from the right. All soft limits (left, right, up, down) must be set before the operation can be started.
 
@@ -393,6 +401,8 @@ Pressing 🖥️`mPlay` / ⌨️`Enter` guides through remaining steps:
 Turn on the spindle. Operation will proceed fully automatically and the cutter will return to the starting position when done. Adjusting the pitch on the fly is not supported.
 
 Operation can be stopped at any time by pressing 🖥️`mStop` / ⌨️`Esc` or using manual move buttons.
+
+Handwheels are ignored when this mode is on.
 
 ### Async mode
 
