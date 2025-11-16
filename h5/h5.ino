@@ -92,7 +92,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 11
+#define SOFTWARE_VERSION 12
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -808,7 +808,7 @@ bool savedShowTacho = false; // showTacho value saved in Preferences
 int shownRpm = 0;
 unsigned long shownRpmTime = 0; // micros() when shownRpm was set
 
-long moveStep = 0; // thousandth of a mm
+long moveStep = 0; // in deci-microns
 long savedMoveStep = 0; // moveStep saved in Preferences
 
 volatile int mode = -1; // mode of operation (ELS, multi-start ELS, asynchronous)
@@ -918,7 +918,8 @@ void clearBuffer(CircleBuffer* b) {
 
 WebServer server(80);
 WebSocketsServer webSocket(81);
-String wifiStatus = "WiFi not connected";
+String wifiStatus = "No WiFi";
+unsigned long wifiStatusMillis = 0;
 
 void handleWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
   if (type == WStype_TEXT) {
@@ -1075,9 +1076,14 @@ void handleStatus() {
   server.send(200, "text/plain", "LittleFS.freeSpace=" + String(LittleFS.totalBytes() - LittleFS.usedBytes()) + "\n");
 }
 
+void setWiFiStatus(const String& status) {
+  wifiStatus = status;
+  wifiStatusMillis = millis();
+}
+
 void taskWiFi(void *param) {
   WiFi.begin(SSID, PASSWORD);
-  wifiStatus = "Connecting to WiFi";
+  setWiFiStatus("Connecting");
   for (int i = 0; i < 40; i++) {
     if (WiFi.status() == WL_CONNECTED) break;
     DELAY(500);
@@ -1085,20 +1091,20 @@ void taskWiFi(void *param) {
   }
   if (WiFi.status() != WL_CONNECTED) {
     if (WiFi.status() == WL_NO_SSID_AVAIL) {
-      wifiStatus = "No SSID available";
+      setWiFiStatus("No SSID");
     } else if (WiFi.status() == WL_CONNECT_FAILED) {
-      wifiStatus = "WiFi connection failed";
+      setWiFiStatus("WiFi failed");
     } else if (WiFi.status() == WL_CONNECTION_LOST) {
-      wifiStatus = "WiFi connection lost";
+      setWiFiStatus("WiFi lost");
     } else if (WiFi.status() == WL_DISCONNECTED) {
-      wifiStatus = "WiFi disconnected"; // Likely wrong password
+      setWiFiStatus("WiFi disconnected"); // Likely wrong password
     } else {
-      wifiStatus = "WiFi unknown error";
+      setWiFiStatus("WiFi error");
     }
     vTaskDelete(NULL);
     return;
   }
-  wifiStatus = "See " + WiFi.localIP().toString();
+  setWiFiStatus("See " + WiFi.localIP().toString());
 
   initBuffer(&inBuffer, 1024);
   initBuffer(&outBuffer, 1024);
@@ -1411,7 +1417,7 @@ bool manualMovesAllowedWhenOn() {
 }
 
 bool manualMovesIgnoredWhenOn() {
-  return mode == MODE_GCODE;
+  return mode == MODE_GCODE || isPassMode();
 }
 
 int getLastSetupIndex() {
@@ -1665,7 +1671,9 @@ void updateDisplay() {
 
     if (inNumpad && result == "") result = "Use " + printDupr(numpadToDeciMicrons()) + "?";
 
-    if (result == "") result = wifiStatus;
+    if (result == "" && (millis() - wifiStatusMillis < 7000 || !x.active || x.disabled)) result = wifiStatus;
+
+    if (result == "" && x.active && !x.disabled) result = "Diameter " + printDeciMicrons(abs(2 * getAxisPosDu(&x)), 2);
 
     setText("t3", result);
   }
@@ -1922,7 +1930,10 @@ void taskMoveZ(void *param) {
     z.movingManually = true;
     if (isOn && dupr != 0 && mode == MODE_NORMAL) {
       // Move by moveStep in the desired direction but stay in the thread by possibly traveling a little more.
-      int diff = ceil(moveStep * 1.0 / abs(dupr * starts)) * ENCODER_STEPS_FLOAT * sign * (dupr > 0 ? 1 : -1);
+      float fraction = pulseDelta == 0 ? 1.0 : abs(pulseDelta) / PULSE_PER_REVOLUTION;
+      float turns = moveStep * fraction / abs(dupr * starts);
+      int fullTurns = ceil(turns);
+      int diff = fullTurns * ENCODER_STEPS_FLOAT * sign * (dupr > 0 ? 1 : -1);
       long prevSpindlePos = spindlePos;
       bool resting = false;
       do {
@@ -1945,6 +1956,7 @@ void taskMoveZ(void *param) {
         if (newPos != z.pos) {
           stepToContinuous(&z, newPos);
           waitForPendingPosNear0(&z);
+          getAndResetPulses(&z); // Discard any pulses during movement.
         } else if (z.pos == (left ? z.leftStop : z.rightStop)) {
           // We're standing on a stop with the L/R move button pressed.
           resting = true;
@@ -3292,8 +3304,8 @@ void modeTurn(Axis* main, Axis* aux) {
   long auxEndStop = auxForward ? aux->leftStop : aux->rightStop;
 
   // opIndex 0 is only executed once, do setup calculations here.
+  auxSafeDistance = (auxForward ? -1 : 1) * SAFE_DISTANCE_DU * aux->motorSteps / aux->screwPitch;
   if (opIndex == 0) {
-    auxSafeDistance = (auxForward ? -1 : 1) * SAFE_DISTANCE_DU * aux->motorSteps / aux->screwPitch;
     startOffset = starts == 1 ? 0 : round(ENCODER_STEPS_FLOAT / starts);
 
     // Move to right-bottom limit.
@@ -3314,7 +3326,9 @@ void modeTurn(Axis* main, Axis* aux) {
       opIndexAdvanceFlag = false;
       opIndex += starts;
     }
-    long auxPos = auxEndStop - (auxEndStop - auxStartStop) / turnPasses * (turnPasses - ceil(opIndex / float(starts)));
+    float fraction = (turnPasses - ceil(opIndex / float(starts))) / turnPasses;
+    if (mode == MODE_THREAD) fraction = fraction * fraction; // make initial passed larger, final passes smaller
+    long auxPos = auxEndStop - (auxEndStop - auxStartStop) * fraction;
     // Bringing X to starting position.
     if (opSubIndex == 0) {
       stepToFinal(aux, auxPos);
@@ -3353,8 +3367,8 @@ void modeTurn(Axis* main, Axis* aux) {
     }
     // Retracting the tool
     if (opSubIndex == 3) {
-      long auxPos = auxStartStop + auxSafeDistance;
-      stepToFinal(aux, auxPos);
+      long auxTargetPos = (mode == MODE_THREAD ? auxStartStop : auxPos) + auxSafeDistance;
+      stepToFinal(aux, auxTargetPos);
       if (aux->pos == auxPos) {
         opSubIndex = 4;
       }
