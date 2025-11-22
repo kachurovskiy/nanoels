@@ -92,7 +92,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 12
+#define SOFTWARE_VERSION 13
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -1544,7 +1544,7 @@ String printMode() {
 unsigned long lastDisplayUpdateTime = 0;
 
 void updateDisplay() {
-  if (millis() - lastDisplayUpdateTime < 50) return;
+  if (millis() - lastDisplayUpdateTime < 100) return;
   lastDisplayUpdateTime = millis();
 
   long newHashLine0 = isOn + spindlePosSync + mode + measure + dupr + starts;
@@ -3400,7 +3400,7 @@ void modeTurn(Axis* main, Axis* aux) {
     if (opSubIndex == 3) {
       long auxTargetPos = (mode == MODE_THREAD ? auxStartStop : auxPos) + auxSafeDistance;
       stepToFinal(aux, auxTargetPos);
-      if (aux->pos == auxPos) {
+      if (aux->pos == auxTargetPos) {
         opSubIndex = 4;
       }
     }
