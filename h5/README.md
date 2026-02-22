@@ -44,7 +44,7 @@ NOTE: throughout the assembly make sure to avoid static electricity accumulation
 
 ![image](https://github.com/user-attachments/assets/8a630150-ad79-434e-bc0c-9a0f711de5bb)
 
-1. Check that ESP32 board is working by uploading [h5.ino](h5.ino) onto it using Arduino IDE. See `Programming the controller` section below for more info.
+1. Check that ESP32 board is working by uploading [h5.ino](h5.ino) onto it using Arduino IDE. See [Programming the controller](#programming-the-controller) section below for more info.
 2. Solder ESP32, 2x SN74HCT245N and optional curved 4-pin header onto the PCB. **Triple check the side and orientation of each piece before soldering.**
 3. Insert USB extension into the COM port
 4. Separate all terminals into 2 pieces. Insert female terminals into the 3D-printed housing. Place the PCB on top and secure it with 4 M3 bolts. Secure the other end of the USB cable in the access hole with an M3 bolt.
@@ -86,6 +86,7 @@ Scale and joystick terminals aren't used in the code yet.
 - Install the [Arduino IDE](https://docs.arduino.cc/software/ide-v2)
 - Add `https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json` in [Preferences as "Additional board manager URLs"](https://github.com/kachurovskiy/nanoels/assets/517919/dcc023e6-20fc-4284-ba56-d466dbe4ce53)
 - Install `esp32` [via Board Manager](https://github.com/kachurovskiy/nanoels/assets/517919/094d00ff-1e51-4f26-bb81-aa4ad42bde2a)
+  - If you get a `DEADLINE_EXCEEDED` error while installing `esp32`, [see this post for a workaround](https://forum.arduino.cc/t/ide-2-3-7-now-gives-error-4-deadline-exceeded/1422321/2)
 - Install `PS2KeyAdvanced` and `WebSockets` via Arduino IDE Library Manager
 - Download [this repository](https://github.com/kachurovskiy/nanoels/archive/refs/heads/main.zip), unzip, go to `h5` directory and open `h5.ino` file in the Arduino IDE
 - Check the top constants (e.g. encoder steps, motor steps, display offset) and adjust if needed
