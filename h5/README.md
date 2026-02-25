@@ -13,7 +13,7 @@ Latest version of the electronic lead screw controller for metal lathes.
 - 6€ 3 packs of [5 pairs 3.5mm terminals 4P straight](https://www.aliexpress.com/item/1005006895741900.html)
 - 3€ [USB C male to female](https://www.aliexpress.com/item/1005007549815957.html)
 - 5€ [custom PCB](pcb/Gerber_PCB_NanoElsH5-20241218.zip) ordered on jlcpcb.com
-- [3D-printed case](case/h5case.step)
+- [3D-printed case](case/h5case.step) with [SD card handle](case/h5sdhandle.step)
 - 5x M3 bolts 5-8mm length
 - Optional 19€ [PS2 mini keyboard](https://www.amazon.de/gp/product/B01MRJQVZP)
 - Optional 1€ [curved 4-pin header](https://de.aliexpress.com/item/1005007569841697.html) to connect display wires to the PCB
