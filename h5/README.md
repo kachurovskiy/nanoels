@@ -1,6 +1,6 @@
 # NanoEls H5
 
-Latest version of the electronic lead screw controller for metal lathes.
+Latest version of the electronic lead screw controller for metal lathes - https://www.youtube.com/watch?v=dgiMwlfZPNg
 
 ![h5](https://github.com/user-attachments/assets/e8203990-e78e-4aa1-a0c6-807b83c74bca)
 
