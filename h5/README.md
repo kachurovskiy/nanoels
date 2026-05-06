@@ -101,6 +101,7 @@ Scale terminals aren't used in the code yet.
 - Check the top constants (e.g. encoder steps, motor steps, display offset) and adjust if needed
 - Select "ESP32S3 Dev Module" as device at the top, pick COM port that appears when you connect the device with a USB cable
 - Upload the sketch to your H5 controller
+- For later firmware updates over WiFi, use `Sketch > Export Compiled Binary` in Arduino IDE, open the H5 Web UI, and upload `build\esp32.esp32.esp32s3\h5.ino.bin` under `ESP32 Firmware Upload`. Keep the controller stopped during upload. The controller restarts automatically after a successful upload.
 
 A few things to check after upload:
 
@@ -111,6 +112,7 @@ Troubleshooting:
 
 - Arduino IDE doesn't detect NanoEls H5: try a different USB cable
 - Arduino IDE fails to upload the sketch: make sure you plugged the extension into the `COM` port, **not** the `USB` port on the ESP32
+- WiFi firmware upload fails with an OTA partition or space error: upload over USB after selecting an OTA-capable partition scheme. USB is also required when changing the partition scheme.
 - Not sure which COM port is NanoEls H5: unplug it, check the list of available ports in Arduino IDE, plug H5 in, see new port that appeared is H5
 - `ImportError: No module named serial` error on Linux: try `sudo apt install python3-serial`
 
@@ -121,6 +123,8 @@ On the back of the case there are 2 holes for M5 threaded inserts 130mm on cente
 ## GCode over WiFi for complex parts
 
 Specify your WiFi network name and password in https://github.com/kachurovskiy/nanoels/blob/main/h5/h5.ino#L45-L46 and NanoEls will show the IP address on screen once it connects to the network. Enter that address in the browser to see the Web UI. It can be used to save GCode files onto controller and run them later at the machine in the GCODE mode.
+
+The same Web UI can upload new ESP32 firmware `.bin` files after the initial USB upload. Anyone on the local network can access the Web UI, so only enable WiFi on a trusted network.
 
 To generate GCode for your parts, upload STL model of your part to https://kachurovskiy.com/lathecode/ and specify parameters like stock diameter and tool used.
 

@@ -282,6 +282,7 @@ struct CircleBuffer {
 #include <LittleFS.h>
 #include <WiFi.h>
 #include <WebServer.h>
+#include <Update.h>
 #include <WebSocketsServer.h> // install via Libraries as "WebSockets"
 #include <driver/pulse_cnt.h>
 #include <Preferences.h>
@@ -419,23 +420,23 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     .checkbox-container input {
       margin: 10px 10px 10px 20px;
     }
-    #tft-upload-controls {
+    #tft-upload-controls, #firmware-upload-controls {
       align-items: center;
       display: flex;
       gap: 10px;
       margin-bottom: 10px;
     }
-    #tft-file {
+    #tft-file, #firmware-file {
       display: none;
     }
-    #tft-upload-controls input {
+    #tft-upload-controls input, #firmware-upload-controls input {
       margin-left: 10px;
     }
-    #tft-progress {
+    #tft-progress, #firmware-progress {
       width: 100%;
       margin-top: 10px;
     }
-    #tft-status {
+    #tft-status, #firmware-status {
       min-height: 1.2em;
     }
   </style>
@@ -475,6 +476,14 @@ const char indexhtml[] PROGMEM = R"rawliteral(
   <progress id="tft-progress" value="0" max="100" hidden></progress>
   <p id="tft-status"></p>
 
+  <h2>ESP32 Firmware Upload</h2>
+  <div id="firmware-upload-controls">
+    <label for="firmware-file" id="firmware-browse" class="button-like">Browse</label>
+    <input type="file" id="firmware-file" accept=".bin,application/octet-stream">
+  </div>
+  <progress id="firmware-progress" value="0" max="100" hidden></progress>
+  <p id="firmware-status"></p>
+
   <h2>WebSocket realtime communication</h2>
   <div id="log"></div>
   <div id="command-container">
@@ -504,7 +513,15 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     const tftFileInput = document.getElementById('tft-file');
     const tftProgress = document.getElementById('tft-progress');
     const tftStatus = document.getElementById('tft-status');
+    const firmwareBrowseButton = document.getElementById('firmware-browse');
+    const firmwareFileInput = document.getElementById('firmware-file');
+    const firmwareProgress = document.getElementById('firmware-progress');
+    const firmwareStatus = document.getElementById('firmware-status');
     let tftUploadInProgress = false;
+    let firmwareUploadInProgress = false;
+    let firmwareReloadTimer = 0;
+    let firmwareStatusPollTimer = 0;
+    let firmwareStatusPollBusy = false;
 
     const ws = new WebSocket(`ws://${window.location.host.split(':')[0]}:81`);
 
@@ -514,6 +531,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
 
     ws.onmessage = (event) => {
       logMessage('Received: ' + event.data);
+      handleRealtimeMessage(event.data);
     };
 
     ws.onclose = () => {
@@ -521,19 +539,99 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     };
 
     function updateButtonStates() {
-      sendButton.disabled = commandInput.value.trim().length < 1;
-      addGcodeButton.disabled = gcodeNameInput.value.trim().length < 2 || gcodeContentInput.value.trim().length < 2;
-      tftFirstUploadCheckbox.disabled = tftUploadInProgress;
-      tftFileInput.disabled = tftUploadInProgress;
+      const uploadInProgress = tftUploadInProgress || firmwareUploadInProgress;
+      sendButton.disabled = commandInput.value.trim().length < 1 || uploadInProgress;
+      addGcodeButton.disabled = gcodeNameInput.value.trim().length < 2 || gcodeContentInput.value.trim().length < 2 || uploadInProgress;
+      tftFirstUploadCheckbox.disabled = uploadInProgress;
+      tftFileInput.disabled = uploadInProgress;
+      firmwareFileInput.disabled = uploadInProgress;
       sendButton.classList.toggle('disabled', sendButton.disabled);
       addGcodeButton.classList.toggle('disabled', addGcodeButton.disabled);
-      tftBrowseButton.classList.toggle('disabled', tftUploadInProgress);
+      tftBrowseButton.classList.toggle('disabled', uploadInProgress);
+      firmwareBrowseButton.classList.toggle('disabled', uploadInProgress);
+    }
+
+    function parseStatusValue(data, key) {
+      const prefix = key + '=';
+      const line = data.split('\n').find(l => l.startsWith(prefix));
+      return line ? line.substring(prefix.length) : '';
+    }
+
+    function updateFirmwareProgress(percent, message) {
+      if (!firmwareUploadInProgress && percent < 100) return;
+      firmwareProgress.hidden = false;
+      firmwareProgress.value = Math.max(Number(firmwareProgress.value) || 0, Math.min(100, Math.max(0, percent)));
+      if (message) firmwareStatus.textContent = message;
+    }
+
+    function updateFirmwareStatusFromText(data) {
+      const size = Number(parseStatusValue(data, 'FW.size'));
+      const uploaded = Number(parseStatusValue(data, 'FW.uploaded'));
+      const message = parseStatusValue(data, 'FW.message');
+      if (size > 0 && uploaded >= 0) {
+        updateFirmwareProgress(Math.round(uploaded * 100 / size), message || `Writing firmware ${Math.round(uploaded * 100 / size)}%`);
+      } else if (message) {
+        firmwareStatus.textContent = message;
+      }
+    }
+
+    function pollFirmwareStatus() {
+      if (firmwareStatusPollBusy) return;
+      firmwareStatusPollBusy = true;
+      fetch(`/status?ts=${Date.now()}`, { cache: 'no-store' })
+        .then(response => response.text())
+        .then(updateFirmwareStatusFromText)
+        .catch(() => {})
+        .then(() => {
+          firmwareStatusPollBusy = false;
+        });
+    }
+
+    function startFirmwareStatusPolling() {
+      clearInterval(firmwareStatusPollTimer);
+      firmwareStatusPollTimer = setInterval(pollFirmwareStatus, 1000);
+    }
+
+    function stopFirmwareStatusPolling() {
+      clearInterval(firmwareStatusPollTimer);
+      firmwareStatusPollTimer = 0;
+    }
+
+    function handleRealtimeMessage(message) {
+      message.split('\n').map(line => line.trim()).filter(line => !!line).forEach(line => {
+        if (line.startsWith('FW: progress ')) {
+          const percent = Number(line.substring('FW: progress '.length).replace('%', ''));
+          if (!Number.isNaN(percent)) {
+            updateFirmwareProgress(percent, `Writing firmware ${percent}%`);
+          }
+        } else if (line === 'FW: upload complete, restarting controller') {
+          updateFirmwareProgress(100, 'Firmware upload complete. Restarting controller...');
+        } else if (line.startsWith('FW: error:')) {
+          firmwareStatus.textContent = line.substring('FW: '.length);
+        }
+      });
+    }
+
+    function waitForFirmwareReload() {
+      clearTimeout(firmwareReloadTimer);
+      firmwareReloadTimer = setTimeout(() => {
+        fetch(`/status?reload=${Date.now()}`, { cache: 'no-store' })
+          .then(response => {
+            if (response.ok) {
+              window.location.reload();
+            } else {
+              waitForFirmwareReload();
+            }
+          })
+          .catch(waitForFirmwareReload);
+      }, 2000);
     }
 
     commandInput.addEventListener('input', updateButtonStates);
     gcodeNameInput.addEventListener('input', updateButtonStates);
     gcodeContentInput.addEventListener('input', updateButtonStates);
     tftFileInput.addEventListener('change', uploadTftFile);
+    firmwareFileInput.addEventListener('change', uploadFirmwareFile);
 
     document.addEventListener('DOMContentLoaded', () => {
       updateButtonStates();
@@ -620,6 +718,58 @@ const char indexhtml[] PROGMEM = R"rawliteral(
         updateButtonStates();
       };
       request.open('POST', `/tft/upload?size=${file.size}&baud=${nextionBaud}`);
+      request.send(formData);
+    }
+
+    function uploadFirmwareFile() {
+      const file = firmwareFileInput.files[0];
+      if (!file || tftUploadInProgress || firmwareUploadInProgress) return;
+      if (!file.name.toLowerCase().endsWith('.bin')) {
+        firmwareStatus.textContent = 'Select a compiled .bin firmware file';
+        firmwareFileInput.value = '';
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('firmware', file, file.name);
+      const request = new XMLHttpRequest();
+      firmwareUploadInProgress = true;
+      firmwareProgress.value = 0;
+      firmwareProgress.hidden = false;
+      firmwareStatus.textContent = `Uploading ${file.name}. Keep this page open; the controller will restart after a successful upload.`;
+      startFirmwareStatusPolling();
+      updateButtonStates();
+
+      request.upload.onprogress = event => {
+        if (event.lengthComputable) {
+          firmwareStatus.textContent = `Sending firmware to controller ${Math.round(event.loaded * 100 / event.total)}%. Waiting for flash progress from controller.`;
+        }
+      };
+      request.onload = () => {
+        logMessage(request.responseText);
+        firmwareFileInput.value = '';
+        stopFirmwareStatusPolling();
+        if (request.status >= 200 && request.status < 300) {
+          firmwareProgress.value = 100;
+          firmwareStatus.textContent = `${request.responseText} Waiting for controller to come back online.`;
+          waitForFirmwareReload();
+        } else {
+          firmwareUploadInProgress = false;
+          firmwareStatus.textContent = request.responseText;
+          firmwareProgress.hidden = true;
+          updateButtonStates();
+        }
+      };
+      request.onerror = () => {
+        firmwareUploadInProgress = false;
+        stopFirmwareStatusPolling();
+        firmwareStatus.textContent = 'Firmware upload failed';
+        logMessage('Firmware upload failed');
+        firmwareFileInput.value = '';
+        firmwareProgress.hidden = true;
+        updateButtonStates();
+      };
+      request.open('POST', `/firmware/upload?size=${file.size}`);
       request.send(formData);
     }
 
@@ -1074,9 +1224,25 @@ const int NEXTION_BUFFER_LENGTH = 256;
 byte nextionBuffer[NEXTION_BUFFER_LENGTH];
 int nextionBufferIndex = 0;
 byte lastNextionPageId = 255;
+volatile bool firmwareUploadActive = false;
+bool firmwareUploadFailed = false;
+int firmwareUploadHttpStatus = 200;
+String firmwareUploadMessage = "";
+size_t firmwareUploadExpectedSize = 0;
+size_t firmwareUploadReceivedSize = 0;
+int firmwareUploadProgressPercent = 0;
+bool firmwareUploadRestartPending = false;
+unsigned long firmwareUploadRestartAt = 0;
 
 void tftUploadLog(const String& message) {
   String line = String("TFT: ") + message + "\n";
+  Serial.print(line);
+  webSocket.broadcastTXT(line);
+  webSocket.loop();
+}
+
+void firmwareUploadLog(const String& message) {
+  String line = String("FW: ") + message + "\n";
   Serial.print(line);
   webSocket.broadcastTXT(line);
   webSocket.loop();
@@ -1091,6 +1257,9 @@ void handleWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t l
 }
 
 void handleClientRequests() {
+  server.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  server.sendHeader("Pragma", "no-cache");
+  server.sendHeader("Expires", "0");
   server.send(200, "text/html", indexhtml);
 }
 
@@ -1446,13 +1615,123 @@ void handleTftUploadResult() {
   server.send(tftUploadHttpStatus, "text/plain", tftUploadMessage);
 }
 
+void setFirmwareUploadError(const String& message, int status) {
+  firmwareUploadFailed = true;
+  firmwareUploadHttpStatus = status;
+  firmwareUploadMessage = message;
+  firmwareUploadLog(message);
+}
+
+bool startFirmwareUpload(size_t fileSize) {
+  firmwareUploadLog(String("upload started, size=") + String((unsigned long)fileSize) + " bytes");
+  firmwareUploadRestartPending = false;
+  if (fileSize == 0) {
+    setFirmwareUploadError("error: firmware file is empty", 400);
+    return false;
+  }
+  if (tftUploadActive) {
+    setFirmwareUploadError("error: wait for TFT upload to finish before firmware upload", 409);
+    return false;
+  }
+  if (isOn) {
+    setFirmwareUploadError("error: stop the controller before firmware upload", 409);
+    return false;
+  }
+
+  firmwareUploadActive = true;
+  firmwareUploadFailed = false;
+  firmwareUploadHttpStatus = 200;
+  firmwareUploadMessage = "Firmware upload started";
+  firmwareUploadExpectedSize = fileSize;
+  firmwareUploadReceivedSize = 0;
+  firmwareUploadProgressPercent = 0;
+
+  if (!Update.begin(fileSize, U_FLASH)) {
+    setFirmwareUploadError(String("error: firmware update could not start: ") + Update.errorString(), 500);
+    firmwareUploadActive = false;
+    return false;
+  }
+  return true;
+}
+
+bool writeFirmwareUploadData(const byte* data, size_t length) {
+  size_t written = Update.write((uint8_t*)data, length);
+  firmwareUploadReceivedSize += written;
+  if (written != length) {
+    setFirmwareUploadError(String("error: firmware write failed: ") + Update.errorString(), 500);
+    return false;
+  }
+
+  int progress = firmwareUploadExpectedSize > 0 ? int(firmwareUploadReceivedSize * 100 / firmwareUploadExpectedSize) : 0;
+  if (progress >= firmwareUploadProgressPercent + 10 || progress == 100) {
+    firmwareUploadProgressPercent = progress;
+    firmwareUploadLog(String("progress ") + String(progress) + "%");
+  }
+  return true;
+}
+
+void finishFirmwareUpload() {
+  if (!firmwareUploadFailed && firmwareUploadReceivedSize != firmwareUploadExpectedSize) {
+    setFirmwareUploadError("error: firmware upload size mismatch", 400);
+  }
+  if (!firmwareUploadFailed && !Update.end(true)) {
+    setFirmwareUploadError(String("error: firmware update failed: ") + Update.errorString(), 500);
+  }
+  if (!firmwareUploadFailed) {
+    firmwareUploadMessage = "Firmware upload complete. Restarting controller...";
+    firmwareUploadLog("upload complete, restarting controller");
+    firmwareUploadRestartPending = true;
+    firmwareUploadRestartAt = millis() + 1500;
+  } else if (firmwareUploadActive) {
+    Update.abort();
+  }
+  firmwareUploadActive = false;
+}
+
+void handleFirmwareUpload() {
+  HTTPUpload& upload = server.upload();
+  if (upload.status == UPLOAD_FILE_START) {
+    String filename = upload.filename;
+    filename.toLowerCase();
+    size_t fileSize = server.hasArg("size") ? server.arg("size").toInt() : upload.totalSize;
+    firmwareUploadLog(String("selected ") + upload.filename);
+    if (!filename.endsWith(".bin")) {
+      setFirmwareUploadError("error: only .bin firmware files can be uploaded", 400);
+      return;
+    }
+    startFirmwareUpload(fileSize);
+  } else if (upload.status == UPLOAD_FILE_WRITE) {
+    if (!firmwareUploadFailed) {
+      writeFirmwareUploadData(upload.buf, upload.currentSize);
+    }
+  } else if (upload.status == UPLOAD_FILE_END) {
+    finishFirmwareUpload();
+  } else if (upload.status == UPLOAD_FILE_ABORTED) {
+    if (firmwareUploadActive) {
+      Update.abort();
+    }
+    setFirmwareUploadError("error: firmware upload aborted", 400);
+    firmwareUploadActive = false;
+  }
+}
+
+void handleFirmwareUploadResult() {
+  server.sendHeader("Connection", "close");
+  server.send(firmwareUploadHttpStatus, "text/plain", firmwareUploadMessage);
+}
+
 void handleStatus() {
+  server.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   server.send(200, "text/plain",
     String("LittleFS.freeSpace=") + String(LittleFS.totalBytes() - LittleFS.usedBytes()) + "\n" +
     "TFT.uploadActive=" + String(tftUploadActive ? 1 : 0) + "\n" +
     "TFT.uploaded=" + String(tftUploadSentSize) + "\n" +
     "TFT.size=" + String(tftUploadExpectedSize) + "\n" +
-    "TFT.message=" + tftUploadMessage + "\n");
+    "TFT.message=" + tftUploadMessage + "\n" +
+    "FW.uploadActive=" + String(firmwareUploadActive ? 1 : 0) + "\n" +
+    "FW.uploaded=" + String((unsigned long)firmwareUploadReceivedSize) + "\n" +
+    "FW.size=" + String((unsigned long)firmwareUploadExpectedSize) + "\n" +
+    "FW.message=" + firmwareUploadMessage + "\n");
 }
 
 void setWiFiStatus(const String& status) {
@@ -1496,6 +1775,7 @@ void taskWiFi(void *param) {
   server.on("/gcode/get", HTTP_GET, handleGcodeGet);
   server.on("/gcode/remove", HTTP_POST, handleGcodeRemove);
   server.on("/tft/upload", HTTP_POST, handleTftUploadResult, handleTftUpload);
+  server.on("/firmware/upload", HTTP_POST, handleFirmwareUploadResult, handleFirmwareUpload);
   server.on("/status", HTTP_GET, handleStatus);
   server.begin();
 
@@ -1505,6 +1785,11 @@ void taskWiFi(void *param) {
   while (emergencyStop == ESTOP_NONE) {
     server.handleClient();
     webSocket.loop();
+    if (firmwareUploadRestartPending && ((long)(millis() - firmwareUploadRestartAt) >= 0)) {
+      firmwareUploadLog("restarting now");
+      DELAY(50);
+      ESP.restart();
+    }
 
     if (bufferAvailable(&outBuffer)) {
       String outData = "";
