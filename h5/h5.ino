@@ -92,7 +92,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 14
+#define SOFTWARE_VERSION 15
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -256,6 +256,13 @@ struct CircleBuffer {
 #include <Preferences.h>
 #include <PS2KeyAdvanced.h> // install via Libraries as "PS2KeyAdvanced"
 
+const long NEXTION_NORMAL_BAUD = 115200;
+const long NEXTION_FIRST_UPLOAD_BAUD = 9600;
+const long NEXTION_UPLOAD_BAUD = 115200;
+const int NEXTION_TFT_PACKET_SIZE = 4096;
+const unsigned long NEXTION_CONNECT_TIMEOUT_MS = 2000;
+const unsigned long NEXTION_ACK_TIMEOUT_MS = 5000;
+
 const char indexhtml[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="en">
@@ -275,7 +282,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     h1, h2 {
       color: #333;
     }
-    input[type=text], textarea {
+    input[type=text], input[type=file], textarea {
       width: 100%;
     }
     #log {
@@ -302,15 +309,17 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       border-radius: 4px;
       margin-right: 10px;
     }
-    button {
+    button, .button-like {
       padding: 10px 20px;
       border: none;
       border-radius: 4px;
       cursor: pointer;
       color: #fff;
       background-color: #218838;
+      display: inline-block;
+      font: inherit;
     }
-    button:hover {
+    button:hover, .button-like:hover {
       background-color: #105b21;
     }
     #gcode-list {
@@ -344,11 +353,12 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     .remove-icon:hover {
       color: #c82333;
     }
-    button.disabled {
+    button.disabled, .button-like.disabled {
       background-color: #ccc;
       cursor: not-allowed;
+      pointer-events: none;
     }
-    button.disabled:hover {
+    button.disabled:hover, .button-like.disabled:hover {
       background-color: #ccc;
     }
     .gcode-row {
@@ -377,6 +387,25 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     .checkbox-container input {
       margin: 10px 10px 10px 20px;
     }
+    #tft-upload-controls {
+      align-items: center;
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    #tft-file {
+      display: none;
+    }
+    #tft-upload-controls input {
+      margin-left: 10px;
+    }
+    #tft-progress {
+      width: 100%;
+      margin-top: 10px;
+    }
+    #tft-status {
+      min-height: 1.2em;
+    }
   </style>
 </head>
 <body>
@@ -404,6 +433,16 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     <label for="remove-comments">Remove comments before saving</label>
   </div>
 
+  <h2>Nextion TFT Upload</h2>
+  <div id="tft-upload-controls">
+    <label for="tft-file" id="tft-browse" class="button-like">Browse</label>
+    <input type="file" id="tft-file" accept=".tft">
+    <input type="checkbox" id="tft-first-upload" checked>
+    <label for="tft-first-upload">First upload / factory display (9600 baud)</label>
+  </div>
+  <progress id="tft-progress" value="0" max="100" hidden></progress>
+  <p id="tft-status"></p>
+
   <h2>WebSocket realtime communication</h2>
   <div id="log"></div>
   <div id="command-container">
@@ -428,6 +467,12 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     const gcodeContentInput = document.getElementById('gcode-content');
     const addGcodeButton = document.getElementById('add-gcode');
     const removeCommentsCheckbox = document.getElementById('remove-comments');
+    const tftFirstUploadCheckbox = document.getElementById('tft-first-upload');
+    const tftBrowseButton = document.getElementById('tft-browse');
+    const tftFileInput = document.getElementById('tft-file');
+    const tftProgress = document.getElementById('tft-progress');
+    const tftStatus = document.getElementById('tft-status');
+    let tftUploadInProgress = false;
 
     const ws = new WebSocket(`ws://${window.location.host.split(':')[0]}:81`);
 
@@ -446,13 +491,17 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     function updateButtonStates() {
       sendButton.disabled = commandInput.value.trim().length < 1;
       addGcodeButton.disabled = gcodeNameInput.value.trim().length < 2 || gcodeContentInput.value.trim().length < 2;
+      tftFirstUploadCheckbox.disabled = tftUploadInProgress;
+      tftFileInput.disabled = tftUploadInProgress;
       sendButton.classList.toggle('disabled', sendButton.disabled);
       addGcodeButton.classList.toggle('disabled', addGcodeButton.disabled);
+      tftBrowseButton.classList.toggle('disabled', tftUploadInProgress);
     }
 
     commandInput.addEventListener('input', updateButtonStates);
     gcodeNameInput.addEventListener('input', updateButtonStates);
     gcodeContentInput.addEventListener('input', updateButtonStates);
+    tftFileInput.addEventListener('change', uploadTftFile);
 
     document.addEventListener('DOMContentLoaded', () => {
       updateButtonStates();
@@ -502,6 +551,45 @@ const char indexhtml[] PROGMEM = R"rawliteral(
         });
       }
     });
+
+    function uploadTftFile() {
+      const file = tftFileInput.files[0];
+      if (!file || tftUploadInProgress) return;
+      const nextionBaud = tftFirstUploadCheckbox.checked ? 9600 : 115200;
+
+      const formData = new FormData();
+      formData.append('tft', file, file.name);
+      const request = new XMLHttpRequest();
+      tftUploadInProgress = true;
+      tftProgress.value = 0;
+      tftProgress.hidden = false;
+      tftStatus.textContent = `Uploading ${file.name} from ${nextionBaud} baud. Keep this page open; flashing the display can take several minutes.`;
+      updateButtonStates();
+
+      request.upload.onprogress = event => {
+        if (event.lengthComputable) {
+          tftProgress.value = Math.round(event.loaded * 100 / event.total);
+        }
+      };
+      request.onload = () => {
+        tftUploadInProgress = false;
+        tftStatus.textContent = request.responseText;
+        logMessage(request.responseText);
+        tftFileInput.value = '';
+        tftProgress.hidden = true;
+        updateButtonStates();
+      };
+      request.onerror = () => {
+        tftUploadInProgress = false;
+        tftStatus.textContent = 'TFT upload failed';
+        logMessage('TFT upload failed');
+        tftFileInput.value = '';
+        tftProgress.hidden = true;
+        updateButtonStates();
+      };
+      request.open('POST', `/tft/upload?size=${file.size}&baud=${nextionBaud}`);
+      request.send(formData);
+    }
 
     function listGcodes() {
       fetch('/gcode/list')
@@ -920,6 +1008,28 @@ WebServer server(80);
 WebSocketsServer webSocket(81);
 String wifiStatus = "No WiFi";
 unsigned long wifiStatusMillis = 0;
+volatile bool tftUploadActive = false;
+bool tftUploadFailed = false;
+int tftUploadHttpStatus = 200;
+String tftUploadMessage = "";
+long tftUploadExpectedSize = 0;
+long tftUploadReceivedSize = 0;
+long tftUploadSentSize = 0;
+int tftUploadPacketLength = 0;
+int tftUploadProgressPercent = 0;
+long nextionSerialBaud = NEXTION_NORMAL_BAUD;
+byte tftUploadPacket[NEXTION_TFT_PACKET_SIZE];
+const int NEXTION_BUFFER_LENGTH = 256;
+byte nextionBuffer[NEXTION_BUFFER_LENGTH];
+int nextionBufferIndex = 0;
+byte lastNextionPageId = 255;
+
+void tftUploadLog(const String& message) {
+  String line = String("TFT: ") + message + "\n";
+  Serial.print(line);
+  webSocket.broadcastTXT(line);
+  webSocket.loop();
+}
 
 void handleWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
   if (type == WStype_TEXT) {
@@ -1072,8 +1182,226 @@ void handleGcodeRemove() {
   }
 }
 
+void writeNextionCommandRaw(const String& command) {
+  Serial1.print(command);
+  Serial1.write(0xFF);
+  Serial1.write(0xFF);
+  Serial1.write(0xFF);
+}
+
+void beginNextionSerial(long baud) {
+  if (nextionSerialBaud == baud) {
+    return;
+  }
+
+  Serial1.updateBaudRate(baud);
+  nextionSerialBaud = baud;
+  DELAY(5);
+}
+
+void clearNextionInput() {
+  while (Serial1.available() > 0) {
+    Serial1.read();
+  }
+}
+
+bool waitForNextionByte(byte expected, unsigned long timeoutMs, const String& context) {
+  unsigned long start = millis();
+  while (millis() - start < timeoutMs) {
+    while (Serial1.available() > 0) {
+      if (Serial1.read() == expected) {
+        return true;
+      }
+    }
+    DELAY(1);
+    taskYIELD();
+  }
+  tftUploadLog(context + ": timeout waiting for display ACK");
+  return false;
+}
+
+bool waitForNextionConnect(unsigned long timeoutMs, const String& context) {
+  String response = "";
+  unsigned long start = millis();
+  while (millis() - start < timeoutMs) {
+    while (Serial1.available() > 0) {
+      byte b = Serial1.read();
+      if (b != 0xFF && response.length() < 120) {
+        response += char(b);
+      }
+      if (response.indexOf("comok") >= 0) {
+        return true;
+      }
+    }
+    DELAY(1);
+    taskYIELD();
+  }
+  tftUploadLog(context + ": connect timeout");
+  return false;
+}
+
+unsigned long nextionBaudDelayMs(long baud) {
+  return 1000000 / baud + 30;
+}
+
+void setTftUploadError(const String& message, int status) {
+  tftUploadFailed = true;
+  tftUploadHttpStatus = status;
+  tftUploadMessage = message;
+  tftUploadLog(message);
+}
+
+bool startNextionTftUpload(long fileSize, long currentBaud) {
+  tftUploadLog(String("upload started, size=") + String(fileSize) + " bytes, display baud=" + String(currentBaud));
+  if (fileSize <= 0) {
+    setTftUploadError("error: TFT file is empty", 400);
+    return false;
+  }
+  if (currentBaud != NEXTION_FIRST_UPLOAD_BAUD && currentBaud != NEXTION_NORMAL_BAUD) {
+    setTftUploadError(String("error: unsupported Nextion baud ") + String(currentBaud), 400);
+    return false;
+  }
+  if (isOn) {
+    setTftUploadError("error: stop the controller before TFT upload", 409);
+    return false;
+  }
+
+  tftUploadActive = true;
+  tftUploadFailed = false;
+  tftUploadHttpStatus = 200;
+  tftUploadMessage = "TFT upload started";
+  tftUploadExpectedSize = fileSize;
+  tftUploadReceivedSize = 0;
+  tftUploadSentSize = 0;
+  tftUploadPacketLength = 0;
+  tftUploadProgressPercent = 0;
+  nextionBufferIndex = 0;
+  beginNextionSerial(currentBaud);
+  clearNextionInput();
+
+  writeNextionCommandRaw("");
+  DELAY(nextionBaudDelayMs(currentBaud));
+  clearNextionInput();
+  writeNextionCommandRaw("connect");
+  if (!waitForNextionConnect(NEXTION_CONNECT_TIMEOUT_MS, String("connect at selected baud ") + String(currentBaud))) {
+    setTftUploadError(String("error: Nextion display did not answer at selected baud ") + String(currentBaud) + ". Power H5 via POWER port, not USB, and try again", 500);
+    beginNextionSerial(NEXTION_NORMAL_BAUD);
+    tftUploadActive = false;
+    return false;
+  }
+  tftUploadLog(String("display connected at ") + String(currentBaud) + " baud");
+  long uploadBaud = NEXTION_UPLOAD_BAUD;
+  clearNextionInput();
+  writeNextionCommandRaw("");
+  writeNextionCommandRaw(String("whmi-wri ") + String(fileSize) + "," + String(uploadBaud) + ",0");
+  if (currentBaud != uploadBaud) {
+    DELAY(nextionBaudDelayMs(currentBaud) + 50);
+    beginNextionSerial(uploadBaud);
+  }
+  if (!waitForNextionByte(0x05, NEXTION_ACK_TIMEOUT_MS, "whmi-wri")) {
+    setTftUploadError("error: Nextion display did not accept TFT upload", 500);
+    beginNextionSerial(NEXTION_NORMAL_BAUD);
+    tftUploadActive = false;
+    return false;
+  }
+  tftUploadLog(String("display accepted upload, streaming at ") + String(uploadBaud) + " baud");
+  return true;
+}
+
+bool flushTftUploadPacket() {
+  if (tftUploadPacketLength == 0) {
+    return true;
+  }
+
+  Serial1.write(tftUploadPacket, tftUploadPacketLength);
+  Serial1.flush();
+  tftUploadSentSize += tftUploadPacketLength;
+  tftUploadPacketLength = 0;
+  int progress = tftUploadExpectedSize > 0 ? int(tftUploadSentSize * 100 / tftUploadExpectedSize) : 0;
+  if (progress >= tftUploadProgressPercent + 10 || progress == 100) {
+    tftUploadProgressPercent = progress;
+    tftUploadLog(String("progress ") + String(progress) + "%");
+  }
+  if (!waitForNextionByte(0x05, NEXTION_ACK_TIMEOUT_MS, "packet")) {
+    setTftUploadError("error: Nextion display did not acknowledge TFT data", 500);
+    return false;
+  }
+  return true;
+}
+
+bool writeTftUploadData(const byte* data, size_t length) {
+  size_t offset = 0;
+  while (offset < length) {
+    int packetSpace = NEXTION_TFT_PACKET_SIZE - tftUploadPacketLength;
+    int copyLength = min(int(length - offset), packetSpace);
+    memcpy(tftUploadPacket + tftUploadPacketLength, data + offset, copyLength);
+    tftUploadPacketLength += copyLength;
+    tftUploadReceivedSize += copyLength;
+    offset += copyLength;
+    if (tftUploadPacketLength == NEXTION_TFT_PACKET_SIZE && !flushTftUploadPacket()) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void finishTftUpload() {
+  if (!tftUploadFailed && tftUploadReceivedSize != tftUploadExpectedSize) {
+    setTftUploadError("error: TFT upload size mismatch", 400);
+  }
+  if (!tftUploadFailed && !flushTftUploadPacket()) {
+    // flushTftUploadPacket sets the error message.
+  }
+  if (!tftUploadFailed) {
+    tftUploadMessage = "TFT upload complete";
+    tftUploadLog("upload complete, waiting for display reset");
+    waitForNextionByte(0x88, 5000, "display reset");
+  }
+  beginNextionSerial(NEXTION_NORMAL_BAUD);
+  lcdHashLine0 = LCD_HASH_INITIAL;
+  lcdHashLine1 = LCD_HASH_INITIAL;
+  lcdHashLine2 = LCD_HASH_INITIAL;
+  lcdHashLine3 = LCD_HASH_INITIAL;
+  tftUploadActive = false;
+}
+
+void handleTftUpload() {
+  HTTPUpload& upload = server.upload();
+  if (upload.status == UPLOAD_FILE_START) {
+    String filename = upload.filename;
+    filename.toLowerCase();
+    long fileSize = server.hasArg("size") ? server.arg("size").toInt() : upload.totalSize;
+    long currentBaud = server.hasArg("baud") ? server.arg("baud").toInt() : NEXTION_FIRST_UPLOAD_BAUD;
+    tftUploadLog(String("selected ") + upload.filename + ", baud=" + String(currentBaud));
+    if (!filename.endsWith(".tft")) {
+      setTftUploadError("error: only .tft files can be uploaded", 400);
+      return;
+    }
+    startNextionTftUpload(fileSize, currentBaud);
+  } else if (upload.status == UPLOAD_FILE_WRITE) {
+    if (!tftUploadFailed) {
+      writeTftUploadData(upload.buf, upload.currentSize);
+    }
+  } else if (upload.status == UPLOAD_FILE_END) {
+    finishTftUpload();
+  } else if (upload.status == UPLOAD_FILE_ABORTED) {
+    setTftUploadError("error: TFT upload aborted", 400);
+    beginNextionSerial(NEXTION_NORMAL_BAUD);
+    tftUploadActive = false;
+  }
+}
+
+void handleTftUploadResult() {
+  server.send(tftUploadHttpStatus, "text/plain", tftUploadMessage);
+}
+
 void handleStatus() {
-  server.send(200, "text/plain", "LittleFS.freeSpace=" + String(LittleFS.totalBytes() - LittleFS.usedBytes()) + "\n");
+  server.send(200, "text/plain",
+    String("LittleFS.freeSpace=") + String(LittleFS.totalBytes() - LittleFS.usedBytes()) + "\n" +
+    "TFT.uploadActive=" + String(tftUploadActive ? 1 : 0) + "\n" +
+    "TFT.uploaded=" + String(tftUploadSentSize) + "\n" +
+    "TFT.size=" + String(tftUploadExpectedSize) + "\n" +
+    "TFT.message=" + tftUploadMessage + "\n");
 }
 
 void setWiFiStatus(const String& status) {
@@ -1105,6 +1433,8 @@ void taskWiFi(void *param) {
     return;
   }
   setWiFiStatus("See " + WiFi.localIP().toString());
+  Serial.print("Web UI: http://");
+  Serial.println(WiFi.localIP());
 
   initBuffer(&inBuffer, 1024);
   initBuffer(&outBuffer, 1024);
@@ -1114,6 +1444,7 @@ void taskWiFi(void *param) {
   server.on("/gcode/list", HTTP_GET, handleGcodeList);
   server.on("/gcode/get", HTTP_GET, handleGcodeGet);
   server.on("/gcode/remove", HTTP_POST, handleGcodeRemove);
+  server.on("/tft/upload", HTTP_POST, handleTftUploadResult, handleTftUpload);
   server.on("/status", HTTP_GET, handleStatus);
   server.begin();
 
@@ -1275,10 +1606,8 @@ bool stepperIsRunning(Axis* a) {
 }
 
 void toScreen(const String &command) {
-  Serial1.print(command);
-  Serial1.write(0xFF);
-  Serial1.write(0xFF);
-  Serial1.write(0xFF);
+  if (tftUploadActive) return;
+  writeNextionCommandRaw(command);
 }
 
 void setText(const String &id, const String &text) {
@@ -1544,6 +1873,7 @@ String printMode() {
 unsigned long lastDisplayUpdateTime = 0;
 
 void updateDisplay() {
+  if (tftUploadActive) return;
   if (millis() - lastDisplayUpdateTime < 100) return;
   lastDisplayUpdateTime = millis();
 
@@ -3229,7 +3559,7 @@ void processKeypadEvent() {
     wsKeycode = 0;
   } else if (keyboard.available()) {
     event = keyboard.read();
-  } else if (Serial1.available() > 0) {
+  } else if (!tftUploadActive && Serial1.available() > 0) {
     byte incomingByte = Serial1.read();
     if (nextionBufferIndex < NEXTION_BUFFER_LENGTH) {
       nextionBuffer[nextionBufferIndex] = incomingByte;
@@ -3956,7 +4286,7 @@ void setup() {
   Serial.begin(115200);
 
   // Nextion.
-  Serial1.begin(115200, SERIAL_8N1, 44, 43);
+  Serial1.begin(NEXTION_NORMAL_BAUD, SERIAL_8N1, 44, 43);
 
   // Initialize the keyboard.
   keyboard.begin(KEY_DATA, KEY_CLOCK);

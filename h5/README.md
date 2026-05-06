@@ -52,6 +52,7 @@ NOTE: throughout the assembly make sure to avoid static electricity accumulation
 6. Remove screen back cover. Attach the included 4-lead wire to the screen and to the PCB - each `RX` should be attached to `TX` on the other side.
 7. Bolt the case and screen together using the bolts that used to hold the back cover.
 8. Use empty MicroSD card 32 GB or smaller formatted as FAT32. Copy [h5.tft](screen/h5.tft) to the card, insert into the screen. Connect 5V power supply to the POWER terminal, wait for screen to report that flashing has finished. Disconnect the power, remove the card.
+   Alternatively, after [h5.ino](h5.ino) is uploaded and WiFi is connected, open the Web UI at the controller IP address and use `Nextion TFT Upload` to send [h5.tft](screen/h5.tft) over the display RX/TX connection. If the display is not flashed yet, find the IP address in the Arduino serial monitor or on your router. Leave `First upload / factory display` checked for a new 9600-baud Nextion; uncheck it for a display already running the uploaded 115200-baud H5 screen. Keep the controller stopped and power the screen from the `POWER` terminal during upload.
 9. Cut the keyboard cord to the suitable length, find which color corresponds to which line in your particular keyboard [using the port pinout](https://en.wikipedia.org/wiki/PS/2_port) and multimeter continuity tester.
 10. Supply up to 2A of power to the `POWER` terminal. You can flash the ESP32 via the USB but 0.5A provided by standard USB is not enough to start the screen.
 
