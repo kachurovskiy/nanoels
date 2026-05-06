@@ -2,43 +2,68 @@
 
 /* Change values in this section to suit your hardware. */
 
-// Define your hardware parameters here.
-const int ENCODER_PPR = 1200; // 1200 step spindle optical rotary encoder. Fractional values not supported.
-const int ENCODER_BACKLASH = 3; // Numer of impulses encoder can issue without movement of the spindle
+// Define your hardware parameters here. These are firmware defaults; the Web UI
+// can override them in ESP32 Preferences and apply them after restart.
+const int DEFAULT_ENCODER_PPR = 1200; // 1200 step spindle optical rotary encoder. Fractional values not supported.
+const int DEFAULT_ENCODER_BACKLASH = 3; // Numer of impulses encoder can issue without movement of the spindle
+int ENCODER_PPR = DEFAULT_ENCODER_PPR;
+int ENCODER_BACKLASH = DEFAULT_ENCODER_BACKLASH;
 
 // Spindle rotary encoder pins. Swap values if the rotation direction is wrong.
 #define ENC_A 13
 #define ENC_B 14
 
 // Main lead screw (Z) parameters.
-const long SCREW_Z_DU = 40000; // 4mm SFU1204 ball screw in deci-microns (10^-7 of a meter)
-const long MOTOR_STEPS_Z = 800;
-const long SPEED_START_Z = MOTOR_STEPS_Z; // Initial speed of a motor, steps / second.
-const long ACCELERATION_Z = 25 * MOTOR_STEPS_Z; // Acceleration of a motor, steps / second ^ 2.
-const long SPEED_MANUAL_MOVE_Z = 8 * MOTOR_STEPS_Z; // Maximum speed of a motor during manual move, steps / second.
-const bool INVERT_Z = false; // change (true/false) if the carriage moves e.g. "left" when you press "right".
-const bool INVERT_Z_ENABLE = false; // change (true/false) if the Z axis enable pin is inverted
-const bool NEEDS_REST_Z = false; // Set to false for closed-loop drivers, true for open-loop.
-const long MAX_TRAVEL_MM_Z = 300; // Lathe bed doesn't allow to travel more than this in one go, 30cm / ~1 foot
-const long BACKLASH_DU_Z = 0; // 0mm backlash in deci-microns (10^-7 of a meter)
+const long DEFAULT_SCREW_Z_DU = 40000; // 4mm SFU1204 ball screw in deci-microns (10^-7 of a meter)
+const long DEFAULT_MOTOR_STEPS_Z = 800;
+const long DEFAULT_SPEED_START_Z = DEFAULT_MOTOR_STEPS_Z; // Initial speed of a motor, steps / second.
+const long DEFAULT_ACCELERATION_Z = 25 * DEFAULT_MOTOR_STEPS_Z; // Acceleration of a motor, steps / second ^ 2.
+const long DEFAULT_SPEED_MANUAL_MOVE_Z = 8 * DEFAULT_MOTOR_STEPS_Z; // Maximum speed of a motor during manual move, steps / second.
+const bool DEFAULT_INVERT_Z = false; // change (true/false) if the carriage moves e.g. "left" when you press "right".
+const bool DEFAULT_INVERT_Z_ENABLE = false; // change (true/false) if the Z axis enable pin is inverted
+const bool DEFAULT_NEEDS_REST_Z = false; // Set to false for closed-loop drivers, true for open-loop.
+const long DEFAULT_MAX_TRAVEL_MM_Z = 300; // Lathe bed doesn't allow to travel more than this in one go, 30cm / ~1 foot
+const long DEFAULT_BACKLASH_DU_Z = 0; // 0mm backlash in deci-microns (10^-7 of a meter)
+long SCREW_Z_DU = DEFAULT_SCREW_Z_DU;
+long MOTOR_STEPS_Z = DEFAULT_MOTOR_STEPS_Z;
+long SPEED_START_Z = DEFAULT_SPEED_START_Z;
+long ACCELERATION_Z = DEFAULT_ACCELERATION_Z;
+long SPEED_MANUAL_MOVE_Z = DEFAULT_SPEED_MANUAL_MOVE_Z;
+bool INVERT_Z = DEFAULT_INVERT_Z;
+bool INVERT_Z_ENABLE = DEFAULT_INVERT_Z_ENABLE;
+bool NEEDS_REST_Z = DEFAULT_NEEDS_REST_Z;
+long MAX_TRAVEL_MM_Z = DEFAULT_MAX_TRAVEL_MM_Z;
+long BACKLASH_DU_Z = DEFAULT_BACKLASH_DU_Z;
 const char NAME_Z = 'Z'; // Text shown on screen before axis position value, GCode axis name
 
 // Cross-slide lead screw (X) parameters.
-const long SCREW_X_DU = 40000; // 4mm SFU1204 ball screw in deci-microns (10^-7 of a meter)
-const long MOTOR_STEPS_X = 800;
-const long SPEED_START_X = MOTOR_STEPS_X; // Initial speed of a motor, steps / second.
-const long ACCELERATION_X = 25 * MOTOR_STEPS_X; // Acceleration of a motor, steps / second ^ 2.
-const long SPEED_MANUAL_MOVE_X = 8 * MOTOR_STEPS_X; // Maximum speed of a motor during manual move, steps / second.
-const bool INVERT_X = true; // change (true/false) if the carriage moves e.g. "left" when you press "right".
-const bool INVERT_X_ENABLE = false; // change (true/false) if the X axis enable pin is inverted
-const bool NEEDS_REST_X = false; // Set to false for all kinds of drivers or X will be unlocked when not moving.
-const long MAX_TRAVEL_MM_X = 100; // Cross slide doesn't allow to travel more than this in one go, 10cm
-const long BACKLASH_DU_X = 0; // 0.15mm backlash in deci-microns (10^-7 of a meter)
+const long DEFAULT_SCREW_X_DU = 40000; // 4mm SFU1204 ball screw in deci-microns (10^-7 of a meter)
+const long DEFAULT_MOTOR_STEPS_X = 800;
+const long DEFAULT_SPEED_START_X = DEFAULT_MOTOR_STEPS_X; // Initial speed of a motor, steps / second.
+const long DEFAULT_ACCELERATION_X = 25 * DEFAULT_MOTOR_STEPS_X; // Acceleration of a motor, steps / second ^ 2.
+const long DEFAULT_SPEED_MANUAL_MOVE_X = 8 * DEFAULT_MOTOR_STEPS_X; // Maximum speed of a motor during manual move, steps / second.
+const bool DEFAULT_INVERT_X = true; // change (true/false) if the carriage moves e.g. "left" when you press "right".
+const bool DEFAULT_INVERT_X_ENABLE = false; // change (true/false) if the X axis enable pin is inverted
+const bool DEFAULT_NEEDS_REST_X = false; // Set to false for all kinds of drivers or X will be unlocked when not moving.
+const long DEFAULT_MAX_TRAVEL_MM_X = 100; // Cross slide doesn't allow to travel more than this in one go, 10cm
+const long DEFAULT_BACKLASH_DU_X = 0; // 0.15mm backlash in deci-microns (10^-7 of a meter)
+long SCREW_X_DU = DEFAULT_SCREW_X_DU;
+long MOTOR_STEPS_X = DEFAULT_MOTOR_STEPS_X;
+long SPEED_START_X = DEFAULT_SPEED_START_X;
+long ACCELERATION_X = DEFAULT_ACCELERATION_X;
+long SPEED_MANUAL_MOVE_X = DEFAULT_SPEED_MANUAL_MOVE_X;
+bool INVERT_X = DEFAULT_INVERT_X;
+bool INVERT_X_ENABLE = DEFAULT_INVERT_X_ENABLE;
+bool NEEDS_REST_X = DEFAULT_NEEDS_REST_X;
+long MAX_TRAVEL_MM_X = DEFAULT_MAX_TRAVEL_MM_X;
+long BACKLASH_DU_X = DEFAULT_BACKLASH_DU_X;
 const char NAME_X = 'X'; // Text shown on screen before axis position value, GCode axis name
 
 // Manual stepping with left/right/up/down buttons. Only used when step isn't default continuous (1mm or 0.1").
-const long STEP_TIME_MS = 500; // Time in milliseconds it should take to make 1 manual step.
-const long DELAY_BETWEEN_STEPS_MS = 80; // Time in milliseconds to wait between steps.
+const long DEFAULT_STEP_TIME_MS = 500; // Time in milliseconds it should take to make 1 manual step.
+const long DEFAULT_DELAY_BETWEEN_STEPS_MS = 80; // Time in milliseconds to wait between steps.
+long STEP_TIME_MS = DEFAULT_STEP_TIME_MS;
+long DELAY_BETWEEN_STEPS_MS = DEFAULT_DELAY_BETWEEN_STEPS_MS;
 
 // Connect to WiFi and expose web UI to control and receive GCode.
 const bool WIFI_ENABLED = true;
@@ -51,40 +76,66 @@ const long OUTGOING_BUFFER_SIZE = 100000;
 
 // Configuration for axis connected to Y. This is uncommon. Dividing head (C) motor parameters.
 // Throughout the configuration below we assume 1mm = 1degree of rotation, so 1du = 0.0001degree.
-const bool ACTIVE_Y = false; // Whether the axis is connected
-const bool ROTARY_Y = true; // Whether the axis is rotary or linear
-const long MOTOR_STEPS_Y = 300; // Number of motor steps for 1 rotation of the the worm gear screw (full step with 20:30 reduction)
-const long SCREW_Y_DU = 20000; // Degrees multiplied by 10000 that the spindle travels per 1 turn of the worm gear. 2 degrees.
-const long SPEED_START_Y = 1600; // Initial speed of a motor, steps / second.
-const long ACCELERATION_Y = 16000; // Acceleration of a motor, steps / second ^ 2.
-const long SPEED_MANUAL_MOVE_Y = 3200; // Maximum speed of a motor during manual move, steps / second.
-const bool INVERT_Y = false; // change (true/false) if the carriage moves e.g. "left" when you press "right".
-const bool INVERT_Y_ENABLE = false; // change (true/false) if the Y axis enable pin is inverted
-const bool NEEDS_REST_Y = false; // Set to false for closed-loop drivers. Open-loop: true if you need holding torque, false otherwise.
-const long MAX_TRAVEL_MM_Y = 360; // Probably doesn't make sense to ask the dividin head to travel multiple turns.
-const long BACKLASH_DU_Y = 0; // Assuming no backlash on the worm gear
+const bool DEFAULT_ACTIVE_Y = false; // Whether the axis is connected
+const bool DEFAULT_ROTARY_Y = true; // Whether the axis is rotary or linear
+const long DEFAULT_MOTOR_STEPS_Y = 300; // Number of motor steps for 1 rotation of the the worm gear screw (full step with 20:30 reduction)
+const long DEFAULT_SCREW_Y_DU = 20000; // Degrees multiplied by 10000 that the spindle travels per 1 turn of the worm gear. 2 degrees.
+const long DEFAULT_SPEED_START_Y = 1600; // Initial speed of a motor, steps / second.
+const long DEFAULT_ACCELERATION_Y = 16000; // Acceleration of a motor, steps / second ^ 2.
+const long DEFAULT_SPEED_MANUAL_MOVE_Y = 3200; // Maximum speed of a motor during manual move, steps / second.
+const bool DEFAULT_INVERT_Y = false; // change (true/false) if the carriage moves e.g. "left" when you press "right".
+const bool DEFAULT_INVERT_Y_ENABLE = false; // change (true/false) if the Y axis enable pin is inverted
+const bool DEFAULT_NEEDS_REST_Y = false; // Set to false for closed-loop drivers. Open-loop: true if you need holding torque, false otherwise.
+const long DEFAULT_MAX_TRAVEL_MM_Y = 360; // Probably doesn't make sense to ask the dividin head to travel multiple turns.
+const long DEFAULT_BACKLASH_DU_Y = 0; // Assuming no backlash on the worm gear
+bool ACTIVE_Y = DEFAULT_ACTIVE_Y;
+bool ROTARY_Y = DEFAULT_ROTARY_Y;
+long MOTOR_STEPS_Y = DEFAULT_MOTOR_STEPS_Y;
+long SCREW_Y_DU = DEFAULT_SCREW_Y_DU;
+long SPEED_START_Y = DEFAULT_SPEED_START_Y;
+long ACCELERATION_Y = DEFAULT_ACCELERATION_Y;
+long SPEED_MANUAL_MOVE_Y = DEFAULT_SPEED_MANUAL_MOVE_Y;
+bool INVERT_Y = DEFAULT_INVERT_Y;
+bool INVERT_Y_ENABLE = DEFAULT_INVERT_Y_ENABLE;
+bool NEEDS_REST_Y = DEFAULT_NEEDS_REST_Y;
+long MAX_TRAVEL_MM_Y = DEFAULT_MAX_TRAVEL_MM_Y;
+long BACKLASH_DU_Y = DEFAULT_BACKLASH_DU_Y;
 const char NAME_Y = 'Y'; // Text shown on screen before axis position value, GCode axis name
 
 // Manual handwheels. Ignore if you don't have them installed.
-const float PULSE_PER_REVOLUTION = 600; // PPR of handwheels.
+const float DEFAULT_PULSE_PER_REVOLUTION = 600; // PPR of handwheels.
+float PULSE_PER_REVOLUTION = DEFAULT_PULSE_PER_REVOLUTION;
 
 // 3-axis analog joystick. Leave disabled unless the joystick is wired and its
 // potentiometers are powered from 3.3V, not 5V.
-const bool JOYSTICK_ENABLED = false;
-const int JOYSTICK_CENTER_SAMPLES = 64;
-const int JOYSTICK_OVERSAMPLES = 4;
-const int JOYSTICK_SAMPLE_INTERVAL_MS = 20;
-const int JOYSTICK_ADC_MAX = 4095;
-const int JOYSTICK_DEADBAND = 250; // Raw ADC counts around center ignored.
-const int JOYSTICK_PULSE_QUEUE_LIMIT = 10000;
-const float JOYSTICK_NORMAL_REVOLUTIONS_PER_SECOND = 1.0;
-const float JOYSTICK_RAPID_REVOLUTIONS_PER_SECOND = 8.0;
-const bool INVERT_JOYSTICK_Z = false;
-const bool INVERT_JOYSTICK_X = false;
-const bool INVERT_JOYSTICK_Y = false;
-const bool INVERT_JOYSTICK_BUTTON = false;
+const bool DEFAULT_JOYSTICK_ENABLED = false;
+const int DEFAULT_JOYSTICK_CENTER_SAMPLES = 64;
+const int DEFAULT_JOYSTICK_OVERSAMPLES = 4;
+const int DEFAULT_JOYSTICK_SAMPLE_INTERVAL_MS = 20;
+const int DEFAULT_JOYSTICK_ADC_MAX = 4095;
+const int DEFAULT_JOYSTICK_DEADBAND = 250; // Raw ADC counts around center ignored.
+const int DEFAULT_JOYSTICK_PULSE_QUEUE_LIMIT = 10000;
+const float DEFAULT_JOYSTICK_NORMAL_REVOLUTIONS_PER_SECOND = 1.0;
+const float DEFAULT_JOYSTICK_RAPID_REVOLUTIONS_PER_SECOND = 8.0;
+const bool DEFAULT_INVERT_JOYSTICK_Z = false;
+const bool DEFAULT_INVERT_JOYSTICK_X = false;
+const bool DEFAULT_INVERT_JOYSTICK_Y = false;
+const bool DEFAULT_INVERT_JOYSTICK_BUTTON = false;
+bool JOYSTICK_ENABLED = DEFAULT_JOYSTICK_ENABLED;
+int JOYSTICK_CENTER_SAMPLES = DEFAULT_JOYSTICK_CENTER_SAMPLES;
+int JOYSTICK_OVERSAMPLES = DEFAULT_JOYSTICK_OVERSAMPLES;
+int JOYSTICK_SAMPLE_INTERVAL_MS = DEFAULT_JOYSTICK_SAMPLE_INTERVAL_MS;
+int JOYSTICK_ADC_MAX = DEFAULT_JOYSTICK_ADC_MAX;
+int JOYSTICK_DEADBAND = DEFAULT_JOYSTICK_DEADBAND;
+int JOYSTICK_PULSE_QUEUE_LIMIT = DEFAULT_JOYSTICK_PULSE_QUEUE_LIMIT;
+float JOYSTICK_NORMAL_REVOLUTIONS_PER_SECOND = DEFAULT_JOYSTICK_NORMAL_REVOLUTIONS_PER_SECOND;
+float JOYSTICK_RAPID_REVOLUTIONS_PER_SECOND = DEFAULT_JOYSTICK_RAPID_REVOLUTIONS_PER_SECOND;
+bool INVERT_JOYSTICK_Z = DEFAULT_INVERT_JOYSTICK_Z;
+bool INVERT_JOYSTICK_X = DEFAULT_INVERT_JOYSTICK_X;
+bool INVERT_JOYSTICK_Y = DEFAULT_INVERT_JOYSTICK_Y;
+bool INVERT_JOYSTICK_BUTTON = DEFAULT_INVERT_JOYSTICK_BUTTON;
 
-const int ENCODER_STEPS_INT = ENCODER_PPR * 2; // Number of encoder impulses PCNT counts per revolution of the spindle
+int ENCODER_STEPS_INT = DEFAULT_ENCODER_PPR * 2; // Number of encoder impulses PCNT counts per revolution of the spindle
 const int ENCODER_FILTER = 1; // Encoder pulses shorter than this will be ignored. Clock cycles, 1 - 1023.
 const int PCNT_LIM = 31000; // Limit used in hardware pulse counter logic.
 const int PCNT_CLEAR = 30000; // Limit where we reset hardware pulse counter value to avoid overflow. Less than PCNT_LIM.
@@ -100,6 +151,8 @@ const long STEPPED_ENABLE_DELAY_MS = 100; // Delay after stepper is enabled and 
 // changes are made to the storage logic, resulting in Preferences wipe on first start.
 #define PREFERENCES_VERSION 1
 #define PREF_NAMESPACE "h5"
+#define CONFIG_VERSION 1
+#define CONFIG_NAMESPACE "h5cfg"
 
 // GCode-related constants.
 const float LINEAR_INTERPOLATION_PRECISION = 0.1; // 0 < x <= 1, smaller values make for quicker G0 and G1 moves
@@ -231,6 +284,58 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 #define PREF_MOVE_STEP "ms"
 #define PREF_AUX_FORWARD "af"
 
+#define CFG_VERSION "v"
+#define CFG_ENCODER_PPR "encPpr"
+#define CFG_ENCODER_BACKLASH "encBacklash"
+#define CFG_SCREW_Z_DU "zScrew"
+#define CFG_MOTOR_STEPS_Z "zMotor"
+#define CFG_SPEED_START_Z "zStart"
+#define CFG_ACCELERATION_Z "zAccel"
+#define CFG_SPEED_MANUAL_MOVE_Z "zManual"
+#define CFG_INVERT_Z "zInv"
+#define CFG_INVERT_Z_ENABLE "zInvEn"
+#define CFG_NEEDS_REST_Z "zRest"
+#define CFG_MAX_TRAVEL_MM_Z "zTravel"
+#define CFG_BACKLASH_DU_Z "zBacklash"
+#define CFG_SCREW_X_DU "xScrew"
+#define CFG_MOTOR_STEPS_X "xMotor"
+#define CFG_SPEED_START_X "xStart"
+#define CFG_ACCELERATION_X "xAccel"
+#define CFG_SPEED_MANUAL_MOVE_X "xManual"
+#define CFG_INVERT_X "xInv"
+#define CFG_INVERT_X_ENABLE "xInvEn"
+#define CFG_NEEDS_REST_X "xRest"
+#define CFG_MAX_TRAVEL_MM_X "xTravel"
+#define CFG_BACKLASH_DU_X "xBacklash"
+#define CFG_STEP_TIME_MS "stepMs"
+#define CFG_DELAY_BETWEEN_STEPS_MS "stepDelay"
+#define CFG_ACTIVE_Y "yActive"
+#define CFG_ROTARY_Y "yRotary"
+#define CFG_MOTOR_STEPS_Y "yMotor"
+#define CFG_SCREW_Y_DU "yScrew"
+#define CFG_SPEED_START_Y "yStart"
+#define CFG_ACCELERATION_Y "yAccel"
+#define CFG_SPEED_MANUAL_MOVE_Y "yManual"
+#define CFG_INVERT_Y "yInv"
+#define CFG_INVERT_Y_ENABLE "yInvEn"
+#define CFG_NEEDS_REST_Y "yRest"
+#define CFG_MAX_TRAVEL_MM_Y "yTravel"
+#define CFG_BACKLASH_DU_Y "yBacklash"
+#define CFG_PULSE_PER_REVOLUTION "pulseRev"
+#define CFG_JOYSTICK_ENABLED "joyOn"
+#define CFG_JOYSTICK_CENTER_SAMPLES "joyCenter"
+#define CFG_JOYSTICK_OVERSAMPLES "joyOver"
+#define CFG_JOYSTICK_SAMPLE_INTERVAL_MS "joySample"
+#define CFG_JOYSTICK_ADC_MAX "joyAdc"
+#define CFG_JOYSTICK_DEADBAND "joyDead"
+#define CFG_JOYSTICK_PULSE_QUEUE_LIMIT "joyQueue"
+#define CFG_JOYSTICK_NORMAL_RPS "joyNormal"
+#define CFG_JOYSTICK_RAPID_RPS "joyRapid"
+#define CFG_INVERT_JOYSTICK_Z "joyInvZ"
+#define CFG_INVERT_JOYSTICK_X "joyInvX"
+#define CFG_INVERT_JOYSTICK_Y "joyInvY"
+#define CFG_INVERT_JOYSTICK_BUTTON "joyInvB"
+
 #define MOVE_STEP_1 10000 // 1mm
 #define MOVE_STEP_2 1000 // 0.1mm
 #define MOVE_STEP_3 100 // 0.01mm
@@ -315,7 +420,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     h1, h2 {
       color: #333;
     }
-    input[type=text], input[type=file], textarea {
+    input[type=text], input[type=file], input[type=number], textarea {
       width: 100%;
     }
     #log {
@@ -420,6 +525,52 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     .checkbox-container input {
       margin: 10px 10px 10px 20px;
     }
+    .config-section {
+      background-color: #fff;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      margin-bottom: 12px;
+      padding: 12px;
+    }
+    .config-section h3 {
+      margin: 0 0 10px 0;
+    }
+    .config-grid {
+      display: grid;
+      gap: 10px 16px;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+    .config-field {
+      align-items: center;
+      display: grid;
+      gap: 6px;
+    }
+    .config-field input[type=number] {
+      box-sizing: border-box;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    .config-checkbox {
+      align-items: center;
+      display: flex;
+      gap: 8px;
+      min-height: 34px;
+    }
+    .config-actions {
+      display: flex;
+      gap: 10px;
+      margin: 10px 0;
+    }
+    button.secondary {
+      background-color: #666;
+    }
+    button.secondary:hover {
+      background-color: #444;
+    }
+    #config-status {
+      min-height: 1.2em;
+    }
     #tft-upload-controls, #firmware-upload-controls {
       align-items: center;
       display: flex;
@@ -499,6 +650,16 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     <li><code>""</code> removes all GCode</li>
   </ul>
 
+  <h2>Machine Config</h2>
+  <form id="config-form">
+    <div id="config-fields"></div>
+    <div class="config-actions">
+      <button id="save-config" type="submit">Save and restart</button>
+      <button id="reset-config" type="button" class="secondary">Reset defaults</button>
+    </div>
+  </form>
+  <p id="config-status"></p>
+
   <script>
     const log = document.getElementById('log');
     const commandInput = document.getElementById('command');
@@ -508,6 +669,11 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     const gcodeContentInput = document.getElementById('gcode-content');
     const addGcodeButton = document.getElementById('add-gcode');
     const removeCommentsCheckbox = document.getElementById('remove-comments');
+    const configForm = document.getElementById('config-form');
+    const configFields = document.getElementById('config-fields');
+    const configStatus = document.getElementById('config-status');
+    const saveConfigButton = document.getElementById('save-config');
+    const resetConfigButton = document.getElementById('reset-config');
     const tftFirstUploadCheckbox = document.getElementById('tft-first-upload');
     const tftBrowseButton = document.getElementById('tft-browse');
     const tftFileInput = document.getElementById('tft-file');
@@ -522,6 +688,89 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     let firmwareReloadTimer = 0;
     let firmwareStatusPollTimer = 0;
     let firmwareStatusPollBusy = false;
+    const machineConfigSections = [
+      {
+        title: 'Spindle encoder',
+        fields: [
+          { key: 'encoderPpr', label: 'Encoder PPR', min: 1, max: 15000, step: 1 },
+          { key: 'encoderBacklash', label: 'Encoder backlash pulses', min: 0, max: 30000, step: 1 }
+        ]
+      },
+      {
+        title: 'Z axis',
+        fields: [
+          { key: 'zScrewDu', label: 'Screw pitch DU', min: 1, max: 10000000, step: 1 },
+          { key: 'zMotorSteps', label: 'Motor steps per rev', min: 1, max: 1000000, step: 1 },
+          { key: 'zSpeedStart', label: 'Start speed', min: 1, max: 1000000, step: 1 },
+          { key: 'zAcceleration', label: 'Acceleration', min: 1, max: 100000000, step: 1 },
+          { key: 'zSpeedManualMove', label: 'Manual speed', min: 1, max: 1000000, step: 1 },
+          { key: 'zMaxTravelMm', label: 'Max travel mm', min: 1, max: 10000, step: 1 },
+          { key: 'zBacklashDu', label: 'Backlash DU', min: 0, max: 10000000, step: 1 },
+          { key: 'zInvert', label: 'Invert direction', type: 'checkbox' },
+          { key: 'zInvertEnable', label: 'Invert enable', type: 'checkbox' },
+          { key: 'zNeedsRest', label: 'Needs rest', type: 'checkbox' }
+        ]
+      },
+      {
+        title: 'X axis',
+        fields: [
+          { key: 'xScrewDu', label: 'Screw pitch DU', min: 1, max: 10000000, step: 1 },
+          { key: 'xMotorSteps', label: 'Motor steps per rev', min: 1, max: 1000000, step: 1 },
+          { key: 'xSpeedStart', label: 'Start speed', min: 1, max: 1000000, step: 1 },
+          { key: 'xAcceleration', label: 'Acceleration', min: 1, max: 100000000, step: 1 },
+          { key: 'xSpeedManualMove', label: 'Manual speed', min: 1, max: 1000000, step: 1 },
+          { key: 'xMaxTravelMm', label: 'Max travel mm', min: 1, max: 10000, step: 1 },
+          { key: 'xBacklashDu', label: 'Backlash DU', min: 0, max: 10000000, step: 1 },
+          { key: 'xInvert', label: 'Invert direction', type: 'checkbox' },
+          { key: 'xInvertEnable', label: 'Invert enable', type: 'checkbox' },
+          { key: 'xNeedsRest', label: 'Needs rest', type: 'checkbox' }
+        ]
+      },
+      {
+        title: 'Manual movement',
+        fields: [
+          { key: 'stepTimeMs', label: 'Step time ms', min: 1, max: 10000, step: 1 },
+          { key: 'delayBetweenStepsMs', label: 'Step delay ms', min: 0, max: 10000, step: 1 },
+          { key: 'pulsePerRevolution', label: 'Handwheel PPR', min: 1, max: 100000, step: 0.01 }
+        ]
+      },
+      {
+        title: 'Y axis',
+        fields: [
+          { key: 'activeY', label: 'Y axis connected', type: 'checkbox' },
+          { key: 'rotaryY', label: 'Rotary axis', type: 'checkbox' },
+          { key: 'yMotorSteps', label: 'Motor steps per rev', min: 1, max: 1000000, step: 1 },
+          { key: 'yScrewDu', label: 'Screw pitch DU', min: 1, max: 10000000, step: 1 },
+          { key: 'ySpeedStart', label: 'Start speed', min: 1, max: 1000000, step: 1 },
+          { key: 'yAcceleration', label: 'Acceleration', min: 1, max: 100000000, step: 1 },
+          { key: 'ySpeedManualMove', label: 'Manual speed', min: 1, max: 1000000, step: 1 },
+          { key: 'yMaxTravelMm', label: 'Max travel mm', min: 1, max: 10000, step: 1 },
+          { key: 'yBacklashDu', label: 'Backlash DU', min: 0, max: 10000000, step: 1 },
+          { key: 'yInvert', label: 'Invert direction', type: 'checkbox' },
+          { key: 'yInvertEnable', label: 'Invert enable', type: 'checkbox' },
+          { key: 'yNeedsRest', label: 'Needs rest', type: 'checkbox' }
+        ]
+      },
+      {
+        title: 'Joystick',
+        fields: [
+          { key: 'joystickEnabled', label: 'Joystick enabled', type: 'checkbox' },
+          { key: 'joystickCenterSamples', label: 'Center samples', min: 1, max: 1024, step: 1 },
+          { key: 'joystickOversamples', label: 'Oversamples', min: 1, max: 1024, step: 1 },
+          { key: 'joystickSampleIntervalMs', label: 'Sample interval ms', min: 1, max: 1000, step: 1 },
+          { key: 'joystickAdcMax', label: 'ADC max', min: 1, max: 65535, step: 1 },
+          { key: 'joystickDeadband', label: 'Deadband', min: 0, max: 65534, step: 1 },
+          { key: 'joystickPulseQueueLimit', label: 'Pulse queue limit', min: 1, max: 1000000, step: 1 },
+          { key: 'joystickNormalRevolutionsPerSecond', label: 'Normal rev/s', min: 0.01, max: 1000, step: 0.01 },
+          { key: 'joystickRapidRevolutionsPerSecond', label: 'Rapid rev/s', min: 0.01, max: 1000, step: 0.01 },
+          { key: 'invertJoystickZ', label: 'Invert Z', type: 'checkbox' },
+          { key: 'invertJoystickX', label: 'Invert X', type: 'checkbox' },
+          { key: 'invertJoystickY', label: 'Invert Y', type: 'checkbox' },
+          { key: 'invertJoystickButton', label: 'Invert button', type: 'checkbox' }
+        ]
+      }
+    ];
+    const machineConfigFields = machineConfigSections.flatMap(section => section.fields);
 
     const ws = new WebSocket(`ws://${window.location.host.split(':')[0]}:81`);
 
@@ -542,11 +791,15 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       const uploadInProgress = tftUploadInProgress || firmwareUploadInProgress;
       sendButton.disabled = commandInput.value.trim().length < 1 || uploadInProgress;
       addGcodeButton.disabled = gcodeNameInput.value.trim().length < 2 || gcodeContentInput.value.trim().length < 2 || uploadInProgress;
+      saveConfigButton.disabled = uploadInProgress;
+      resetConfigButton.disabled = uploadInProgress;
       tftFirstUploadCheckbox.disabled = uploadInProgress;
       tftFileInput.disabled = uploadInProgress;
       firmwareFileInput.disabled = uploadInProgress;
       sendButton.classList.toggle('disabled', sendButton.disabled);
       addGcodeButton.classList.toggle('disabled', addGcodeButton.disabled);
+      saveConfigButton.classList.toggle('disabled', saveConfigButton.disabled);
+      resetConfigButton.classList.toggle('disabled', resetConfigButton.disabled);
       tftBrowseButton.classList.toggle('disabled', uploadInProgress);
       firmwareBrowseButton.classList.toggle('disabled', uploadInProgress);
     }
@@ -555,6 +808,17 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       const prefix = key + '=';
       const line = data.split('\n').find(l => l.startsWith(prefix));
       return line ? line.substring(prefix.length) : '';
+    }
+
+    function parseKeyValueText(data) {
+      const values = {};
+      data.split('\n').forEach(line => {
+        const index = line.indexOf('=');
+        if (index > 0) {
+          values[line.substring(0, index)] = line.substring(index + 1);
+        }
+      });
+      return values;
     }
 
     function updateFirmwareProgress(percent, message) {
@@ -597,6 +861,122 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       firmwareStatusPollTimer = 0;
     }
 
+    function renderConfigFields() {
+      configFields.innerHTML = '';
+      machineConfigSections.forEach(section => {
+        const sectionElement = document.createElement('section');
+        sectionElement.className = 'config-section';
+        const title = document.createElement('h3');
+        title.textContent = section.title;
+        const grid = document.createElement('div');
+        grid.className = 'config-grid';
+        section.fields.forEach(field => {
+          const id = `config-${field.key}`;
+          const row = document.createElement('label');
+          row.className = field.type === 'checkbox' ? 'config-checkbox' : 'config-field';
+          row.htmlFor = id;
+          if (field.type === 'checkbox') {
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.id = id;
+            input.dataset.key = field.key;
+            const text = document.createElement('span');
+            text.textContent = field.label;
+            row.appendChild(input);
+            row.appendChild(text);
+          } else {
+            const text = document.createElement('span');
+            text.textContent = field.label;
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.id = id;
+            input.dataset.key = field.key;
+            input.min = field.min;
+            input.max = field.max;
+            input.step = field.step;
+            row.appendChild(text);
+            row.appendChild(input);
+          }
+          grid.appendChild(row);
+        });
+        sectionElement.appendChild(title);
+        sectionElement.appendChild(grid);
+        configFields.appendChild(sectionElement);
+      });
+    }
+
+    function applyConfigValues(values) {
+      machineConfigFields.forEach(field => {
+        const input = document.getElementById(`config-${field.key}`);
+        if (!input || !(field.key in values)) return;
+        if (field.type === 'checkbox') {
+          input.checked = values[field.key] === '1';
+        } else {
+          input.value = values[field.key];
+        }
+      });
+    }
+
+    function loadConfig() {
+      configStatus.textContent = 'Loading machine config...';
+      fetch('/config', { cache: 'no-store' })
+        .then(response => response.text())
+        .then(data => {
+          applyConfigValues(parseKeyValueText(data));
+          configStatus.textContent = '';
+        })
+        .catch(() => {
+          configStatus.textContent = 'Failed to load machine config';
+        });
+    }
+
+    function collectConfigValues() {
+      const values = new URLSearchParams();
+      machineConfigFields.forEach(field => {
+        const input = document.getElementById(`config-${field.key}`);
+        values.append(field.key, field.type === 'checkbox' ? (input.checked ? '1' : '0') : input.value.trim());
+      });
+      return values;
+    }
+
+    function saveConfig(event) {
+      event.preventDefault();
+      configStatus.textContent = 'Saving machine config...';
+      fetch('/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: collectConfigValues()
+      })
+      .then(response => response.text().then(text => ({ ok: response.ok, text })))
+      .then(result => {
+        configStatus.textContent = result.text;
+        logMessage(result.text);
+        if (result.ok) {
+          waitForControllerReload();
+        }
+      })
+      .catch(() => {
+        configStatus.textContent = 'Machine config save failed';
+      });
+    }
+
+    function resetConfig() {
+      if (!confirm('Reset machine config to firmware defaults and restart the controller?')) return;
+      configStatus.textContent = 'Resetting machine config...';
+      fetch('/config/reset', { method: 'POST' })
+        .then(response => response.text().then(text => ({ ok: response.ok, text })))
+        .then(result => {
+          configStatus.textContent = result.text;
+          logMessage(result.text);
+          if (result.ok) {
+            waitForControllerReload();
+          }
+        })
+        .catch(() => {
+          configStatus.textContent = 'Machine config reset failed';
+        });
+    }
+
     function handleRealtimeMessage(message) {
       message.split('\n').map(line => line.trim()).filter(line => !!line).forEach(line => {
         if (line.startsWith('FW: progress ')) {
@@ -612,7 +992,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       });
     }
 
-    function waitForFirmwareReload() {
+    function waitForControllerReload() {
       clearTimeout(firmwareReloadTimer);
       firmwareReloadTimer = setTimeout(() => {
         fetch(`/status?reload=${Date.now()}`, { cache: 'no-store' })
@@ -620,20 +1000,28 @@ const char indexhtml[] PROGMEM = R"rawliteral(
             if (response.ok) {
               window.location.reload();
             } else {
-              waitForFirmwareReload();
+              waitForControllerReload();
             }
           })
-          .catch(waitForFirmwareReload);
+          .catch(waitForControllerReload);
       }, 2000);
+    }
+
+    function waitForFirmwareReload() {
+      waitForControllerReload();
     }
 
     commandInput.addEventListener('input', updateButtonStates);
     gcodeNameInput.addEventListener('input', updateButtonStates);
     gcodeContentInput.addEventListener('input', updateButtonStates);
+    configForm.addEventListener('submit', saveConfig);
+    resetConfigButton.addEventListener('click', resetConfig);
     tftFileInput.addEventListener('change', uploadTftFile);
     firmwareFileInput.addEventListener('change', uploadFirmwareFile);
 
     document.addEventListener('DOMContentLoaded', () => {
+      renderConfigFields();
+      loadConfig();
       updateButtonStates();
     });
 
@@ -868,8 +1256,8 @@ const char indexhtml[] PROGMEM = R"rawliteral(
 // E.g. 80.02tpi would be shown as 80tpi but 80.04tpi would be shown as-is.
 const float TPI_ROUND_EPSILON = 0.03;
 
-const float ENCODER_STEPS_FLOAT = ENCODER_STEPS_INT; // Convenience float version of ENCODER_STEPS_INT
-const long RPM_BULK = ENCODER_STEPS_INT; // Measure RPM averaged over this number of encoder pulses
+float ENCODER_STEPS_FLOAT = ENCODER_STEPS_INT; // Convenience float version of ENCODER_STEPS_INT
+long RPM_BULK = ENCODER_STEPS_INT; // Measure RPM averaged over this number of encoder pulses
 
 const long GCODE_FEED_DEFAULT_DU_SEC = 20000; // Default feed in du/sec in GCode mode
 const float GCODE_FEED_MIN_DU_SEC = 167; // Minimum feed in du/sec in GCode mode - F1
@@ -1233,6 +1621,490 @@ size_t firmwareUploadReceivedSize = 0;
 int firmwareUploadProgressPercent = 0;
 bool firmwareUploadRestartPending = false;
 unsigned long firmwareUploadRestartAt = 0;
+bool configRestartPending = false;
+unsigned long configRestartAt = 0;
+
+long clampLongValue(long value, long minValue, long maxValue) {
+  if (value < minValue) return minValue;
+  if (value > maxValue) return maxValue;
+  return value;
+}
+
+int clampIntValue(int value, int minValue, int maxValue) {
+  if (value < minValue) return minValue;
+  if (value > maxValue) return maxValue;
+  return value;
+}
+
+float clampFloatValue(float value, float minValue, float maxValue) {
+  if (value < minValue) return minValue;
+  if (value > maxValue) return maxValue;
+  return value;
+}
+
+void setMachineConfigDefaults() {
+  ENCODER_PPR = DEFAULT_ENCODER_PPR;
+  ENCODER_BACKLASH = DEFAULT_ENCODER_BACKLASH;
+  SCREW_Z_DU = DEFAULT_SCREW_Z_DU;
+  MOTOR_STEPS_Z = DEFAULT_MOTOR_STEPS_Z;
+  SPEED_START_Z = DEFAULT_SPEED_START_Z;
+  ACCELERATION_Z = DEFAULT_ACCELERATION_Z;
+  SPEED_MANUAL_MOVE_Z = DEFAULT_SPEED_MANUAL_MOVE_Z;
+  INVERT_Z = DEFAULT_INVERT_Z;
+  INVERT_Z_ENABLE = DEFAULT_INVERT_Z_ENABLE;
+  NEEDS_REST_Z = DEFAULT_NEEDS_REST_Z;
+  MAX_TRAVEL_MM_Z = DEFAULT_MAX_TRAVEL_MM_Z;
+  BACKLASH_DU_Z = DEFAULT_BACKLASH_DU_Z;
+  SCREW_X_DU = DEFAULT_SCREW_X_DU;
+  MOTOR_STEPS_X = DEFAULT_MOTOR_STEPS_X;
+  SPEED_START_X = DEFAULT_SPEED_START_X;
+  ACCELERATION_X = DEFAULT_ACCELERATION_X;
+  SPEED_MANUAL_MOVE_X = DEFAULT_SPEED_MANUAL_MOVE_X;
+  INVERT_X = DEFAULT_INVERT_X;
+  INVERT_X_ENABLE = DEFAULT_INVERT_X_ENABLE;
+  NEEDS_REST_X = DEFAULT_NEEDS_REST_X;
+  MAX_TRAVEL_MM_X = DEFAULT_MAX_TRAVEL_MM_X;
+  BACKLASH_DU_X = DEFAULT_BACKLASH_DU_X;
+  STEP_TIME_MS = DEFAULT_STEP_TIME_MS;
+  DELAY_BETWEEN_STEPS_MS = DEFAULT_DELAY_BETWEEN_STEPS_MS;
+  ACTIVE_Y = DEFAULT_ACTIVE_Y;
+  ROTARY_Y = DEFAULT_ROTARY_Y;
+  MOTOR_STEPS_Y = DEFAULT_MOTOR_STEPS_Y;
+  SCREW_Y_DU = DEFAULT_SCREW_Y_DU;
+  SPEED_START_Y = DEFAULT_SPEED_START_Y;
+  ACCELERATION_Y = DEFAULT_ACCELERATION_Y;
+  SPEED_MANUAL_MOVE_Y = DEFAULT_SPEED_MANUAL_MOVE_Y;
+  INVERT_Y = DEFAULT_INVERT_Y;
+  INVERT_Y_ENABLE = DEFAULT_INVERT_Y_ENABLE;
+  NEEDS_REST_Y = DEFAULT_NEEDS_REST_Y;
+  MAX_TRAVEL_MM_Y = DEFAULT_MAX_TRAVEL_MM_Y;
+  BACKLASH_DU_Y = DEFAULT_BACKLASH_DU_Y;
+  PULSE_PER_REVOLUTION = DEFAULT_PULSE_PER_REVOLUTION;
+  JOYSTICK_ENABLED = DEFAULT_JOYSTICK_ENABLED;
+  JOYSTICK_CENTER_SAMPLES = DEFAULT_JOYSTICK_CENTER_SAMPLES;
+  JOYSTICK_OVERSAMPLES = DEFAULT_JOYSTICK_OVERSAMPLES;
+  JOYSTICK_SAMPLE_INTERVAL_MS = DEFAULT_JOYSTICK_SAMPLE_INTERVAL_MS;
+  JOYSTICK_ADC_MAX = DEFAULT_JOYSTICK_ADC_MAX;
+  JOYSTICK_DEADBAND = DEFAULT_JOYSTICK_DEADBAND;
+  JOYSTICK_PULSE_QUEUE_LIMIT = DEFAULT_JOYSTICK_PULSE_QUEUE_LIMIT;
+  JOYSTICK_NORMAL_REVOLUTIONS_PER_SECOND = DEFAULT_JOYSTICK_NORMAL_REVOLUTIONS_PER_SECOND;
+  JOYSTICK_RAPID_REVOLUTIONS_PER_SECOND = DEFAULT_JOYSTICK_RAPID_REVOLUTIONS_PER_SECOND;
+  INVERT_JOYSTICK_Z = DEFAULT_INVERT_JOYSTICK_Z;
+  INVERT_JOYSTICK_X = DEFAULT_INVERT_JOYSTICK_X;
+  INVERT_JOYSTICK_Y = DEFAULT_INVERT_JOYSTICK_Y;
+  INVERT_JOYSTICK_BUTTON = DEFAULT_INVERT_JOYSTICK_BUTTON;
+}
+
+void applyDerivedMachineConfig() {
+  ENCODER_STEPS_INT = ENCODER_PPR * 2;
+  ENCODER_STEPS_FLOAT = ENCODER_STEPS_INT;
+  RPM_BULK = ENCODER_STEPS_INT;
+  if (spindleEncTimeIndex >= RPM_BULK) spindleEncTimeIndex = 0;
+}
+
+void normalizeMachineConfig() {
+  ENCODER_PPR = clampIntValue(ENCODER_PPR, 1, 15000);
+  ENCODER_BACKLASH = clampIntValue(ENCODER_BACKLASH, 0, 30000);
+  SCREW_Z_DU = clampLongValue(SCREW_Z_DU, 1, 10000000);
+  MOTOR_STEPS_Z = clampLongValue(MOTOR_STEPS_Z, 1, 1000000);
+  SPEED_START_Z = clampLongValue(SPEED_START_Z, 1, 1000000);
+  ACCELERATION_Z = clampLongValue(ACCELERATION_Z, 1, 100000000);
+  SPEED_MANUAL_MOVE_Z = clampLongValue(SPEED_MANUAL_MOVE_Z, 1, 1000000);
+  MAX_TRAVEL_MM_Z = clampLongValue(MAX_TRAVEL_MM_Z, 1, 10000);
+  BACKLASH_DU_Z = clampLongValue(BACKLASH_DU_Z, 0, 10000000);
+  SCREW_X_DU = clampLongValue(SCREW_X_DU, 1, 10000000);
+  MOTOR_STEPS_X = clampLongValue(MOTOR_STEPS_X, 1, 1000000);
+  SPEED_START_X = clampLongValue(SPEED_START_X, 1, 1000000);
+  ACCELERATION_X = clampLongValue(ACCELERATION_X, 1, 100000000);
+  SPEED_MANUAL_MOVE_X = clampLongValue(SPEED_MANUAL_MOVE_X, 1, 1000000);
+  MAX_TRAVEL_MM_X = clampLongValue(MAX_TRAVEL_MM_X, 1, 10000);
+  BACKLASH_DU_X = clampLongValue(BACKLASH_DU_X, 0, 10000000);
+  STEP_TIME_MS = clampLongValue(STEP_TIME_MS, 1, 10000);
+  DELAY_BETWEEN_STEPS_MS = clampLongValue(DELAY_BETWEEN_STEPS_MS, 0, 10000);
+  MOTOR_STEPS_Y = clampLongValue(MOTOR_STEPS_Y, 1, 1000000);
+  SCREW_Y_DU = clampLongValue(SCREW_Y_DU, 1, 10000000);
+  SPEED_START_Y = clampLongValue(SPEED_START_Y, 1, 1000000);
+  ACCELERATION_Y = clampLongValue(ACCELERATION_Y, 1, 100000000);
+  SPEED_MANUAL_MOVE_Y = clampLongValue(SPEED_MANUAL_MOVE_Y, 1, 1000000);
+  MAX_TRAVEL_MM_Y = clampLongValue(MAX_TRAVEL_MM_Y, 1, 10000);
+  BACKLASH_DU_Y = clampLongValue(BACKLASH_DU_Y, 0, 10000000);
+  PULSE_PER_REVOLUTION = clampFloatValue(PULSE_PER_REVOLUTION, 1.0, 100000.0);
+  JOYSTICK_CENTER_SAMPLES = clampIntValue(JOYSTICK_CENTER_SAMPLES, 1, 1024);
+  JOYSTICK_OVERSAMPLES = clampIntValue(JOYSTICK_OVERSAMPLES, 1, 1024);
+  JOYSTICK_SAMPLE_INTERVAL_MS = clampIntValue(JOYSTICK_SAMPLE_INTERVAL_MS, 1, 1000);
+  JOYSTICK_ADC_MAX = clampIntValue(JOYSTICK_ADC_MAX, 1, 65535);
+  JOYSTICK_DEADBAND = clampIntValue(JOYSTICK_DEADBAND, 0, JOYSTICK_ADC_MAX - 1);
+  JOYSTICK_PULSE_QUEUE_LIMIT = clampIntValue(JOYSTICK_PULSE_QUEUE_LIMIT, 1, 1000000);
+  JOYSTICK_NORMAL_REVOLUTIONS_PER_SECOND = clampFloatValue(JOYSTICK_NORMAL_REVOLUTIONS_PER_SECOND, 0.01, 1000.0);
+  JOYSTICK_RAPID_REVOLUTIONS_PER_SECOND = clampFloatValue(JOYSTICK_RAPID_REVOLUTIONS_PER_SECOND, 0.01, 1000.0);
+  if (SPEED_START_Z > SPEED_MANUAL_MOVE_Z) SPEED_START_Z = SPEED_MANUAL_MOVE_Z;
+  if (SPEED_START_X > SPEED_MANUAL_MOVE_X) SPEED_START_X = SPEED_MANUAL_MOVE_X;
+  if (SPEED_START_Y > SPEED_MANUAL_MOVE_Y) SPEED_START_Y = SPEED_MANUAL_MOVE_Y;
+  applyDerivedMachineConfig();
+}
+
+void loadMachineConfig() {
+  setMachineConfigDefaults();
+  Preferences cfg;
+  cfg.begin(CONFIG_NAMESPACE);
+  if (cfg.getInt(CFG_VERSION) != CONFIG_VERSION) {
+    cfg.clear();
+    cfg.putInt(CFG_VERSION, CONFIG_VERSION);
+  }
+  ENCODER_PPR = cfg.getInt(CFG_ENCODER_PPR, ENCODER_PPR);
+  ENCODER_BACKLASH = cfg.getInt(CFG_ENCODER_BACKLASH, ENCODER_BACKLASH);
+  SCREW_Z_DU = cfg.getLong(CFG_SCREW_Z_DU, SCREW_Z_DU);
+  MOTOR_STEPS_Z = cfg.getLong(CFG_MOTOR_STEPS_Z, MOTOR_STEPS_Z);
+  SPEED_START_Z = cfg.getLong(CFG_SPEED_START_Z, SPEED_START_Z);
+  ACCELERATION_Z = cfg.getLong(CFG_ACCELERATION_Z, ACCELERATION_Z);
+  SPEED_MANUAL_MOVE_Z = cfg.getLong(CFG_SPEED_MANUAL_MOVE_Z, SPEED_MANUAL_MOVE_Z);
+  INVERT_Z = cfg.getBool(CFG_INVERT_Z, INVERT_Z);
+  INVERT_Z_ENABLE = cfg.getBool(CFG_INVERT_Z_ENABLE, INVERT_Z_ENABLE);
+  NEEDS_REST_Z = cfg.getBool(CFG_NEEDS_REST_Z, NEEDS_REST_Z);
+  MAX_TRAVEL_MM_Z = cfg.getLong(CFG_MAX_TRAVEL_MM_Z, MAX_TRAVEL_MM_Z);
+  BACKLASH_DU_Z = cfg.getLong(CFG_BACKLASH_DU_Z, BACKLASH_DU_Z);
+  SCREW_X_DU = cfg.getLong(CFG_SCREW_X_DU, SCREW_X_DU);
+  MOTOR_STEPS_X = cfg.getLong(CFG_MOTOR_STEPS_X, MOTOR_STEPS_X);
+  SPEED_START_X = cfg.getLong(CFG_SPEED_START_X, SPEED_START_X);
+  ACCELERATION_X = cfg.getLong(CFG_ACCELERATION_X, ACCELERATION_X);
+  SPEED_MANUAL_MOVE_X = cfg.getLong(CFG_SPEED_MANUAL_MOVE_X, SPEED_MANUAL_MOVE_X);
+  INVERT_X = cfg.getBool(CFG_INVERT_X, INVERT_X);
+  INVERT_X_ENABLE = cfg.getBool(CFG_INVERT_X_ENABLE, INVERT_X_ENABLE);
+  NEEDS_REST_X = cfg.getBool(CFG_NEEDS_REST_X, NEEDS_REST_X);
+  MAX_TRAVEL_MM_X = cfg.getLong(CFG_MAX_TRAVEL_MM_X, MAX_TRAVEL_MM_X);
+  BACKLASH_DU_X = cfg.getLong(CFG_BACKLASH_DU_X, BACKLASH_DU_X);
+  STEP_TIME_MS = cfg.getLong(CFG_STEP_TIME_MS, STEP_TIME_MS);
+  DELAY_BETWEEN_STEPS_MS = cfg.getLong(CFG_DELAY_BETWEEN_STEPS_MS, DELAY_BETWEEN_STEPS_MS);
+  ACTIVE_Y = cfg.getBool(CFG_ACTIVE_Y, ACTIVE_Y);
+  ROTARY_Y = cfg.getBool(CFG_ROTARY_Y, ROTARY_Y);
+  MOTOR_STEPS_Y = cfg.getLong(CFG_MOTOR_STEPS_Y, MOTOR_STEPS_Y);
+  SCREW_Y_DU = cfg.getLong(CFG_SCREW_Y_DU, SCREW_Y_DU);
+  SPEED_START_Y = cfg.getLong(CFG_SPEED_START_Y, SPEED_START_Y);
+  ACCELERATION_Y = cfg.getLong(CFG_ACCELERATION_Y, ACCELERATION_Y);
+  SPEED_MANUAL_MOVE_Y = cfg.getLong(CFG_SPEED_MANUAL_MOVE_Y, SPEED_MANUAL_MOVE_Y);
+  INVERT_Y = cfg.getBool(CFG_INVERT_Y, INVERT_Y);
+  INVERT_Y_ENABLE = cfg.getBool(CFG_INVERT_Y_ENABLE, INVERT_Y_ENABLE);
+  NEEDS_REST_Y = cfg.getBool(CFG_NEEDS_REST_Y, NEEDS_REST_Y);
+  MAX_TRAVEL_MM_Y = cfg.getLong(CFG_MAX_TRAVEL_MM_Y, MAX_TRAVEL_MM_Y);
+  BACKLASH_DU_Y = cfg.getLong(CFG_BACKLASH_DU_Y, BACKLASH_DU_Y);
+  PULSE_PER_REVOLUTION = cfg.getFloat(CFG_PULSE_PER_REVOLUTION, PULSE_PER_REVOLUTION);
+  JOYSTICK_ENABLED = cfg.getBool(CFG_JOYSTICK_ENABLED, JOYSTICK_ENABLED);
+  JOYSTICK_CENTER_SAMPLES = cfg.getInt(CFG_JOYSTICK_CENTER_SAMPLES, JOYSTICK_CENTER_SAMPLES);
+  JOYSTICK_OVERSAMPLES = cfg.getInt(CFG_JOYSTICK_OVERSAMPLES, JOYSTICK_OVERSAMPLES);
+  JOYSTICK_SAMPLE_INTERVAL_MS = cfg.getInt(CFG_JOYSTICK_SAMPLE_INTERVAL_MS, JOYSTICK_SAMPLE_INTERVAL_MS);
+  JOYSTICK_ADC_MAX = cfg.getInt(CFG_JOYSTICK_ADC_MAX, JOYSTICK_ADC_MAX);
+  JOYSTICK_DEADBAND = cfg.getInt(CFG_JOYSTICK_DEADBAND, JOYSTICK_DEADBAND);
+  JOYSTICK_PULSE_QUEUE_LIMIT = cfg.getInt(CFG_JOYSTICK_PULSE_QUEUE_LIMIT, JOYSTICK_PULSE_QUEUE_LIMIT);
+  JOYSTICK_NORMAL_REVOLUTIONS_PER_SECOND = cfg.getFloat(CFG_JOYSTICK_NORMAL_RPS, JOYSTICK_NORMAL_REVOLUTIONS_PER_SECOND);
+  JOYSTICK_RAPID_REVOLUTIONS_PER_SECOND = cfg.getFloat(CFG_JOYSTICK_RAPID_RPS, JOYSTICK_RAPID_REVOLUTIONS_PER_SECOND);
+  INVERT_JOYSTICK_Z = cfg.getBool(CFG_INVERT_JOYSTICK_Z, INVERT_JOYSTICK_Z);
+  INVERT_JOYSTICK_X = cfg.getBool(CFG_INVERT_JOYSTICK_X, INVERT_JOYSTICK_X);
+  INVERT_JOYSTICK_Y = cfg.getBool(CFG_INVERT_JOYSTICK_Y, INVERT_JOYSTICK_Y);
+  INVERT_JOYSTICK_BUTTON = cfg.getBool(CFG_INVERT_JOYSTICK_BUTTON, INVERT_JOYSTICK_BUTTON);
+  cfg.end();
+  normalizeMachineConfig();
+}
+
+void saveMachineConfig() {
+  normalizeMachineConfig();
+  Preferences cfg;
+  cfg.begin(CONFIG_NAMESPACE);
+  cfg.putInt(CFG_VERSION, CONFIG_VERSION);
+  cfg.putInt(CFG_ENCODER_PPR, ENCODER_PPR);
+  cfg.putInt(CFG_ENCODER_BACKLASH, ENCODER_BACKLASH);
+  cfg.putLong(CFG_SCREW_Z_DU, SCREW_Z_DU);
+  cfg.putLong(CFG_MOTOR_STEPS_Z, MOTOR_STEPS_Z);
+  cfg.putLong(CFG_SPEED_START_Z, SPEED_START_Z);
+  cfg.putLong(CFG_ACCELERATION_Z, ACCELERATION_Z);
+  cfg.putLong(CFG_SPEED_MANUAL_MOVE_Z, SPEED_MANUAL_MOVE_Z);
+  cfg.putBool(CFG_INVERT_Z, INVERT_Z);
+  cfg.putBool(CFG_INVERT_Z_ENABLE, INVERT_Z_ENABLE);
+  cfg.putBool(CFG_NEEDS_REST_Z, NEEDS_REST_Z);
+  cfg.putLong(CFG_MAX_TRAVEL_MM_Z, MAX_TRAVEL_MM_Z);
+  cfg.putLong(CFG_BACKLASH_DU_Z, BACKLASH_DU_Z);
+  cfg.putLong(CFG_SCREW_X_DU, SCREW_X_DU);
+  cfg.putLong(CFG_MOTOR_STEPS_X, MOTOR_STEPS_X);
+  cfg.putLong(CFG_SPEED_START_X, SPEED_START_X);
+  cfg.putLong(CFG_ACCELERATION_X, ACCELERATION_X);
+  cfg.putLong(CFG_SPEED_MANUAL_MOVE_X, SPEED_MANUAL_MOVE_X);
+  cfg.putBool(CFG_INVERT_X, INVERT_X);
+  cfg.putBool(CFG_INVERT_X_ENABLE, INVERT_X_ENABLE);
+  cfg.putBool(CFG_NEEDS_REST_X, NEEDS_REST_X);
+  cfg.putLong(CFG_MAX_TRAVEL_MM_X, MAX_TRAVEL_MM_X);
+  cfg.putLong(CFG_BACKLASH_DU_X, BACKLASH_DU_X);
+  cfg.putLong(CFG_STEP_TIME_MS, STEP_TIME_MS);
+  cfg.putLong(CFG_DELAY_BETWEEN_STEPS_MS, DELAY_BETWEEN_STEPS_MS);
+  cfg.putBool(CFG_ACTIVE_Y, ACTIVE_Y);
+  cfg.putBool(CFG_ROTARY_Y, ROTARY_Y);
+  cfg.putLong(CFG_MOTOR_STEPS_Y, MOTOR_STEPS_Y);
+  cfg.putLong(CFG_SCREW_Y_DU, SCREW_Y_DU);
+  cfg.putLong(CFG_SPEED_START_Y, SPEED_START_Y);
+  cfg.putLong(CFG_ACCELERATION_Y, ACCELERATION_Y);
+  cfg.putLong(CFG_SPEED_MANUAL_MOVE_Y, SPEED_MANUAL_MOVE_Y);
+  cfg.putBool(CFG_INVERT_Y, INVERT_Y);
+  cfg.putBool(CFG_INVERT_Y_ENABLE, INVERT_Y_ENABLE);
+  cfg.putBool(CFG_NEEDS_REST_Y, NEEDS_REST_Y);
+  cfg.putLong(CFG_MAX_TRAVEL_MM_Y, MAX_TRAVEL_MM_Y);
+  cfg.putLong(CFG_BACKLASH_DU_Y, BACKLASH_DU_Y);
+  cfg.putFloat(CFG_PULSE_PER_REVOLUTION, PULSE_PER_REVOLUTION);
+  cfg.putBool(CFG_JOYSTICK_ENABLED, JOYSTICK_ENABLED);
+  cfg.putInt(CFG_JOYSTICK_CENTER_SAMPLES, JOYSTICK_CENTER_SAMPLES);
+  cfg.putInt(CFG_JOYSTICK_OVERSAMPLES, JOYSTICK_OVERSAMPLES);
+  cfg.putInt(CFG_JOYSTICK_SAMPLE_INTERVAL_MS, JOYSTICK_SAMPLE_INTERVAL_MS);
+  cfg.putInt(CFG_JOYSTICK_ADC_MAX, JOYSTICK_ADC_MAX);
+  cfg.putInt(CFG_JOYSTICK_DEADBAND, JOYSTICK_DEADBAND);
+  cfg.putInt(CFG_JOYSTICK_PULSE_QUEUE_LIMIT, JOYSTICK_PULSE_QUEUE_LIMIT);
+  cfg.putFloat(CFG_JOYSTICK_NORMAL_RPS, JOYSTICK_NORMAL_REVOLUTIONS_PER_SECOND);
+  cfg.putFloat(CFG_JOYSTICK_RAPID_RPS, JOYSTICK_RAPID_REVOLUTIONS_PER_SECOND);
+  cfg.putBool(CFG_INVERT_JOYSTICK_Z, INVERT_JOYSTICK_Z);
+  cfg.putBool(CFG_INVERT_JOYSTICK_X, INVERT_JOYSTICK_X);
+  cfg.putBool(CFG_INVERT_JOYSTICK_Y, INVERT_JOYSTICK_Y);
+  cfg.putBool(CFG_INVERT_JOYSTICK_BUTTON, INVERT_JOYSTICK_BUTTON);
+  cfg.end();
+}
+
+bool parseLongValue(const String& text, long* value) {
+  String trimmed = text;
+  trimmed.trim();
+  if (trimmed.length() == 0) return false;
+  char* end = nullptr;
+  long parsed = strtol(trimmed.c_str(), &end, 10);
+  if (end == trimmed.c_str() || *end != '\0') return false;
+  *value = parsed;
+  return true;
+}
+
+bool parseFloatValue(const String& text, float* value) {
+  String trimmed = text;
+  trimmed.trim();
+  if (trimmed.length() == 0) return false;
+  char* end = nullptr;
+  float parsed = strtof(trimmed.c_str(), &end);
+  if (end == trimmed.c_str() || *end != '\0' || !isfinite(parsed)) return false;
+  *value = parsed;
+  return true;
+}
+
+bool parseBoolValue(const String& text, bool* value) {
+  String normalized = text;
+  normalized.trim();
+  normalized.toLowerCase();
+  if (normalized == "1" || normalized == "true" || normalized == "on") {
+    *value = true;
+    return true;
+  }
+  if (normalized == "0" || normalized == "false" || normalized == "off") {
+    *value = false;
+    return true;
+  }
+  return false;
+}
+
+bool readLongConfigArg(const char* name, long* target, long minValue, long maxValue, String* error) {
+  if (!server.hasArg(name)) {
+    *error = String("Missing config value: ") + name;
+    return false;
+  }
+  long value;
+  if (!parseLongValue(server.arg(name), &value) || value < minValue || value > maxValue) {
+    *error = String(name) + " must be between " + String(minValue) + " and " + String(maxValue);
+    return false;
+  }
+  *target = value;
+  return true;
+}
+
+bool readIntConfigArg(const char* name, int* target, int minValue, int maxValue, String* error) {
+  long value;
+  if (!readLongConfigArg(name, &value, minValue, maxValue, error)) return false;
+  *target = int(value);
+  return true;
+}
+
+bool readFloatConfigArg(const char* name, float* target, float minValue, float maxValue, String* error) {
+  if (!server.hasArg(name)) {
+    *error = String("Missing config value: ") + name;
+    return false;
+  }
+  float value;
+  if (!parseFloatValue(server.arg(name), &value) || value < minValue || value > maxValue) {
+    *error = String(name) + " must be between " + String(minValue, 2) + " and " + String(maxValue, 2);
+    return false;
+  }
+  *target = value;
+  return true;
+}
+
+bool readBoolConfigArg(const char* name, bool* target, String* error) {
+  if (!server.hasArg(name)) {
+    *error = String("Missing config value: ") + name;
+    return false;
+  }
+  if (!parseBoolValue(server.arg(name), target)) {
+    *error = String(name) + " must be 0 or 1";
+    return false;
+  }
+  return true;
+}
+
+bool validateMachineConfig(String* error) {
+  if (SPEED_START_Z > SPEED_MANUAL_MOVE_Z) {
+    *error = "zSpeedStart must be less than or equal to zSpeedManualMove";
+    return false;
+  }
+  if (SPEED_START_X > SPEED_MANUAL_MOVE_X) {
+    *error = "xSpeedStart must be less than or equal to xSpeedManualMove";
+    return false;
+  }
+  if (SPEED_START_Y > SPEED_MANUAL_MOVE_Y) {
+    *error = "ySpeedStart must be less than or equal to ySpeedManualMove";
+    return false;
+  }
+  if (JOYSTICK_DEADBAND >= JOYSTICK_ADC_MAX) {
+    *error = "joystickDeadband must be less than joystickAdcMax";
+    return false;
+  }
+  return true;
+}
+
+bool readMachineConfigFromRequest(String* error) {
+  return
+    readIntConfigArg("encoderPpr", &ENCODER_PPR, 1, 15000, error) &&
+    readIntConfigArg("encoderBacklash", &ENCODER_BACKLASH, 0, 30000, error) &&
+    readLongConfigArg("zScrewDu", &SCREW_Z_DU, 1, 10000000, error) &&
+    readLongConfigArg("zMotorSteps", &MOTOR_STEPS_Z, 1, 1000000, error) &&
+    readLongConfigArg("zSpeedStart", &SPEED_START_Z, 1, 1000000, error) &&
+    readLongConfigArg("zAcceleration", &ACCELERATION_Z, 1, 100000000, error) &&
+    readLongConfigArg("zSpeedManualMove", &SPEED_MANUAL_MOVE_Z, 1, 1000000, error) &&
+    readBoolConfigArg("zInvert", &INVERT_Z, error) &&
+    readBoolConfigArg("zInvertEnable", &INVERT_Z_ENABLE, error) &&
+    readBoolConfigArg("zNeedsRest", &NEEDS_REST_Z, error) &&
+    readLongConfigArg("zMaxTravelMm", &MAX_TRAVEL_MM_Z, 1, 10000, error) &&
+    readLongConfigArg("zBacklashDu", &BACKLASH_DU_Z, 0, 10000000, error) &&
+    readLongConfigArg("xScrewDu", &SCREW_X_DU, 1, 10000000, error) &&
+    readLongConfigArg("xMotorSteps", &MOTOR_STEPS_X, 1, 1000000, error) &&
+    readLongConfigArg("xSpeedStart", &SPEED_START_X, 1, 1000000, error) &&
+    readLongConfigArg("xAcceleration", &ACCELERATION_X, 1, 100000000, error) &&
+    readLongConfigArg("xSpeedManualMove", &SPEED_MANUAL_MOVE_X, 1, 1000000, error) &&
+    readBoolConfigArg("xInvert", &INVERT_X, error) &&
+    readBoolConfigArg("xInvertEnable", &INVERT_X_ENABLE, error) &&
+    readBoolConfigArg("xNeedsRest", &NEEDS_REST_X, error) &&
+    readLongConfigArg("xMaxTravelMm", &MAX_TRAVEL_MM_X, 1, 10000, error) &&
+    readLongConfigArg("xBacklashDu", &BACKLASH_DU_X, 0, 10000000, error) &&
+    readLongConfigArg("stepTimeMs", &STEP_TIME_MS, 1, 10000, error) &&
+    readLongConfigArg("delayBetweenStepsMs", &DELAY_BETWEEN_STEPS_MS, 0, 10000, error) &&
+    readBoolConfigArg("activeY", &ACTIVE_Y, error) &&
+    readBoolConfigArg("rotaryY", &ROTARY_Y, error) &&
+    readLongConfigArg("yMotorSteps", &MOTOR_STEPS_Y, 1, 1000000, error) &&
+    readLongConfigArg("yScrewDu", &SCREW_Y_DU, 1, 10000000, error) &&
+    readLongConfigArg("ySpeedStart", &SPEED_START_Y, 1, 1000000, error) &&
+    readLongConfigArg("yAcceleration", &ACCELERATION_Y, 1, 100000000, error) &&
+    readLongConfigArg("ySpeedManualMove", &SPEED_MANUAL_MOVE_Y, 1, 1000000, error) &&
+    readBoolConfigArg("yInvert", &INVERT_Y, error) &&
+    readBoolConfigArg("yInvertEnable", &INVERT_Y_ENABLE, error) &&
+    readBoolConfigArg("yNeedsRest", &NEEDS_REST_Y, error) &&
+    readLongConfigArg("yMaxTravelMm", &MAX_TRAVEL_MM_Y, 1, 10000, error) &&
+    readLongConfigArg("yBacklashDu", &BACKLASH_DU_Y, 0, 10000000, error) &&
+    readFloatConfigArg("pulsePerRevolution", &PULSE_PER_REVOLUTION, 1.0, 100000.0, error) &&
+    readBoolConfigArg("joystickEnabled", &JOYSTICK_ENABLED, error) &&
+    readIntConfigArg("joystickCenterSamples", &JOYSTICK_CENTER_SAMPLES, 1, 1024, error) &&
+    readIntConfigArg("joystickOversamples", &JOYSTICK_OVERSAMPLES, 1, 1024, error) &&
+    readIntConfigArg("joystickSampleIntervalMs", &JOYSTICK_SAMPLE_INTERVAL_MS, 1, 1000, error) &&
+    readIntConfigArg("joystickAdcMax", &JOYSTICK_ADC_MAX, 1, 65535, error) &&
+    readIntConfigArg("joystickDeadband", &JOYSTICK_DEADBAND, 0, 65534, error) &&
+    readIntConfigArg("joystickPulseQueueLimit", &JOYSTICK_PULSE_QUEUE_LIMIT, 1, 1000000, error) &&
+    readFloatConfigArg("joystickNormalRevolutionsPerSecond", &JOYSTICK_NORMAL_REVOLUTIONS_PER_SECOND, 0.01, 1000.0, error) &&
+    readFloatConfigArg("joystickRapidRevolutionsPerSecond", &JOYSTICK_RAPID_REVOLUTIONS_PER_SECOND, 0.01, 1000.0, error) &&
+    readBoolConfigArg("invertJoystickZ", &INVERT_JOYSTICK_Z, error) &&
+    readBoolConfigArg("invertJoystickX", &INVERT_JOYSTICK_X, error) &&
+    readBoolConfigArg("invertJoystickY", &INVERT_JOYSTICK_Y, error) &&
+    readBoolConfigArg("invertJoystickButton", &INVERT_JOYSTICK_BUTTON, error) &&
+    validateMachineConfig(error);
+}
+
+void appendConfigLine(String* response, const char* name, const String& value) {
+  *response += name;
+  *response += "=";
+  *response += value;
+  *response += "\n";
+}
+
+void appendConfigLine(String* response, const char* name, long value) {
+  appendConfigLine(response, name, String(value));
+}
+
+void appendConfigLine(String* response, const char* name, int value) {
+  appendConfigLine(response, name, String(value));
+}
+
+void appendConfigLine(String* response, const char* name, bool value) {
+  appendConfigLine(response, name, String(value ? 1 : 0));
+}
+
+void appendConfigLine(String* response, const char* name, float value) {
+  appendConfigLine(response, name, String(value, 4));
+}
+
+String getMachineConfigResponse() {
+  String response = "";
+  response.reserve(2200);
+  appendConfigLine(&response, "encoderPpr", ENCODER_PPR);
+  appendConfigLine(&response, "encoderBacklash", ENCODER_BACKLASH);
+  appendConfigLine(&response, "zScrewDu", SCREW_Z_DU);
+  appendConfigLine(&response, "zMotorSteps", MOTOR_STEPS_Z);
+  appendConfigLine(&response, "zSpeedStart", SPEED_START_Z);
+  appendConfigLine(&response, "zAcceleration", ACCELERATION_Z);
+  appendConfigLine(&response, "zSpeedManualMove", SPEED_MANUAL_MOVE_Z);
+  appendConfigLine(&response, "zInvert", INVERT_Z);
+  appendConfigLine(&response, "zInvertEnable", INVERT_Z_ENABLE);
+  appendConfigLine(&response, "zNeedsRest", NEEDS_REST_Z);
+  appendConfigLine(&response, "zMaxTravelMm", MAX_TRAVEL_MM_Z);
+  appendConfigLine(&response, "zBacklashDu", BACKLASH_DU_Z);
+  appendConfigLine(&response, "xScrewDu", SCREW_X_DU);
+  appendConfigLine(&response, "xMotorSteps", MOTOR_STEPS_X);
+  appendConfigLine(&response, "xSpeedStart", SPEED_START_X);
+  appendConfigLine(&response, "xAcceleration", ACCELERATION_X);
+  appendConfigLine(&response, "xSpeedManualMove", SPEED_MANUAL_MOVE_X);
+  appendConfigLine(&response, "xInvert", INVERT_X);
+  appendConfigLine(&response, "xInvertEnable", INVERT_X_ENABLE);
+  appendConfigLine(&response, "xNeedsRest", NEEDS_REST_X);
+  appendConfigLine(&response, "xMaxTravelMm", MAX_TRAVEL_MM_X);
+  appendConfigLine(&response, "xBacklashDu", BACKLASH_DU_X);
+  appendConfigLine(&response, "stepTimeMs", STEP_TIME_MS);
+  appendConfigLine(&response, "delayBetweenStepsMs", DELAY_BETWEEN_STEPS_MS);
+  appendConfigLine(&response, "activeY", ACTIVE_Y);
+  appendConfigLine(&response, "rotaryY", ROTARY_Y);
+  appendConfigLine(&response, "yMotorSteps", MOTOR_STEPS_Y);
+  appendConfigLine(&response, "yScrewDu", SCREW_Y_DU);
+  appendConfigLine(&response, "ySpeedStart", SPEED_START_Y);
+  appendConfigLine(&response, "yAcceleration", ACCELERATION_Y);
+  appendConfigLine(&response, "ySpeedManualMove", SPEED_MANUAL_MOVE_Y);
+  appendConfigLine(&response, "yInvert", INVERT_Y);
+  appendConfigLine(&response, "yInvertEnable", INVERT_Y_ENABLE);
+  appendConfigLine(&response, "yNeedsRest", NEEDS_REST_Y);
+  appendConfigLine(&response, "yMaxTravelMm", MAX_TRAVEL_MM_Y);
+  appendConfigLine(&response, "yBacklashDu", BACKLASH_DU_Y);
+  appendConfigLine(&response, "pulsePerRevolution", PULSE_PER_REVOLUTION);
+  appendConfigLine(&response, "joystickEnabled", JOYSTICK_ENABLED);
+  appendConfigLine(&response, "joystickCenterSamples", JOYSTICK_CENTER_SAMPLES);
+  appendConfigLine(&response, "joystickOversamples", JOYSTICK_OVERSAMPLES);
+  appendConfigLine(&response, "joystickSampleIntervalMs", JOYSTICK_SAMPLE_INTERVAL_MS);
+  appendConfigLine(&response, "joystickAdcMax", JOYSTICK_ADC_MAX);
+  appendConfigLine(&response, "joystickDeadband", JOYSTICK_DEADBAND);
+  appendConfigLine(&response, "joystickPulseQueueLimit", JOYSTICK_PULSE_QUEUE_LIMIT);
+  appendConfigLine(&response, "joystickNormalRevolutionsPerSecond", JOYSTICK_NORMAL_REVOLUTIONS_PER_SECOND);
+  appendConfigLine(&response, "joystickRapidRevolutionsPerSecond", JOYSTICK_RAPID_REVOLUTIONS_PER_SECOND);
+  appendConfigLine(&response, "invertJoystickZ", INVERT_JOYSTICK_Z);
+  appendConfigLine(&response, "invertJoystickX", INVERT_JOYSTICK_X);
+  appendConfigLine(&response, "invertJoystickY", INVERT_JOYSTICK_Y);
+  appendConfigLine(&response, "invertJoystickButton", INVERT_JOYSTICK_BUTTON);
+  return response;
+}
+
+void scheduleConfigRestart() {
+  configRestartPending = true;
+  configRestartAt = millis() + 1500;
+}
 
 void tftUploadLog(const String& message) {
   String line = String("TFT: ") + message + "\n";
@@ -1400,6 +2272,45 @@ void handleGcodeRemove() {
   } else {
     server.send(400, "text/plain", "Missing parameter: name");
   }
+}
+
+bool machineConfigChangeBlocked() {
+  return isOn || tftUploadActive || firmwareUploadActive || firmwareUploadRestartPending || configRestartPending;
+}
+
+void handleConfigGet() {
+  server.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  server.send(200, "text/plain", getMachineConfigResponse());
+}
+
+void handleConfigSave() {
+  if (machineConfigChangeBlocked()) {
+    server.send(409, "text/plain", "Stop the controller and wait for uploads to finish before changing machine config");
+    return;
+  }
+
+  String error = "";
+  if (!readMachineConfigFromRequest(&error)) {
+    loadMachineConfig();
+    server.send(400, "text/plain", error);
+    return;
+  }
+
+  saveMachineConfig();
+  scheduleConfigRestart();
+  server.send(200, "text/plain", "Machine config saved. Restarting controller...");
+}
+
+void handleConfigReset() {
+  if (machineConfigChangeBlocked()) {
+    server.send(409, "text/plain", "Stop the controller and wait for uploads to finish before resetting machine config");
+    return;
+  }
+
+  setMachineConfigDefaults();
+  saveMachineConfig();
+  scheduleConfigRestart();
+  server.send(200, "text/plain", "Machine config reset. Restarting controller...");
 }
 
 void writeNextionCommandRaw(const String& command) {
@@ -1731,7 +2642,8 @@ void handleStatus() {
     "FW.uploadActive=" + String(firmwareUploadActive ? 1 : 0) + "\n" +
     "FW.uploaded=" + String((unsigned long)firmwareUploadReceivedSize) + "\n" +
     "FW.size=" + String((unsigned long)firmwareUploadExpectedSize) + "\n" +
-    "FW.message=" + firmwareUploadMessage + "\n");
+    "FW.message=" + firmwareUploadMessage + "\n" +
+    "Config.restartPending=" + String(configRestartPending ? 1 : 0) + "\n");
 }
 
 void setWiFiStatus(const String& status) {
@@ -1774,6 +2686,9 @@ void taskWiFi(void *param) {
   server.on("/gcode/list", HTTP_GET, handleGcodeList);
   server.on("/gcode/get", HTTP_GET, handleGcodeGet);
   server.on("/gcode/remove", HTTP_POST, handleGcodeRemove);
+  server.on("/config", HTTP_GET, handleConfigGet);
+  server.on("/config", HTTP_POST, handleConfigSave);
+  server.on("/config/reset", HTTP_POST, handleConfigReset);
   server.on("/tft/upload", HTTP_POST, handleTftUploadResult, handleTftUpload);
   server.on("/firmware/upload", HTTP_POST, handleFirmwareUploadResult, handleFirmwareUpload);
   server.on("/status", HTTP_GET, handleStatus);
@@ -1787,6 +2702,11 @@ void taskWiFi(void *param) {
     webSocket.loop();
     if (firmwareUploadRestartPending && ((long)(millis() - firmwareUploadRestartAt) >= 0)) {
       firmwareUploadLog("restarting now");
+      DELAY(50);
+      ESP.restart();
+    }
+    if (configRestartPending && ((long)(millis() - configRestartAt) >= 0)) {
+      Serial.println("Machine config saved, restarting now");
       DELAY(50);
       ESP.restart();
     }
@@ -4713,6 +5633,8 @@ void applySettings() {
 }
 
 void setup() {
+  loadMachineConfig();
+
   pinMode(ENC_A, INPUT_PULLUP);
   pinMode(ENC_B, INPUT_PULLUP);
 

@@ -126,6 +126,8 @@ Specify your WiFi network name and password in https://github.com/kachurovskiy/n
 
 The same Web UI can upload new ESP32 firmware `.bin` files after the initial USB upload. Anyone on the local network can access the Web UI, so only enable WiFi on a trusted network.
 
+The Web UI also has a `Machine Config` section for encoder, Z/X/Y axis, handwheel, manual stepping, and joystick parameters. Save changes only while the controller is stopped; NanoEls stores them in ESP32 Preferences and restarts to apply them. WiFi credentials and GPIO pin mapping still require editing `h5.ino`.
+
 To generate GCode for your parts, upload STL model of your part to https://kachurovskiy.com/lathecode/ and specify parameters like stock diameter and tool used.
 
 Handwheels and limits have no effect when GCODE is running.
