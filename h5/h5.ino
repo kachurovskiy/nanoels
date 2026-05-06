@@ -68,6 +68,22 @@ const char NAME_Y = 'Y'; // Text shown on screen before axis position value, GCo
 // Manual handwheels. Ignore if you don't have them installed.
 const float PULSE_PER_REVOLUTION = 600; // PPR of handwheels.
 
+// 3-axis analog joystick. Leave disabled unless the joystick is wired and its
+// potentiometers are powered from 3.3V, not 5V.
+const bool JOYSTICK_ENABLED = false;
+const int JOYSTICK_CENTER_SAMPLES = 64;
+const int JOYSTICK_OVERSAMPLES = 4;
+const int JOYSTICK_SAMPLE_INTERVAL_MS = 20;
+const int JOYSTICK_ADC_MAX = 4095;
+const int JOYSTICK_DEADBAND = 250; // Raw ADC counts around center ignored.
+const int JOYSTICK_PULSE_QUEUE_LIMIT = 10000;
+const float JOYSTICK_NORMAL_REVOLUTIONS_PER_SECOND = 1.0;
+const float JOYSTICK_RAPID_REVOLUTIONS_PER_SECOND = 8.0;
+const bool INVERT_JOYSTICK_Z = false;
+const bool INVERT_JOYSTICK_X = false;
+const bool INVERT_JOYSTICK_Y = false;
+const bool INVERT_JOYSTICK_BUTTON = false;
+
 const int ENCODER_STEPS_INT = ENCODER_PPR * 2; // Number of encoder impulses PCNT counts per revolution of the spindle
 const int ENCODER_FILTER = 1; // Encoder pulses shorter than this will be ignored. Clock cycles, 1 - 1023.
 const int PCNT_LIM = 31000; // Limit used in hardware pulse counter logic.
@@ -92,7 +108,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 15
+#define SOFTWARE_VERSION 16
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -117,6 +133,11 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 #define Y_PULSE_A 45
 #define Y_PULSE_B 48
+
+#define JOY_Z 4
+#define JOY_X 5
+#define JOY_Y 6
+#define JOY_BUTTON 38
 
 #define KEY_DATA 37
 #define KEY_CLOCK 36
@@ -724,6 +745,22 @@ bool buttonDownPressed = false;
 bool buttonOffPressed = false;
 bool buttonBackPressed = false;
 bool buttonForwardPressed = false;
+
+volatile bool joystickRapidPressed = false;
+portMUX_TYPE joystickPulseMux = portMUX_INITIALIZER_UNLOCKED;
+volatile int joystickPulseZ = 0;
+volatile int joystickPulseX = 0;
+volatile int joystickPulseY = 0;
+int joystickCenterZ = 2048;
+int joystickCenterX = 2048;
+int joystickCenterY = 2048;
+int joystickFilteredZ = 2048;
+int joystickFilteredX = 2048;
+int joystickFilteredY = 2048;
+float joystickPulseFractionZ = 0;
+float joystickPulseFractionX = 0;
+float joystickPulseFractionY = 0;
+unsigned long joystickSampleTimeUs = 0;
 
 bool inNumpad = false;
 int numpadDigits[20];
@@ -2131,17 +2168,21 @@ bool isContinuousStep() {
   return moveStep == (measure == MEASURE_METRIC ? MOVE_STEP_1 : MOVE_STEP_IMP_1);
 }
 
+bool isRapidManualMove() {
+  return JOYSTICK_ENABLED && joystickRapidPressed;
+}
+
 // For rotational axis the moveStep of 0.1" means 0.1°.
 long getMoveStepForAxis(Axis* a) {
   return (a->rotational && measure != MEASURE_METRIC) ? (moveStep / 25.4) : moveStep;
 }
 
 long getStepMaxSpeed(Axis* a) {
-  return isContinuousStep() ? a->speedManualMove : min(long(a->speedManualMove), abs(getMoveStepForAxis(a)) * 1000 / STEP_TIME_MS);
+  return (isContinuousStep() || isRapidManualMove()) ? a->speedManualMove : min(long(a->speedManualMove), abs(getMoveStepForAxis(a)) * 1000 / STEP_TIME_MS);
 }
 
 void waitForStep(Axis* a) {
-  if (isContinuousStep()) {
+  if (isContinuousStep() || isRapidManualMove()) {
     // Move continuously for default step.
     waitForPendingPosNear0(a);
   } else {
@@ -2152,15 +2193,47 @@ void waitForStep(Axis* a) {
   }
 }
 
+volatile int* getJoystickPulseQueue(Axis* a) {
+  if (a == &z) return &joystickPulseZ;
+  if (a == &x) return &joystickPulseX;
+  if (a == &y) return &joystickPulseY;
+  return nullptr;
+}
+
+void addJoystickPulses(Axis* a, int delta) {
+  if (delta == 0) return;
+  volatile int* pulseQueue = getJoystickPulseQueue(a);
+  if (pulseQueue == nullptr) return;
+  portENTER_CRITICAL(&joystickPulseMux);
+  int queued = *pulseQueue + delta;
+  if (queued > JOYSTICK_PULSE_QUEUE_LIMIT) {
+    queued = JOYSTICK_PULSE_QUEUE_LIMIT;
+  } else if (queued < -JOYSTICK_PULSE_QUEUE_LIMIT) {
+    queued = -JOYSTICK_PULSE_QUEUE_LIMIT;
+  }
+  *pulseQueue = queued;
+  portEXIT_CRITICAL(&joystickPulseMux);
+}
+
+int getAndResetJoystickPulses(Axis* a) {
+  volatile int* pulseQueue = getJoystickPulseQueue(a);
+  if (pulseQueue == nullptr) return 0;
+  portENTER_CRITICAL(&joystickPulseMux);
+  int delta = *pulseQueue;
+  *pulseQueue = 0;
+  portEXIT_CRITICAL(&joystickPulseMux);
+  return delta;
+}
+
 int getAndResetPulses(Axis* a) {
+  int joystickDelta = getAndResetJoystickPulses(a);
   pcnt_unit_handle_t unit = pulseUnits[a->pulseCounter];
   if (unit == nullptr) {
-    return 0;
+    return (isOn && manualMovesIgnoredWhenOn()) ? 0 : joystickDelta;
   }
   int count;
   pcnt_unit_get_count(unit, &count);
   int delta = count - a->pulseCount;
-  if (delta == 0) return 0;
   if (isOn && manualMovesIgnoredWhenOn()) {
     pcnt_unit_clear_count(unit);
     a->pulseCount = 0;
@@ -2172,7 +2245,86 @@ int getAndResetPulses(Axis* a) {
   } else {
     a->pulseCount = count;
   }
+  return delta + joystickDelta;
+}
+
+int readJoystickPin(int pin) {
+  long total = 0;
+  for (int i = 0; i < JOYSTICK_OVERSAMPLES; i++) {
+    total += analogRead(pin);
+  }
+  return total / JOYSTICK_OVERSAMPLES;
+}
+
+int calibrateJoystickCenter(int pin) {
+  long total = 0;
+  for (int i = 0; i < JOYSTICK_CENTER_SAMPLES; i++) {
+    total += readJoystickPin(pin);
+    DELAY(2);
+  }
+  return total / JOYSTICK_CENTER_SAMPLES;
+}
+
+float getJoystickDeflection(int pin, int* filtered, int center, bool invert) {
+  int raw = readJoystickPin(pin);
+  *filtered = (*filtered * 3 + raw) / 4;
+  int delta = *filtered - center;
+  if (invert) delta = -delta;
+  int absDelta = abs(delta);
+  if (absDelta <= JOYSTICK_DEADBAND) return 0;
+
+  int range = delta > 0 ? JOYSTICK_ADC_MAX - center : center;
+  range = max(1, range - JOYSTICK_DEADBAND);
+  float normalized = (absDelta - JOYSTICK_DEADBAND) / float(range);
+  if (normalized > 1.0) normalized = 1.0;
+  float curved = normalized * normalized;
+  return delta > 0 ? curved : -curved;
+}
+
+int getJoystickPulseDelta(float deflection, float* pulseFraction, unsigned long elapsedUs) {
+  float revolutionsPerSecond = joystickRapidPressed ? JOYSTICK_RAPID_REVOLUTIONS_PER_SECOND : JOYSTICK_NORMAL_REVOLUTIONS_PER_SECOND;
+  *pulseFraction += deflection * PULSE_PER_REVOLUTION * revolutionsPerSecond * elapsedUs / 1000000.0;
+  int delta = int(*pulseFraction);
+  *pulseFraction -= delta;
   return delta;
+}
+
+void initJoystick() {
+  if (!JOYSTICK_ENABLED) return;
+  analogReadResolution(12);
+  pinMode(JOY_Z, INPUT);
+  pinMode(JOY_X, INPUT);
+  pinMode(JOY_Y, INPUT);
+  pinMode(JOY_BUTTON, INPUT_PULLUP);
+
+  joystickCenterZ = calibrateJoystickCenter(JOY_Z);
+  joystickCenterX = calibrateJoystickCenter(JOY_X);
+  joystickCenterY = calibrateJoystickCenter(JOY_Y);
+  joystickFilteredZ = joystickCenterZ;
+  joystickFilteredX = joystickCenterX;
+  joystickFilteredY = joystickCenterY;
+  joystickSampleTimeUs = micros();
+}
+
+void taskJoystick(void *param) {
+  while (emergencyStop == ESTOP_NONE) {
+    joystickRapidPressed = digitalRead(JOY_BUTTON) == (INVERT_JOYSTICK_BUTTON ? HIGH : LOW);
+    unsigned long now = micros();
+    unsigned long elapsedUs = now - joystickSampleTimeUs;
+    joystickSampleTimeUs = now;
+
+    float zDeflection = getJoystickDeflection(JOY_Z, &joystickFilteredZ, joystickCenterZ, INVERT_JOYSTICK_Z);
+    float xDeflection = getJoystickDeflection(JOY_X, &joystickFilteredX, joystickCenterX, INVERT_JOYSTICK_X);
+    float yDeflection = getJoystickDeflection(JOY_Y, &joystickFilteredY, joystickCenterY, INVERT_JOYSTICK_Y);
+    addJoystickPulses(&z, getJoystickPulseDelta(zDeflection, &joystickPulseFractionZ, elapsedUs));
+    addJoystickPulses(&x, getJoystickPulseDelta(xDeflection, &joystickPulseFractionX, elapsedUs));
+    if (y.active) {
+      addJoystickPulses(&y, getJoystickPulseDelta(yDeflection, &joystickPulseFractionY, elapsedUs));
+    }
+
+    DELAY(JOYSTICK_SAMPLE_INTERVAL_MS);
+  }
+  vTaskDelete(NULL);
 }
 
 // Calculates stepper position from spindle position.
@@ -2422,8 +2574,9 @@ void taskMoveX(void *param) {
 
 void taskMoveY(void *param) {
   while (emergencyStop == ESTOP_NONE) {
-    bool plus = buttonForwardPressed;
-    bool minus = buttonBackPressed;
+    int pulseDelta = getAndResetPulses(&y);
+    bool plus = buttonForwardPressed || pulseDelta > 0;
+    bool minus = buttonBackPressed || pulseDelta < 0;
     if (!plus && !minus) {
       taskYIELD();
       continue;
@@ -2435,7 +2588,7 @@ void taskMoveY(void *param) {
     int delta = 0;
     int sign = plus ? 1 : -1;
     do {
-      float fractionalDelta = getMoveStepForAxis(&y) * sign / y.screwPitch * y.motorSteps + y.fractionalPos;
+      float fractionalDelta = (pulseDelta == 0 ? getMoveStepForAxis(&y) * sign / y.screwPitch : pulseDelta / PULSE_PER_REVOLUTION) * y.motorSteps + y.fractionalPos;
       delta = round(fractionalDelta);
       y.fractionalPos = fractionalDelta - delta;
       if (delta == 0) delta = sign;
@@ -2448,7 +2601,8 @@ void taskMoveY(void *param) {
       }
       stepToContinuous(&y, posCopy + delta);
       waitForStep(&y);
-    } while (plus ? buttonForwardPressed : buttonBackPressed);
+      pulseDelta = getAndResetPulses(&y);
+    } while (delta != 0 && (pulseDelta != 0 || (plus ? buttonForwardPressed : buttonBackPressed)));
     y.continuous = false;
     waitForPendingPos0(&y);
     // Restore async direction.
@@ -4251,6 +4405,7 @@ void setup() {
     pinMode(Y_ENA, OUTPUT);
     DHIGH(Y_STEP);
   }
+  initJoystick();
 
   Preferences pref;
   pref.begin(PREF_NAMESPACE);
@@ -4319,6 +4474,7 @@ void setup() {
   // Initialize the keyboard.
   keyboard.begin(KEY_DATA, KEY_CLOCK);
   xTaskCreatePinnedToCore(taskKeypad, "taskKeypad", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
+  if (JOYSTICK_ENABLED) xTaskCreatePinnedToCore(taskJoystick, "taskJoystick", 4000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
 
   // Non-time-sensitive tasks on core 0.
   delay(1300); // Nextion needs time to boot or first display update will be ignored.
