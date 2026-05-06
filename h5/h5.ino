@@ -3117,7 +3117,7 @@ void buttonPlusMinusPress(bool plus) {
   // Mutex is aquired in setDupr() and setStarts().
   bool minus = !plus;
   if (mode == MODE_THREAD && setupIndex == 2) {
-    if (minus && starts > 2) {
+    if (minus && starts > 1) {
       setStarts(starts - 1);
     } else if (plus && starts < STARTS_MAX) {
       setStarts(starts + 1);
