@@ -1132,7 +1132,7 @@ String readGcodeProgram(const String& name) {
   char buf[64];
   while (file.available()) {
     size_t bytesRead = file.readBytes(buf, sizeof(buf));
-    result += String(buf).substring(0, bytesRead);
+    result.concat(buf, bytesRead);
   }
   file.close();
   return result;
