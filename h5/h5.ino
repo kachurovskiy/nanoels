@@ -240,6 +240,14 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 #define TIMER_FREQ 1000000 // 1MHz async timer frequency
 
+enum PulseCounter {
+  PULSE_COUNTER_SPINDLE,
+  PULSE_COUNTER_Z,
+  PULSE_COUNTER_X,
+  PULSE_COUNTER_Y,
+  PULSE_COUNTER_COUNT
+};
+
 struct CircleBuffer {
   char* buffer;
   size_t head;
@@ -252,9 +260,10 @@ struct CircleBuffer {
 #include <WiFi.h>
 #include <WebServer.h>
 #include <WebSocketsServer.h> // install via Libraries as "WebSockets"
-#include <driver/pcnt.h>
+#include <driver/pulse_cnt.h>
 #include <Preferences.h>
 #include <PS2KeyAdvanced.h> // install via Libraries as "PS2KeyAdvanced"
+#include <soc/soc.h>
 
 const long NEXTION_NORMAL_BAUD = 115200;
 const long NEXTION_FIRST_UPLOAD_BAUD = 9600;
@@ -800,11 +809,11 @@ struct Axis {
   int pulseA;
   int pulseB;
   int pulseCount;
-  pcnt_unit_t pulseUnit;
+  PulseCounter pulseCounter;
 };
 
 void initAxis(Axis* a, char name, bool active, bool rotational, float motorSteps, float screwPitch, long speedStart, long speedManualMove,
-    long acceleration, bool invertStepper, bool invertEnable, bool needsRest, long maxTravelMm, long backlashDu, int ena, int dir, int step, int pulseA, int pulseB, pcnt_unit_t pulseUnit) {
+    long acceleration, bool invertStepper, bool invertEnable, bool needsRest, long maxTravelMm, long backlashDu, int ena, int dir, int step, int pulseA, int pulseB, PulseCounter pulseCounter) {
   a->mutex = xSemaphoreCreateMutex();
 
   a->name = name;
@@ -866,13 +875,16 @@ void initAxis(Axis* a, char name, bool active, bool rotational, float motorSteps
 
   a->pulseA = pulseA;
   a->pulseB = pulseB;
-  a->pulseUnit = pulseUnit;
+  a->pulseCounter = pulseCounter;
   a->pulseCount = 0;
 }
 
 Axis z;
 Axis x;
 Axis y;
+
+pcnt_unit_handle_t pulseUnits[PULSE_COUNTER_COUNT] = {};
+volatile bool pulseCountersReady = false;
 
 unsigned long saveTime = 0; // micros() of the previous Prefs write
 unsigned long spindleEncTime = 0; // micros() of the previous spindle update
@@ -2141,17 +2153,21 @@ void waitForStep(Axis* a) {
 }
 
 int getAndResetPulses(Axis* a) {
-  int16_t count;
-  pcnt_get_counter_value(a->pulseUnit, &count);
+  pcnt_unit_handle_t unit = pulseUnits[a->pulseCounter];
+  if (unit == nullptr) {
+    return 0;
+  }
+  int count;
+  pcnt_unit_get_count(unit, &count);
   int delta = count - a->pulseCount;
   if (delta == 0) return 0;
   if (isOn && manualMovesIgnoredWhenOn()) {
-    pcnt_counter_clear(a->pulseUnit);
+    pcnt_unit_clear_count(unit);
     a->pulseCount = 0;
     return 0;
   }
   if (count >= PCNT_CLEAR || count <= -PCNT_CLEAR) {
-    pcnt_counter_clear(a->pulseUnit);
+    pcnt_unit_clear_count(unit);
     a->pulseCount = 0;
   } else {
     a->pulseCount = count;
@@ -2897,32 +2913,40 @@ void taskGcode(void *param) {
   vTaskDelete(NULL);
 }
 
-void startPulseCounter(pcnt_unit_t unit, int gpioA, int gpioB) {
-  pcnt_config_t pcntConfig;
-  pcntConfig.pulse_gpio_num = gpioA;
-  pcntConfig.ctrl_gpio_num = gpioB;
-  pcntConfig.channel = PCNT_CHANNEL_0;
-  pcntConfig.unit = unit;
-  pcntConfig.pos_mode = PCNT_COUNT_INC;
-  pcntConfig.neg_mode = PCNT_COUNT_DEC;
-  pcntConfig.lctrl_mode = PCNT_MODE_REVERSE;
-  pcntConfig.hctrl_mode = PCNT_MODE_KEEP;
-  pcntConfig.counter_h_lim = PCNT_LIM;
-  pcntConfig.counter_l_lim = -PCNT_LIM;
-  pcnt_unit_config(&pcntConfig);
-  pcnt_set_filter_value(unit, ENCODER_FILTER);
-	pcnt_filter_enable(unit);
-  pcnt_counter_pause(unit);
-  pcnt_counter_clear(unit);
-  pcnt_counter_resume(unit);
+void startPulseCounter(PulseCounter pulseCounter, int gpioA, int gpioB) {
+  pcnt_unit_config_t unitConfig = {};
+  unitConfig.low_limit = -PCNT_LIM;
+  unitConfig.high_limit = PCNT_LIM;
+
+  pcnt_unit_handle_t unit = nullptr;
+  ESP_ERROR_CHECK(pcnt_new_unit(&unitConfig, &unit));
+
+  pcnt_glitch_filter_config_t filterConfig = {};
+  filterConfig.max_glitch_ns = ((uint64_t)ENCODER_FILTER * 1000000000ULL + APB_CLK_FREQ - 1) / APB_CLK_FREQ;
+  ESP_ERROR_CHECK(pcnt_unit_set_glitch_filter(unit, &filterConfig));
+
+  pcnt_chan_config_t channelConfig = {};
+  channelConfig.edge_gpio_num = gpioA;
+  channelConfig.level_gpio_num = gpioB;
+
+  pcnt_channel_handle_t channel = nullptr;
+  ESP_ERROR_CHECK(pcnt_new_channel(unit, &channelConfig, &channel));
+  ESP_ERROR_CHECK(pcnt_channel_set_edge_action(channel, PCNT_CHANNEL_EDGE_ACTION_INCREASE, PCNT_CHANNEL_EDGE_ACTION_DECREASE));
+  ESP_ERROR_CHECK(pcnt_channel_set_level_action(channel, PCNT_CHANNEL_LEVEL_ACTION_KEEP, PCNT_CHANNEL_LEVEL_ACTION_INVERSE));
+  ESP_ERROR_CHECK(pcnt_unit_enable(unit));
+  ESP_ERROR_CHECK(pcnt_unit_clear_count(unit));
+  ESP_ERROR_CHECK(pcnt_unit_start(unit));
+
+  pulseUnits[pulseCounter] = unit;
 }
 
 // Attaching interrupt on core 0 to have more time on core 1 where axes are moved.
 void taskAttachInterrupts(void *param) {
-  startPulseCounter(PCNT_UNIT_0, ENC_A, ENC_B);
-  startPulseCounter(PCNT_UNIT_1, Z_PULSE_A, Z_PULSE_B);
-  startPulseCounter(PCNT_UNIT_2, X_PULSE_A, X_PULSE_B);
-  startPulseCounter(PCNT_UNIT_3, Y_PULSE_A, Y_PULSE_B);
+  startPulseCounter(PULSE_COUNTER_SPINDLE, ENC_A, ENC_B);
+  startPulseCounter(PULSE_COUNTER_Z, Z_PULSE_A, Z_PULSE_B);
+  startPulseCounter(PULSE_COUNTER_X, X_PULSE_A, X_PULSE_B);
+  startPulseCounter(PULSE_COUNTER_Y, Y_PULSE_A, Y_PULSE_B);
+  pulseCountersReady = true;
   vTaskDelete(NULL);
 }
 
@@ -4110,14 +4134,18 @@ void discountFullSpindleTurns() {
 }
 
 void processSpindleCounter() {
-  int16_t count;
-  pcnt_get_counter_value(PCNT_UNIT_0, &count);
+  pcnt_unit_handle_t unit = pulseUnits[PULSE_COUNTER_SPINDLE];
+  if (unit == nullptr) {
+    return;
+  }
+  int count;
+  pcnt_unit_get_count(unit, &count);
   int delta = count - spindleCount;
   if (delta == 0) {
     return;
   }
   if (count >= PCNT_CLEAR || count <= -PCNT_CLEAR) {
-    pcnt_counter_clear(PCNT_UNIT_0);
+    pcnt_unit_clear_count(unit);
     spindleCount = 0;
   } else {
     spindleCount = count;
@@ -4231,9 +4259,9 @@ void setup() {
     pref.putInt(PREF_VERSION, PREFERENCES_VERSION);
   }
 
-  initAxis(&z, NAME_Z, true, false, MOTOR_STEPS_Z, SCREW_Z_DU, SPEED_START_Z, SPEED_MANUAL_MOVE_Z, ACCELERATION_Z, INVERT_Z, INVERT_Z_ENABLE, NEEDS_REST_Z, MAX_TRAVEL_MM_Z, BACKLASH_DU_Z, Z_ENA, Z_DIR, Z_STEP, Z_PULSE_A, Z_PULSE_B, PCNT_UNIT_1);
-  initAxis(&x, NAME_X, true, false, MOTOR_STEPS_X, SCREW_X_DU, SPEED_START_X, SPEED_MANUAL_MOVE_X, ACCELERATION_X, INVERT_X, INVERT_X_ENABLE, NEEDS_REST_X, MAX_TRAVEL_MM_X, BACKLASH_DU_X, X_ENA, X_DIR, X_STEP, X_PULSE_A, X_PULSE_B, PCNT_UNIT_2);
-  initAxis(&y, NAME_Y, ACTIVE_Y, ROTARY_Y, MOTOR_STEPS_Y, SCREW_Y_DU, SPEED_START_Y, SPEED_MANUAL_MOVE_Y, ACCELERATION_Y, INVERT_Y, INVERT_Y_ENABLE, NEEDS_REST_Y, MAX_TRAVEL_MM_Y, BACKLASH_DU_Y, Y_ENA, Y_DIR, Y_STEP, Y_PULSE_A, Y_PULSE_B, PCNT_UNIT_3);
+  initAxis(&z, NAME_Z, true, false, MOTOR_STEPS_Z, SCREW_Z_DU, SPEED_START_Z, SPEED_MANUAL_MOVE_Z, ACCELERATION_Z, INVERT_Z, INVERT_Z_ENABLE, NEEDS_REST_Z, MAX_TRAVEL_MM_Z, BACKLASH_DU_Z, Z_ENA, Z_DIR, Z_STEP, Z_PULSE_A, Z_PULSE_B, PULSE_COUNTER_Z);
+  initAxis(&x, NAME_X, true, false, MOTOR_STEPS_X, SCREW_X_DU, SPEED_START_X, SPEED_MANUAL_MOVE_X, ACCELERATION_X, INVERT_X, INVERT_X_ENABLE, NEEDS_REST_X, MAX_TRAVEL_MM_X, BACKLASH_DU_X, X_ENA, X_DIR, X_STEP, X_PULSE_A, X_PULSE_B, PULSE_COUNTER_X);
+  initAxis(&y, NAME_Y, ACTIVE_Y, ROTARY_Y, MOTOR_STEPS_Y, SCREW_Y_DU, SPEED_START_Y, SPEED_MANUAL_MOVE_Y, ACCELERATION_Y, INVERT_Y, INVERT_Y_ENABLE, NEEDS_REST_Y, MAX_TRAVEL_MM_Y, BACKLASH_DU_Y, Y_ENA, Y_DIR, Y_STEP, Y_PULSE_A, Y_PULSE_B, PULSE_COUNTER_Y);
 
   isOn = false;
   savedDupr = dupr = pref.getLong(PREF_DUPR);
@@ -4294,7 +4322,11 @@ void setup() {
 
   // Non-time-sensitive tasks on core 0.
   delay(1300); // Nextion needs time to boot or first display update will be ignored.
-  xTaskCreatePinnedToCore(taskAttachInterrupts, "taskAttachInterrupts", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
+  if (xTaskCreatePinnedToCore(taskAttachInterrupts, "taskAttachInterrupts", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */) == pdPASS) {
+    while (!pulseCountersReady) {
+      delay(1);
+    }
+  }
   xTaskCreatePinnedToCore(taskDisplay, "taskDisplay", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   xTaskCreatePinnedToCore(taskMoveZ, "taskMoveZ", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   xTaskCreatePinnedToCore(taskMoveX, "taskMoveX", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
