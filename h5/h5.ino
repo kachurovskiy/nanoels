@@ -2140,16 +2140,23 @@ int getInt(const String& command, char letter) {
   return getValueString(command, letter).toInt();
 }
 
+float gcodeUnitScaleDu() {
+  return measure == MEASURE_METRIC ? 10000.0 : 254000.0;
+}
+
+long gcodeUnitToDu(float value) {
+  return round(value * gcodeUnitScaleDu());
+}
+
 void setFeedRate(const String& command) {
   float feed = getFloat(command, 'F');
   if (feed <= 0) return;
-  gcodeFeedDuPerSec = round(feed * (measure == MEASURE_METRIC ? 10000 : 254000) / 60.0);
+  gcodeFeedDuPerSec = round(feed * gcodeUnitScaleDu() / 60.0);
 }
 
 long mmOrInchToAbsolutePos(Axis* a, float mmOrInch) {
-  long scaleToDu = measure == MEASURE_METRIC ? 10000 : 254000;
   long part1 = a->gcodeRelativePos;
-  long part2 = round(mmOrInch * scaleToDu / a->screwPitch * a->motorSteps);
+  long part2 = round(mmOrInch * gcodeUnitScaleDu() / a->screwPitch * a->motorSteps);
   return part1 + part2;
 }
 
@@ -2183,7 +2190,7 @@ void updateAxisSpeeds(long diffX, long diffZ, long diffY) {
 }
 
 void gcodeWaitEpsilon(int epsilon) {
-  while (abs(x.pendingPos) > epsilon || abs(z.pendingPos) > epsilon || abs(y.pendingPos) > epsilon || (SPINDLE_PAUSES_GCODE && getApproxRpm() < GCODE_MIN_RPM)) {
+  while (isOn && (abs(x.pendingPos) > epsilon || abs(z.pendingPos) > epsilon || abs(y.pendingPos) > epsilon || (SPINDLE_PAUSES_GCODE && getApproxRpm() < GCODE_MIN_RPM))) {
     taskYIELD();
   }
 }
@@ -2224,10 +2231,144 @@ void G00_01(const String& command) {
   gcodeWaitStop();
 }
 
+bool gcodeError(const String& message, const String& command) {
+  setIsOnFromTask(false);
+  writeBuffer(&outBuffer, "error: ");
+  writeBuffer(&outBuffer, message);
+  writeBuffer(&outBuffer, " ");
+  writeBuffer(&outBuffer, command);
+  writeBuffer(&outBuffer, "\n");
+  return false;
+}
+
+long spindleFromPosWithPitch(Axis* a, long pos, long pitchDu) {
+  return round(pos * a->screwPitch * ENCODER_STEPS_FLOAT / a->motorSteps / pitchDu);
+}
+
+bool gcodeWaitForSpindle() {
+  while (isOn && getApproxRpm() < GCODE_MIN_RPM) {
+    taskYIELD();
+  }
+  return isOn;
+}
+
+long gcodeWaitForThreadPhase(Axis* lead, long pitchDu) {
+  if (!gcodeWaitForSpindle()) return -1;
+
+  long lastPhase = spindleModulo(spindlePosGlobal - spindleFromPosWithPitch(lead, lead->posGlobal, pitchDu));
+  while (isOn) {
+    if (getApproxRpm() < GCODE_MIN_RPM) {
+      if (!gcodeWaitForSpindle()) return -1;
+      lastPhase = spindleModulo(spindlePosGlobal - spindleFromPosWithPitch(lead, lead->posGlobal, pitchDu));
+    }
+
+    long phase = spindleModulo(spindlePosGlobal - spindleFromPosWithPitch(lead, lead->posGlobal, pitchDu));
+    if (phase == 0) {
+      return 0;
+    }
+    if (phase - lastPhase < -ENCODER_STEPS_INT / 2) {
+      return phase;
+    }
+    lastPhase = phase;
+    taskYIELD();
+  }
+  return -1;
+}
+
+bool gcodeMarkThreadOrigin(long spindleAtOrigin) {
+  if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
+    setIsOnFromTask(false);
+    writeBuffer(&outBuffer, "error: failed to synchronize G32\n");
+    return false;
+  }
+  markOrigin();
+  spindlePos = spindleAtOrigin;
+  spindlePosAvg = spindleAtOrigin;
+  xSemaphoreGive(motionMutex);
+  return true;
+}
+
+// Single-pass spindle-synchronized thread cutting.
+bool G32(const String& command) {
+  // G32 uses F as thread lead per spindle revolution, not feed per minute.
+  float feed = getFloat(command, 'F');
+  if (feed <= 0) {
+    return gcodeError("G32 requires positive F pitch", command);
+  }
+
+  long pitchDuAbs = abs(gcodeUnitToDu(feed));
+  if (pitchDuAbs == 0 || pitchDuAbs > DUPR_MAX) {
+    return gcodeError("G32 F pitch out of range", command);
+  }
+
+  long xStart = x.pos;
+  long zStart = z.pos;
+  long yStart = y.pos;
+  long xEnd = command.indexOf(x.name) >= 0 ? mmOrInchToAbsolutePos(&x, getFloat(command, x.name)) : xStart;
+  long zEnd = command.indexOf(z.name) >= 0 ? mmOrInchToAbsolutePos(&z, getFloat(command, z.name)) : zStart;
+  long yEnd = command.indexOf(y.name) >= 0 ? mmOrInchToAbsolutePos(&y, getFloat(command, y.name)) : yStart;
+  long xDiff = xEnd - xStart;
+  long zDiff = zEnd - zStart;
+  long yDiff = yEnd - yStart;
+
+  Axis* lead = NULL;
+  long leadDiff = 0;
+  if (zDiff != 0) {
+    lead = &z;
+    leadDiff = zDiff;
+  } else if (xDiff != 0) {
+    lead = &x;
+    leadDiff = xDiff;
+  } else if (ACTIVE_Y && yDiff != 0) {
+    lead = &y;
+    leadDiff = yDiff;
+  } else {
+    return gcodeError("G32 requires an axis move", command);
+  }
+
+  long pitchDu = leadDiff > 0 ? pitchDuAbs : -pitchDuAbs;
+  long spindleTarget = spindleFromPosWithPitch(lead, leadDiff, pitchDu);
+  if (spindleTarget <= 0) {
+    return gcodeError("G32 move too short for pitch", command);
+  }
+
+  long spindleAtOrigin = gcodeWaitForThreadPhase(lead, pitchDu);
+  if (spindleAtOrigin < 0) return true;
+  if (!gcodeMarkThreadOrigin(spindleAtOrigin)) return false;
+
+  x.speedMax = LONG_MAX;
+  z.speedMax = LONG_MAX;
+  y.speedMax = LONG_MAX;
+
+  while (isOn) {
+    long spindle = spindlePosAvg;
+    bool finished = spindle >= spindleTarget;
+    float progress = finished ? 1.0 : spindle / float(spindleTarget);
+    if (progress < 0) progress = 0;
+    else if (progress > 1) progress = 1;
+
+    stepToContinuous(&x, round(xDiff * progress));
+    stepToContinuous(&z, round(zDiff * progress));
+    if (ACTIVE_Y) stepToContinuous(&y, round(yDiff * progress));
+
+    if (finished) break;
+    taskYIELD();
+  }
+
+  if (!isOn) return true;
+  stepToFinal(&x, xDiff);
+  stepToFinal(&z, zDiff);
+  if (ACTIVE_Y) stepToFinal(&y, yDiff);
+  gcodeWaitStop();
+  return true;
+}
+
 bool handleGcode(const String& command) {
   int op = getInt(command, 'G');
   if (op == 0 || op == 1) { // 0 also covers X and Z commands without G.
     G00_01(command);
+  } else if (op == 32) {
+    return G32(command);
   } else if (op == 20 || op == 21) {
     setMeasure(op == 20 ? MEASURE_INCH : MEASURE_METRIC);
   } else if (op == 90 || op == 91) {
@@ -2277,7 +2418,9 @@ bool handleGcodeCommand(String command) {
   x.gcodeRelativePos = gcodeAbsolutePositioning ? -x.originPos : x.pos;
   y.gcodeRelativePos = gcodeAbsolutePositioning ? -y.originPos : y.pos;
 
-  setFeedRate(command);
+  if (!(code == 'G' && getInt(command, 'G') == 32)) {
+    setFeedRate(command);
+  }
   switch (code) {
     case 'G':
     case NAME_Z:
@@ -2978,11 +3121,6 @@ bool processNumpad(int keyCode) {
   }
   return inNumpad;
 }
-
-const int NEXTION_BUFFER_LENGTH = 256;
-byte nextionBuffer[NEXTION_BUFFER_LENGTH];
-int nextionBufferIndex = 0;
-byte lastNextionPageId = 255;
 
 bool checkForTerminator() {
   if (nextionBufferIndex < 3) return false;
