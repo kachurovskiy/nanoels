@@ -1511,7 +1511,7 @@ void stepperEnable(Axis* a, bool value) {
   }
   if (value) {
     a->stepperEnableCounter++;
-    if (value == 1) {
+    if (a->stepperEnableCounter == 1) {
       updateEnable(a);
     }
   } else if (a->stepperEnableCounter > 0) {
@@ -1661,7 +1661,7 @@ String printDegrees(long degrees10000) {
 }
 
 String printDupr(long value) {
-  if (measure != MEASURE_TPI) return printDeciMicrons(value, 5);
+  if (measure != MEASURE_TPI || value == 0) return printDeciMicrons(value, 5);
 
   float tpi = 254000.0 / value;
   String result = "";
@@ -3170,7 +3170,7 @@ void buttonOnOffPress(bool on) {
   } else if (isOn && on && (mode == MODE_TURN || mode == MODE_FACE || mode == MODE_THREAD)) {
     // Move to the next pass.
     opIndexAdvanceFlag = true;
-  } else if (!on && (z.movingManually || x.movingManually || x.movingManually)) {
+  } else if (!on && (z.movingManually || x.movingManually || y.movingManually)) {
     setEmergencyStop(ESTOP_OFF_MANUAL_MOVE);
   } else if (!isOn && on && mode == MODE_GCODE && gcodeProgramIndex >= gcodeProgramCount) {
     beep();
