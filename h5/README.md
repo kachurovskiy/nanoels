@@ -218,6 +218,8 @@ Lower part of the screen:
   - ⌨️`F8`: ellipse
   - ⌨️`F9`: gcode
   - ⌨️`F10`: y axis (if configured)
+  - ⌨️`F11`: cycle modes
+  - ⌨️`F12`: X gearbox
 - ⌨️`X` zeroes X axis
 - ⌨️`Z` zeroes Z axis
 - ⌨️`C` disables / enables X axis
@@ -302,6 +304,8 @@ Soft limits are used when preparing an automatic operation like turning, facing,
 
 Press 🖥️`bMode` to switch to the gearbox mode. After turning the controller `ON` with the 🖥️`mPlay` / ⌨️`Enter` button, lead screw will move the distance of 1 pitch for 1 spindle turn.
 
+`XGEAR` works the same way but couples the spindle to the `X` axis instead of `Z`, so the cross-slide moves the distance of 1 pitch for 1 spindle turn. Press ⌨️`F12` to switch to `XGEAR`.
+
 With a small pitch like `0.07mm` this mode is useful for turning - gradually taking off material from the outer diameter of the part.
 
 With a large pitch like `0.5"` one can cut a corresponding thread. Moving with 🖥️`m6` and 🖥️`m7` buttons is supported and does not result in losing the thread.
@@ -311,6 +315,8 @@ Direction of movement can be quickly reversed with 🖥️`tPitch` / ⌨️`R` b
 Soft limits are respected in this mode allowing to finish the cut in a precise position.
 
 Cross-slide can be moved with manual move buttons or disabled using 🖥️`bX` / ⌨️`C` and be operated manually.
+
+In `XGEAR`, the carriage can be moved with manual move buttons or disabled using 🖥️`bZ` / ⌨️`Q` and be operated manually.
 
 Press 🖥️`mStop` / ⌨️`Esc` to turn gearbox mode `off` and decouple lead screw movements from spindle turns.
 

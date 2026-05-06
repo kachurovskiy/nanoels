@@ -108,7 +108,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 16
+#define SOFTWARE_VERSION 17
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -186,6 +186,7 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 #define B_MODE_GCODE 105 // F9
 #define B_MODE_Y 106 // F10
 #define B_MODE 107 // F11 - to cycle through modes
+#define B_MODE_XGEAR 108 // F12 - sets the mode to X gearbox
 #define B_X 88 // x - zeroes X axis
 #define B_Z 90 // z - zeroes Z axis
 #define B_Y 72 // h - zeroes Y axis
@@ -239,6 +240,7 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 #define MOVE_STEP_IMP_3 254 // 1/1000" also known as 1 thou
 
 #define MODE_NORMAL 0
+#define MODE_XGEAR 1
 #define MODE_ASYNC 2
 #define MODE_CONE 3
 #define MODE_TURN 4
@@ -1790,8 +1792,12 @@ bool isPassMode() {
   return mode == MODE_TURN || mode == MODE_FACE || mode == MODE_CUT || mode == MODE_THREAD || mode == MODE_ELLIPSE;
 }
 
+bool isGearboxMode() {
+  return mode == MODE_NORMAL || mode == MODE_XGEAR;
+}
+
 bool manualMovesAllowedWhenOn() {
-  return mode == MODE_NORMAL || mode == MODE_ASYNC || mode == MODE_CONE || mode == MODE_Y;
+  return isGearboxMode() || mode == MODE_ASYNC || mode == MODE_CONE || mode == MODE_Y;
 }
 
 bool manualMovesIgnoredWhenOn() {
@@ -1806,7 +1812,11 @@ int getLastSetupIndex() {
 }
 
 Axis* getPitchAxis() {
-  return mode == MODE_FACE ? &x : &z;
+  return (mode == MODE_FACE || mode == MODE_XGEAR) ? &x : &z;
+}
+
+bool isGearboxManualMove(Axis* a) {
+  return isGearboxMode() && a == getPitchAxis();
 }
 
 long getPassModeZStart() {
@@ -1907,6 +1917,7 @@ String getCurrentGcodeProgramName() {
 
 String printMode() {
   if (mode == MODE_NORMAL) return "GEAR";
+  if (mode == MODE_XGEAR) return "XGEAR";
   if (mode == MODE_ASYNC) return "ASYNC";
   if (mode == MODE_CONE) return "CONE";
   if (mode == MODE_TURN) return "TURN";
@@ -2403,6 +2414,56 @@ void updateAsyncTimerSettings() {
   timerWrite(async_timer, 0);
 }
 
+bool gearboxMoveButtonPressed(Axis* a, int sign) {
+  if (a == &z) return sign > 0 ? buttonLeftPressed : buttonRightPressed;
+  if (a == &x) return sign > 0 ? buttonUpPressed : buttonDownPressed;
+  return false;
+}
+
+bool moveGearboxAxisManually(Axis* a, int pulseDelta, int sign) {
+  // Move by moveStep in the desired direction but stay in the thread by
+  // possibly traveling a little more.
+  float fraction = pulseDelta == 0 ? 1.0 : abs(pulseDelta) / PULSE_PER_REVOLUTION;
+  float turns = moveStep * fraction / abs(dupr * starts);
+  int fullTurns = ceil(turns);
+  int diff = fullTurns * ENCODER_STEPS_FLOAT * sign * (dupr > 0 ? 1 : -1);
+  long prevSpindlePos = spindlePos;
+  bool stepperOn = true;
+  bool resting = false;
+  do {
+    a->speedMax = a->speedManualMove;
+    if (xSemaphoreTake(motionMutex, 100) == pdTRUE) {
+      if (!resting) {
+        spindlePos += diff;
+        spindlePosAvg += diff;
+      }
+      // If spindle is moving, it will be changing spindlePos at the same time. Account for it.
+      while (diff > 0 ? (spindlePos < prevSpindlePos) : (spindlePos > prevSpindlePos)) {
+        spindlePos += diff;
+        spindlePosAvg += diff;
+      };
+      prevSpindlePos = spindlePos;
+      xSemaphoreGive(motionMutex);
+    }
+
+    long newPos = posFromSpindle(a, prevSpindlePos, true);
+    if (newPos != a->pos) {
+      stepToContinuous(a, newPos);
+      waitForPendingPosNear0(a);
+      getAndResetPulses(a); // Discard any pulses during movement.
+    } else if (a->pos == (sign > 0 ? a->leftStop : a->rightStop)) {
+      // We're standing on a stop with the move button pressed.
+      resting = true;
+      if (stepperOn) {
+        stepperEnable(a, false);
+        stepperOn = false;
+      }
+      DELAY(200);
+    }
+  } while (pulseDelta == 0 && gearboxMoveButtonPressed(a, sign));
+  return stepperOn;
+}
+
 void taskMoveZ(void *param) {
   while (emergencyStop == ESTOP_NONE) {
     int pulseDelta = getAndResetPulses(&z);
@@ -2426,45 +2487,8 @@ void taskMoveZ(void *param) {
     bool stepperOn = true;
     stepperEnable(&z, true);
     z.movingManually = true;
-    if (isOn && dupr != 0 && mode == MODE_NORMAL) {
-      // Move by moveStep in the desired direction but stay in the thread by possibly traveling a little more.
-      float fraction = pulseDelta == 0 ? 1.0 : abs(pulseDelta) / PULSE_PER_REVOLUTION;
-      float turns = moveStep * fraction / abs(dupr * starts);
-      int fullTurns = ceil(turns);
-      int diff = fullTurns * ENCODER_STEPS_FLOAT * sign * (dupr > 0 ? 1 : -1);
-      long prevSpindlePos = spindlePos;
-      bool resting = false;
-      do {
-        z.speedMax = z.speedManualMove;
-        if (xSemaphoreTake(motionMutex, 100) == pdTRUE) {
-          if (!resting) {
-            spindlePos += diff;
-            spindlePosAvg += diff;
-          }
-          // If spindle is moving, it will be changing spindlePos at the same time. Account for it.
-          while (diff > 0 ? (spindlePos < prevSpindlePos) : (spindlePos > prevSpindlePos)) {
-            spindlePos += diff;
-            spindlePosAvg += diff;
-          };
-          prevSpindlePos = spindlePos;
-          xSemaphoreGive(motionMutex);
-        }
-
-        long newPos = posFromSpindle(&z, prevSpindlePos, true);
-        if (newPos != z.pos) {
-          stepToContinuous(&z, newPos);
-          waitForPendingPosNear0(&z);
-          getAndResetPulses(&z); // Discard any pulses during movement.
-        } else if (z.pos == (left ? z.leftStop : z.rightStop)) {
-          // We're standing on a stop with the L/R move button pressed.
-          resting = true;
-          if (stepperOn) {
-            stepperEnable(&z, false);
-            stepperOn = false;
-          }
-          DELAY(200);
-        }
-      } while (left ? buttonLeftPressed : buttonRightPressed);
+    if (isOn && dupr != 0 && isGearboxManualMove(&z)) {
+      stepperOn = moveGearboxAxisManually(&z, pulseDelta, sign);
     } else {
       z.speedMax = getStepMaxSpeed(&z);
       int delta = 0;
@@ -2522,6 +2546,11 @@ void taskMoveX(void *param) {
       taskYIELD();
       continue;
     }
+    if (spindlePosSync != 0 && isGearboxManualMove(&x)) {
+      // Edge case.
+      taskYIELD();
+      continue;
+    }
     if (isOn && !manualMovesAllowedWhenOn()) {
       setIsOnFromTask(false);
       taskYIELD();
@@ -2530,42 +2559,50 @@ void taskMoveX(void *param) {
     x.movingManually = true;
     x.speedMax = getStepMaxSpeed(&x);
     stepperEnable(&x, true);
+    bool stepperOn = true;
 
     int delta = 0;
-    int sign = up ? 1 : -1;
-    do {
-      float fractionalDelta = (pulseDelta == 0 ? moveStep * sign / x.screwPitch : pulseDelta / PULSE_PER_REVOLUTION) * x.motorSteps + x.fractionalPos;
-      delta = round(fractionalDelta);
-      // Don't lose fractional steps when moving by 0.01" or 0.001".
-      x.fractionalPos = fractionalDelta - delta;
-      if (delta == 0) {
-        // When moveStep is e.g. 1 micron and MOTOR_STEPS_Z is 200, make delta non-zero.
-        delta = sign;
-      }
+    bool positiveMove = pulseDelta == 0 ? up : pulseDelta > 0;
+    int sign = positiveMove ? 1 : -1;
+    if (isOn && dupr != 0 && isGearboxManualMove(&x)) {
+      stepperOn = moveGearboxAxisManually(&x, pulseDelta, sign);
+    } else {
+      do {
+        float fractionalDelta = (pulseDelta == 0 ? moveStep * sign / x.screwPitch : pulseDelta / PULSE_PER_REVOLUTION) * x.motorSteps + x.fractionalPos;
+        delta = round(fractionalDelta);
+        // Don't lose fractional steps when moving by 0.01" or 0.001".
+        x.fractionalPos = fractionalDelta - delta;
+        if (delta == 0) {
+          // When moveStep is e.g. 1 micron and MOTOR_STEPS_Z is 200, make delta non-zero.
+          delta = sign;
+        }
 
-      long posCopy = x.pos + x.pendingPos;
-      if (posCopy + delta > x.leftStop) {
-        delta = x.leftStop - posCopy;
-      } else if (posCopy + delta < x.rightStop) {
-        delta = x.rightStop - posCopy;
-      }
-      stepToContinuous(&x, posCopy + delta);
-      waitForStep(&x);
-      pulseDelta = getAndResetPulses(&x);
-    } while (delta != 0 && (pulseDelta != 0 || (up ? buttonUpPressed : buttonDownPressed)));
-    x.continuous = false;
-    waitForPendingPos0(&x);
-    if (isOn && mode == MODE_CONE) {
-      if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
-        setEmergencyStop(ESTOP_MARK_ORIGIN);
-      } else {
-        markOrigin();
-        xSemaphoreGive(motionMutex);
+        long posCopy = x.pos + x.pendingPos;
+        if (posCopy + delta > x.leftStop) {
+          delta = x.leftStop - posCopy;
+        } else if (posCopy + delta < x.rightStop) {
+          delta = x.rightStop - posCopy;
+        }
+        stepToContinuous(&x, posCopy + delta);
+        waitForStep(&x);
+        pulseDelta = getAndResetPulses(&x);
+      } while (delta != 0 && (pulseDelta != 0 || (positiveMove ? buttonUpPressed : buttonDownPressed)));
+      x.continuous = false;
+      waitForPendingPos0(&x);
+      if (isOn && mode == MODE_CONE) {
+        if (xSemaphoreTake(motionMutex, 100) != pdTRUE) {
+          setEmergencyStop(ESTOP_MARK_ORIGIN);
+        } else {
+          markOrigin();
+          xSemaphoreGive(motionMutex);
+        }
       }
     }
     x.movingManually = false;
     x.speedMax = LONG_MAX;
-    stepperEnable(&x, false);
+    if (stepperOn) {
+      stepperEnable(&x, false);
+    }
 
     taskYIELD();
   }
@@ -3364,7 +3401,7 @@ void leaveStop(Axis* a, long oldStop) {
   if (mode == MODE_CONE) {
     // To avoid rushing to a far away position if standing on limit.
     markOrigin();
-  } else if (mode == MODE_NORMAL && a == getPitchAxis() && a->pos == oldStop) {
+  } else if (isGearboxMode() && a == getPitchAxis() && a->pos == oldStop) {
     // Spindle is most likely out of sync with the stepper because
     // it was spinning while the lead screw was on the stop.
     spindlePosSync = spindleModulo(spindlePos - spindleFromPos(a, a->pos));
@@ -3878,7 +3915,8 @@ void processKeypadEvent() {
     setModeFromUi(MODE_TURN, eventFromNextion);
   } else if (keyCode == B_MODE) {
     if (eventFromNextion) toScreen("page 1");
-    else if (mode == MODE_NORMAL) setModeFromTask(MODE_TURN);
+    else if (mode == MODE_NORMAL) setModeFromTask(MODE_XGEAR);
+    else if (mode == MODE_XGEAR) setModeFromTask(MODE_TURN);
     else if (mode == MODE_TURN) setModeFromTask(MODE_FACE);
     else if (mode == MODE_FACE) setModeFromTask(MODE_CONE);
     else if (mode == MODE_CONE) setModeFromTask(MODE_CUT);
@@ -3888,6 +3926,8 @@ void processKeypadEvent() {
     else if (mode == MODE_GCODE) setModeFromTask(MODE_ASYNC);
     else if (mode == MODE_ASYNC) setModeFromTask(y.active ? MODE_Y : MODE_NORMAL);
     else if (mode == MODE_Y) setModeFromTask(MODE_NORMAL);
+  } else if (keyCode == B_MODE_XGEAR) {
+    setModeFromUi(MODE_XGEAR, eventFromNextion);
   } else if (keyCode == B_MODE_FACE) {
     setModeFromUi(MODE_FACE, eventFromNextion);
   } else if (keyCode == B_MODE_CONE) {
@@ -3955,12 +3995,12 @@ void moveAxis(Axis* a) {
   }
 }
 
-void modeGearbox() {
-  if (z.movingManually) {
+void modeGearbox(Axis* a) {
+  if (a->movingManually) {
     return;
   }
-  z.speedMax = LONG_MAX;
-  stepToContinuous(&z, posFromSpindle(&z, spindlePosAvg, true));
+  a->speedMax = LONG_MAX;
+  stepToContinuous(a, posFromSpindle(a, spindlePosAvg, true));
 }
 
 long auxSafeDistance, startOffset;
@@ -4255,10 +4295,12 @@ void discountFullSpindleTurns() {
   // This allows to avoid waiting when spindle direction reverses
   // and reduces the chance of the skipped stepper steps since
   // after a reverse the spindle starts slow.
-  if (dupr != 0 && !stepperIsRunning(&z) && (mode == MODE_NORMAL || mode == MODE_CONE)) {
+  if (dupr != 0 && (isGearboxMode() || mode == MODE_CONE)) {
+    Axis* a = getPitchAxis();
+    if (stepperIsRunning(a)) return;
     int spindlePosDiff = 0;
-    if (z.pos == z.rightStop) {
-      long stopSpindlePos = spindleFromPos(&z, z.rightStop);
+    if (a->pos == a->rightStop) {
+      long stopSpindlePos = spindleFromPos(a, a->rightStop);
       if (dupr > 0) {
         if (spindlePos < stopSpindlePos - ENCODER_STEPS_INT) {
           spindlePosDiff = ENCODER_STEPS_INT;
@@ -4268,8 +4310,8 @@ void discountFullSpindleTurns() {
           spindlePosDiff = -ENCODER_STEPS_INT;
         }
       }
-    } else if (z.pos == z.leftStop) {
-      long stopSpindlePos = spindleFromPos(&z, z.leftStop);
+    } else if (a->pos == a->leftStop) {
+      long stopSpindlePos = spindleFromPos(a, a->leftStop);
       if (dupr > 0) {
         if (spindlePos > stopSpindlePos + ENCODER_STEPS_INT) {
           spindlePosDiff = -ENCODER_STEPS_INT;
@@ -4504,7 +4546,9 @@ void loop() {
   if (!isOn || dupr == 0 || spindlePosSync != 0) {
     // None of the modes work.
   } else if (mode == MODE_NORMAL) {
-    modeGearbox();
+    modeGearbox(&z);
+  } else if (mode == MODE_XGEAR) {
+    modeGearbox(&x);
   } else if (mode == MODE_TURN) {
     modeTurn(&z, &x);
   } else if (mode == MODE_FACE) {
