@@ -132,6 +132,38 @@ To generate GCode for your parts, upload STL model of your part to https://kachu
 
 Handwheels and limits have no effect when GCODE is running.
 
+### Supported GCode commands
+
+NanoEls implements a small uppercase RS274/GRBL-style subset for lathe work. Coordinates and feed values use the current GCode unit mode: `G21` for millimeters or `G20` for inches. GCODE mode starts in absolute positioning (`G90`) with the firmware default feed rate. Use one command per line when possible.
+
+Motion commands:
+
+- `G0`, `G00`, `G1`, `G01` - linear move on `X`, `Z`, and optionally `Y`. `G0` and `G1` use the same interpolation and feed handling. `F` sets feed in current units per minute and may be supplied on the move line, for example `G1 X12.5 Z-3 F120`.
+- `X...`, `Z...`, or `Y...` without a leading `G` - treated as a `G0`/`G1` move.
+- `G32` - single-pass spindle-synchronized threading move. `F` is the thread lead per spindle revolution in current units, not feed per minute. `F` must be positive; the thread direction comes from the axis movement direction, for example `G32 Z-10 F1.5`.
+
+Mode and setup commands:
+
+- `G20` - use inch units.
+- `G21` - use metric units.
+- `G90` - absolute positioning.
+- `G91` - relative positioning.
+- `G94` - feed-per-minute mode; accepted as a no-op because this is already how feed is handled for `G0`/`G1`.
+- `G18` - ZX plane selection; accepted as a no-op.
+
+Other accepted commands:
+
+- `F...` - set the modal feed rate for later `G0`/`G1` moves.
+- `M0`, `M1`, `M2`, `M30` - stop/end the running GCode program.
+- `T...` - accepted and ignored.
+
+Supported syntax:
+
+- Optional line numbers like `N10 G1 X1 Z2`; the `N...` prefix must be followed by a space.
+- Comments in `(parentheses)` or after `;` until the end of the line.
+- `%` program start/end markers are accepted and ignored.
+- `Y` moves only work when the optional Y axis is enabled with `ACTIVE_Y`.
+
 ![image](https://github.com/user-attachments/assets/aa6fadc7-5d02-4daa-a4c3-610740492b99)
 
 ## Custom keyboard mapping
