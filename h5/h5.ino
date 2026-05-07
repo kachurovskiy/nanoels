@@ -5,7 +5,7 @@
 // Define your hardware parameters here. These are firmware defaults; the Web UI
 // can override them in ESP32 Preferences and apply them after restart.
 const int DEFAULT_ENCODER_PPR = 1200; // 1200 step spindle optical rotary encoder. Fractional values not supported.
-const int DEFAULT_ENCODER_BACKLASH = 3; // Numer of impulses encoder can issue without movement of the spindle
+const int DEFAULT_ENCODER_BACKLASH = 3; // Number of impulses encoder can issue without movement of the spindle
 int ENCODER_PPR = DEFAULT_ENCODER_PPR;
 int ENCODER_BACKLASH = DEFAULT_ENCODER_BACKLASH;
 
@@ -78,7 +78,7 @@ const long OUTGOING_BUFFER_SIZE = 100000;
 // Throughout the configuration below we assume 1mm = 1degree of rotation, so 1du = 0.0001degree.
 const bool DEFAULT_ACTIVE_Y = false; // Whether the axis is connected
 const bool DEFAULT_ROTARY_Y = true; // Whether the axis is rotary or linear
-const long DEFAULT_MOTOR_STEPS_Y = 300; // Number of motor steps for 1 rotation of the the worm gear screw (full step with 20:30 reduction)
+const long DEFAULT_MOTOR_STEPS_Y = 300; // Number of motor steps for 1 rotation of the worm gear screw (full step with 20:30 reduction)
 const long DEFAULT_SCREW_Y_DU = 20000; // Degrees multiplied by 10000 that the spindle travels per 1 turn of the worm gear. 2 degrees.
 const long DEFAULT_SPEED_START_Y = 1600; // Initial speed of a motor, steps / second.
 const long DEFAULT_ACCELERATION_Y = 16000; // Acceleration of a motor, steps / second ^ 2.
@@ -86,7 +86,7 @@ const long DEFAULT_SPEED_MANUAL_MOVE_Y = 3200; // Maximum speed of a motor durin
 const bool DEFAULT_INVERT_Y = false; // change (true/false) if the carriage moves e.g. "left" when you press "right".
 const bool DEFAULT_INVERT_Y_ENABLE = false; // change (true/false) if the Y axis enable pin is inverted
 const bool DEFAULT_NEEDS_REST_Y = false; // Set to false for closed-loop drivers. Open-loop: true if you need holding torque, false otherwise.
-const long DEFAULT_MAX_TRAVEL_MM_Y = 360; // Probably doesn't make sense to ask the dividin head to travel multiple turns.
+const long DEFAULT_MAX_TRAVEL_MM_Y = 360; // Probably doesn't make sense to ask the dividing head to travel multiple turns.
 const long DEFAULT_BACKLASH_DU_Y = 0; // Assuming no backlash on the worm gear
 bool ACTIVE_Y = DEFAULT_ACTIVE_Y;
 bool ROTARY_Y = DEFAULT_ROTARY_Y;
@@ -201,7 +201,7 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 #define B_DOWN 24 // Down arrow - controls X axis movement backwards
 #define B_FORWARD 85 // u - Advance Y axis
 #define B_BACK 74 // j - Retreat Y axis
-#define B_MINUS 60 // Numpad minus - recrements the pitch or number of passes
+#define B_MINUS 60 // Numpad minus - decrements the pitch or number of passes
 #define B_PLUS 95 // Numpad plus - increments the pitch or number of passes
 #define B_ON 30 // Enter - starts operation or mode
 #define B_OFF 27 // ESC - stops operation or mode
@@ -1350,7 +1350,7 @@ struct Axis {
   long leftStop; // left stop value of pos
   long savedLeftStop; // value saved in Preferences
   long nextLeftStop; // left stop value that should be applied asap
-  bool nextLeftStopFlag; // whether nextLeftStop required attention
+  bool nextLeftStopFlag; // whether nextLeftStop requires attention
 
   long rightStop; // right stop value of pos
   long savedRightStop; // value saved in Preferences
@@ -2793,7 +2793,7 @@ void zeroSpindlePos() {
   spindlePosSync = 0;
 }
 
-// Loose the thread and mark current physical positions of
+// Lose the thread and mark current physical positions of
 // encoder and stepper as a new 0. To be called when dupr changes
 // or ELS is turned on/off. Without this, changing dupr will
 // result in stepper rushing across the lathe to the new position.
@@ -5738,7 +5738,7 @@ void setup() {
   xTaskCreatePinnedToCore(taskMoveX, "taskMoveX", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   if (ACTIVE_Y) xTaskCreatePinnedToCore(taskMoveY, "taskMoveY", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   xTaskCreatePinnedToCore(taskGcode, "taskGcode", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
-  if (WIFI_ENABLED) xTaskCreatePinnedToCore(taskWiFi, "taskWiFI", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
+  if (WIFI_ENABLED) xTaskCreatePinnedToCore(taskWiFi, "taskWiFi", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
 }
 
 void loop() {

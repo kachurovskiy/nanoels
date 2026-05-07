@@ -80,7 +80,7 @@ Z and X axes - stepper terminal for the lead screws:
 
 Pulse motion wheels for Z and X axes (`ZPULSE`, `XPULSE`) are wired in the same manner as the encoder. For any encoder terminal, switch `A` and `B` wires to invert the encoder direction.
 
-Joystick support is optional and disabled by default in `h5.ino`. Set `JOYSTICK_ENABLED` to `true` after wiring a 3-axis potentiometer joystick:
+Joystick support is experimental, untested, optional, and disabled by default in `h5.ino`. Set `JOYSTICK_ENABLED` to `true` only after wiring a 3-axis potentiometer joystick:
 
 - `JSIGNAL` carries signals only: `JZ`, `JX`, `JY`, `JBUTTON`
 - Power the joystick potentiometers from `JPOWER` 5V through a resistor divider that brings the joystick supply down to about 3.3V, or use a small 3.3V regulator sharing controller `GND`; do not feed 5V into the potentiometers because the ESP32 ADC pins are not 5V analog inputs
@@ -172,7 +172,7 @@ Use [`#define B_...`](https://github.com/kachurovskiy/nanoels/blob/main/h5/h5.in
 
 ## Usage manual
 
-Controller can be controlled via touchscreen and/or keyboard. Keyboard is optional but it's much nicer to use mechanical buttons for manual moves and not worrying about accidentally pressing a nearby button on the touchscreen.
+The controller can be controlled via touchscreen and/or keyboard. Keyboard is optional but it's much nicer to use mechanical buttons for manual moves and not worrying about accidentally pressing a nearby button on the touchscreen.
 
 ### Touchscreen
 
@@ -182,10 +182,10 @@ If descriptions of the buttons below are unclear, don't worry, skip this section
 
 Top line:
 
-- `bStatus` turns the controlled off - stops the ongoing operation or manual move, resets spindle angle and turns to 0
-- `bMode` turns the controlled off and changes the mode
-- `mMultistart` increases the amounts of starts by 1 when pressed in short intervals, sets amount of starts to 1 if pressed after a pause
-- `tPitch` reverses the pitch - makes it positive if it's negative, makes it negative if it's positive. Reversing makes the controller "loose the thread" so don't use it for returning back for another threading pass.
+- `bStatus` turns the controller off - stops the ongoing operation or manual move, resets spindle angle and turns to 0
+- `bMode` turns the controller off and changes the mode
+- `mMultistart` increases the number of starts by 1 when pressed in short intervals, sets the number of starts to 1 if pressed after a pause
+- `tPitch` reverses the pitch - makes it positive if it's negative, makes it negative if it's positive. Reversing makes the controller "lose the thread" so don't use it for returning back for another threading pass.
 - `bMeasure` changes measuring system between metric, imperial and tpi
 - `mPlus` increments the pitch or number of passes in a multi-pass operation
 - `mMinus` decrements the pitch or number of passes in a multi-pass operation
@@ -208,7 +208,7 @@ X axis group:
 
 Y axis group:
 
-- `mYUp` and `tYUp` clear the positive `Y` limit if it's set, sets the limit in the current negative `Y` position if it's not set
+- `mYUp` and `tYUp` clear the positive `Y` limit if it's set, sets the limit in the current `Y` position if it's not set
 - `bY` enables or disables the axis
 - `tY` take current `Y` position as zero
 - `mYDown` and `tYDown` clear the down limit if it's set, sets the limit in the current `Y` position if it's not set
@@ -227,7 +227,7 @@ Z axis group:
 Lower part of the screen:
 
 - `t3` shows diameter, current WiFi status, pending numpad value or mode configuration prompt
-- `mStop` turns the controlled off
+- `mStop` turns the controller off
 - `bD0` to `bD9` append a number at end of the numpad input
 - `mBack` works as backspace - deletes the last entered number
 - `mPlay` starts the current mode or proceeds to the next step of mode configuration
@@ -311,7 +311,7 @@ Z and X position can be counted from any location you'd like. By pressing e.g. �
 
 You can also set the `0` at a position ahead of the current position by entering the required distance using the numpad buttons 🖥️`bD0`-`bD9` or ⌨️`1`-`0` and then pressing 🖥️`tZ` or ⌨️`Z`.
 
-You can set X0 on the lathe centerline by making a light cut, measuring diameter, entering it on the numpad and then pressing 🖥️`BX` or ⌨️`O`.
+You can set X0 on the lathe centerline by making a light cut, measuring diameter, entering it on the numpad and then pressing 🖥️`bX` or ⌨️`O`.
 
 ### Moving left and right, in and out
 
@@ -322,9 +322,9 @@ Depending on the state of the controller, pressing the move button will result i
 - `off` - carriage will move by the step distance but at least 1 stepper motor step
 - `ON` - carriage will move in pitch increments (stay in the thread) but at least the step distance
 
-If step is set to `1mm` or `0.1"`, pressing and holding move buttons results in continuous movement allowing for quick tool positioning. If step is set to values other than `1mm` or `0.1"`, there's a short delay betwen steps when manual moves are triggered allowing to precisely position the tool.
+If step is set to `1mm` or `0.1"`, pressing and holding move buttons results in continuous movement allowing for quick tool positioning. If step is set to values other than `1mm` or `0.1"`, there's a short delay between steps when manual moves are triggered allowing to precisely position the tool.
 
-Changing direction will result in automatic backlash compensation, for example with backlash `0.65mm` and step `0.1mm`, first move in the opposite direction will result in lead screw turning `0.75mm`. Tool should still only move `0.1mm` assuming backlash is uniform and is specified correclty.
+Changing direction will result in automatic backlash compensation, for example with backlash `0.65mm` and step `0.1mm`, first move in the opposite direction will result in lead screw turning `0.75mm`. Tool should still only move `0.1mm` assuming backlash is uniform and is specified correctly.
 
 When `off`, use numpad buttons 🖥️`bD0`-`bD9` / ⌨️`1`-`0` to enter a custom move distance. Pressing a move button when the screen bottom line shows `Use 1.234mm?` will move `1.234mm` in the corresponding direction. If there's an automatic stop limiting travel, it will move up to the limit and beep.
 
@@ -366,7 +366,7 @@ Set the desired pitch to a suitable value e.g. `0.05mm`. Negative pitch will mak
 
 Pressing 🖥️`mPlay` / ⌨️`Enter` guides through remaining steps:
 
-- Entering the numer of passes - use numpad or 🖥️`mPlus`/`mMinus` / ⌨️`+`/`-`, confirm with 🖥️`mPlay` / ⌨️`Enter`
+- Entering the number of passes - use numpad or 🖥️`mPlus`/`mMinus` / ⌨️`+`/`-`, confirm with 🖥️`mPlay` / ⌨️`Enter`
 - Selecting `External` or `Internal` operation - use 🖥️`m6` and 🖥️`m7` to change selection. Internal operations start from the 🖥️`tXUp` limit, external from the 🖥️`tXDown` limit. Confirm with 🖥️`mPlay` / ⌨️`Enter`
 - Confirm the final `Go?` question with 🖥️`mPlay` / ⌨️`Enter`
 
@@ -405,7 +405,7 @@ Set the desired pitch to a suitable value e.g. `0.05mm`. Negative pitch will mak
 
 Pressing 🖥️`mPlay` / ⌨️`Enter` guides through remaining steps:
 
-- Entering the numer of passes - use numpad or 🖥️`mPlus`/`mMinus` / ⌨️`+`/`-`, confirm with 🖥️`mPlay` / ⌨️`Enter`
+- Entering the number of passes - use numpad or 🖥️`mPlus`/`mMinus` / ⌨️`+`/`-`, confirm with 🖥️`mPlay` / ⌨️`Enter`
 - Check that pitch corresponds to the desired direction of cutting, click 🖥️`tPitch` / ⌨️`R` to change it
 - Confirm the final `Go?` question with 🖥️`mPlay` / ⌨️`Enter`
 
@@ -425,7 +425,7 @@ Set the desired pitch to a suitable value e.g. `2mm` or `20tpi`. Negative pitch 
 
 Pressing 🖥️`mPlay` / ⌨️`Enter` guides through remaining steps:
 
-- Entering the numer of passes - use numpad or 🖥️`mPlus`/`mMinus` / ⌨️`+`/`-`, confirm with 🖥️`mPlay` / ⌨️`Enter`
+- Entering the number of passes - use numpad or 🖥️`mPlus`/`mMinus` / ⌨️`+`/`-`, confirm with 🖥️`mPlay` / ⌨️`Enter`
 - Selecting `External` or `Internal` operation - use 🖥️`m6`/`m7` or ⌨️`Left`/`Right` to change selection. Internal operations start from the 🖥️`tXUp` limit, external from the 🖥️`tXDown` limit. For multi-start thread, press 🖥️`mPlus` to add more starts. Confirm with 🖥️`mPlay` / ⌨️`Enter`
 - Enter optional cone ratio on the numpad. Confirm with 🖥️`mPlay` / ⌨️`Enter`
 - Confirm the final `Go?` question with 🖥️`mPlay` / ⌨️`Enter`
@@ -448,7 +448,7 @@ Set the desired pitch to a suitable value e.g. `0.07mm`. All soft limits (left, 
 
 Pressing 🖥️`mPlay` / ⌨️`Enter` guides through remaining steps:
 
-- Entering the numer of passes - use numpad or 🖥️`mPlus`/`mMinus` / ⌨️`+`/`-`, confirm with 🖥️`mPlay` / ⌨️`Enter`
+- Entering the number of passes - use numpad or 🖥️`mPlus`/`mMinus` / ⌨️`+`/`-`, confirm with 🖥️`mPlay` / ⌨️`Enter`
 - Selecting `External` or `Internal` operation - use 🖥️`m6`/`m7` / ⌨️`Left`/`Right` to change selection. Confirm with 🖥️`mPlay` / ⌨️`Enter`
 - Confirm the final `Go?` question with 🖥️`mPlay` / ⌨️`Enter`
 
