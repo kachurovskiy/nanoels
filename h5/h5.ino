@@ -4954,6 +4954,7 @@ int processNextionMessage() {
         case 19: code = B_MODE_GCODE; break;
         case 20: code = B_MODE_ASYNC; break;
         case 21: code = B_MODE_Y; break;
+        case 23: code = B_MODE_XGEAR; break;
       }
     }
     if (code != 0) {
