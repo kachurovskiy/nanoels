@@ -51,6 +51,8 @@ Precompiled firmware binaries include third-party Arduino/ESP32 components; see 
 
 Flash the firmware before soldering the ESP32 onto the H5 PCB. Connect a USB cable directly to the ESP32 board `COM` port and open [Espressif esptool-js](https://espressif.github.io/esptool-js/) in Chrome. For a new ESP32, connect and upload `h5.ino.YYYYMMDD.merged.bin` at address `0x0`.
 
+<img width="576" height="342" alt="flash-bin" src="https://github.com/user-attachments/assets/a00a95b2-daf2-4631-ba0e-231ae8a523f7" />
+
 ## Assembly instructions
 
 NOTE: throughout the assembly make sure to avoid static electricity accumulation on your body by wearing suitable clothes and shoes, not using chairs known to cause ESD. Touch any grounded metal device housing to check.
