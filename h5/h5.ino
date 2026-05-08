@@ -3041,7 +3041,7 @@ long getPassModeXStart() {
 long getNumpadResult() {
   long result = 0;
   for (int i = 0; i < numpadIndex; i++) {
-    result += numpadDigits[i] * pow(10, numpadIndex - 1 - i);
+    result = result * 10 + numpadDigits[i];
   }
   return result;
 }
@@ -4710,13 +4710,50 @@ void resetNumpad() {
   numpadIndex = 0;
 }
 
-void numpadPlusMinus(bool plus) {
-  if (numpadDigits[numpadIndex - 1] < 9 && plus) {
-    numpadDigits[numpadIndex - 1]++;
-  } else if (numpadDigits[numpadIndex - 1] > 1 && !plus) {
-    numpadDigits[numpadIndex - 1]--;
+void trimLeadingNumpadZeros() {
+  while (numpadIndex > 1 && numpadDigits[0] == 0) {
+    for (int i = 1; i < numpadIndex; i++) {
+      numpadDigits[i - 1] = numpadDigits[i];
+    }
+    numpadIndex--;
   }
-  // TODO: implement going over 9 and below 1.
+}
+
+void numpadPlusMinus(bool plus) {
+  if (numpadIndex == 0) {
+    return;
+  }
+  if (plus) {
+    for (int i = numpadIndex - 1; i >= 0; i--) {
+      if (numpadDigits[i] < 9) {
+        numpadDigits[i]++;
+        trimLeadingNumpadZeros();
+        return;
+      }
+      numpadDigits[i] = 0;
+    }
+    if (numpadIndex < 7) {
+      numpadDigits[numpadIndex] = 0;
+      numpadDigits[0] = 1;
+      numpadIndex++;
+    } else {
+      for (int i = 0; i < numpadIndex; i++) {
+        numpadDigits[i] = 9;
+      }
+    }
+    return;
+  }
+  if (getNumpadResult() <= 1) {
+    return;
+  }
+  for (int i = numpadIndex - 1; i >= 0; i--) {
+    if (numpadDigits[i] > 0) {
+      numpadDigits[i]--;
+      trimLeadingNumpadZeros();
+      return;
+    }
+    numpadDigits[i] = 9;
+  }
 }
 
 unsigned long multistartPressMillis = 0;
