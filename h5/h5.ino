@@ -66,9 +66,16 @@ long STEP_TIME_MS = DEFAULT_STEP_TIME_MS;
 long DELAY_BETWEEN_STEPS_MS = DEFAULT_DELAY_BETWEEN_STEPS_MS;
 
 // Connect to WiFi and expose web UI to control and receive GCode.
-const bool WIFI_ENABLED = true;
-const char* SSID = "your-wifi-name";
-const char* PASSWORD = "your-password";
+// Credentials are stored in ESP32 Preferences and can be changed from the Web UI.
+// On first boot or connection failure, H5 starts a setup access point.
+const bool DEFAULT_WIFI_ENABLED = true;
+const char* DEFAULT_WIFI_SSID = "";
+const char* DEFAULT_WIFI_PASSWORD = "";
+bool WIFI_ENABLED = DEFAULT_WIFI_ENABLED;
+String WIFI_SSID = DEFAULT_WIFI_SSID;
+String WIFI_PASSWORD = DEFAULT_WIFI_PASSWORD;
+const char* WIFI_SETUP_AP_SSID = "NanoEls-H5-Setup";
+const char* WIFI_SETUP_AP_PASSWORD = "nanoels-h5";
 const long INCOMING_BUFFER_SIZE = 100000;
 const long OUTGOING_BUFFER_SIZE = 100000;
 
@@ -153,6 +160,8 @@ const long STEPPED_ENABLE_DELAY_MS = 100; // Delay after stepper is enabled and 
 #define PREF_NAMESPACE "h5"
 #define CONFIG_VERSION 1
 #define CONFIG_NAMESPACE "h5cfg"
+#define WIFI_CONFIG_VERSION 1
+#define WIFI_CONFIG_NAMESPACE "h5wifi"
 
 // GCode-related constants.
 const float LINEAR_INTERPOLATION_PRECISION = 0.1; // 0 < x <= 1, smaller values make for quicker G0 and G1 moves
@@ -336,6 +345,11 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 #define CFG_INVERT_JOYSTICK_Y "joyInvY"
 #define CFG_INVERT_JOYSTICK_BUTTON "joyInvB"
 
+#define WCFG_VERSION "v"
+#define WCFG_ENABLED "en"
+#define WCFG_SSID "ssid"
+#define WCFG_PASSWORD "pwd"
+
 #define MOVE_STEP_1 10000 // 1mm
 #define MOVE_STEP_2 1000 // 0.1mm
 #define MOVE_STEP_3 100 // 0.01mm
@@ -420,7 +434,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     h1, h2 {
       color: #333;
     }
-    input[type=text], input[type=file], input[type=number], textarea {
+    input[type=text], input[type=file], input[type=number], input[type=password], textarea {
       width: 100%;
     }
     #log {
@@ -551,6 +565,12 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       border: 1px solid #ccc;
       border-radius: 4px;
     }
+    .config-field input[type=text], .config-field input[type=password] {
+      box-sizing: border-box;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
     .config-checkbox {
       align-items: center;
       display: flex;
@@ -635,6 +655,33 @@ const char indexhtml[] PROGMEM = R"rawliteral(
   <progress id="firmware-progress" value="0" max="100" hidden></progress>
   <p id="firmware-status"></p>
 
+  <h2>WiFi</h2>
+  <form id="wifi-form" class="config-section">
+    <div class="config-grid">
+      <label class="config-checkbox" for="wifi-enabled">
+        <input type="checkbox" id="wifi-enabled">
+        <span>WiFi enabled</span>
+      </label>
+      <label class="config-field" for="wifi-ssid">
+        <span>Network name</span>
+        <input type="text" id="wifi-ssid" maxlength="32" autocomplete="off">
+      </label>
+      <label class="config-field" for="wifi-password">
+        <span>Password</span>
+        <input type="password" id="wifi-password" maxlength="63" autocomplete="new-password" placeholder="Leave unchanged">
+      </label>
+      <label class="config-checkbox" for="wifi-clear-password">
+        <input type="checkbox" id="wifi-clear-password">
+        <span>Clear saved password</span>
+      </label>
+    </div>
+    <div class="config-actions">
+      <button id="save-wifi" type="submit">Save and restart</button>
+      <button id="reset-wifi" type="button" class="secondary">Forget network</button>
+    </div>
+  </form>
+  <p id="wifi-status"></p>
+
   <h2>WebSocket realtime communication</h2>
   <div id="log"></div>
   <div id="command-container">
@@ -683,6 +730,14 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     const firmwareFileInput = document.getElementById('firmware-file');
     const firmwareProgress = document.getElementById('firmware-progress');
     const firmwareStatus = document.getElementById('firmware-status');
+    const wifiForm = document.getElementById('wifi-form');
+    const wifiEnabledInput = document.getElementById('wifi-enabled');
+    const wifiSsidInput = document.getElementById('wifi-ssid');
+    const wifiPasswordInput = document.getElementById('wifi-password');
+    const wifiClearPasswordInput = document.getElementById('wifi-clear-password');
+    const saveWifiButton = document.getElementById('save-wifi');
+    const resetWifiButton = document.getElementById('reset-wifi');
+    const wifiStatusElement = document.getElementById('wifi-status');
     let tftUploadInProgress = false;
     let firmwareUploadInProgress = false;
     let firmwareReloadTimer = 0;
@@ -793,6 +848,8 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       addGcodeButton.disabled = gcodeNameInput.value.trim().length < 2 || gcodeContentInput.value.trim().length < 2 || uploadInProgress;
       saveConfigButton.disabled = uploadInProgress;
       resetConfigButton.disabled = uploadInProgress;
+      saveWifiButton.disabled = uploadInProgress;
+      resetWifiButton.disabled = uploadInProgress;
       tftFirstUploadCheckbox.disabled = uploadInProgress;
       tftFileInput.disabled = uploadInProgress;
       firmwareFileInput.disabled = uploadInProgress;
@@ -800,6 +857,8 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       addGcodeButton.classList.toggle('disabled', addGcodeButton.disabled);
       saveConfigButton.classList.toggle('disabled', saveConfigButton.disabled);
       resetConfigButton.classList.toggle('disabled', resetConfigButton.disabled);
+      saveWifiButton.classList.toggle('disabled', saveWifiButton.disabled);
+      resetWifiButton.classList.toggle('disabled', resetWifiButton.disabled);
       tftBrowseButton.classList.toggle('disabled', uploadInProgress);
       firmwareBrowseButton.classList.toggle('disabled', uploadInProgress);
     }
@@ -977,6 +1036,77 @@ const char indexhtml[] PROGMEM = R"rawliteral(
         });
     }
 
+    function applyWifiValues(values) {
+      wifiEnabledInput.checked = values.wifiEnabled === '1';
+      wifiSsidInput.value = values.wifiSsid || '';
+      wifiPasswordInput.value = '';
+      wifiPasswordInput.placeholder = values.wifiPasswordSet === '1' ? 'Leave unchanged' : 'Password';
+      wifiClearPasswordInput.checked = false;
+      const mode = values.wifiMode || 'unknown';
+      const ip = values.wifiIp ? `, ${values.wifiIp}` : '';
+      const setup = values.setupApSsid ? `, setup AP ${values.setupApSsid}` : '';
+      wifiStatusElement.textContent = `Mode: ${mode}${ip}${setup}`;
+    }
+
+    function loadWifi() {
+      wifiStatusElement.textContent = 'Loading WiFi config...';
+      fetch('/wifi', { cache: 'no-store' })
+        .then(response => response.text())
+        .then(data => {
+          applyWifiValues(parseKeyValueText(data));
+        })
+        .catch(() => {
+          wifiStatusElement.textContent = 'Failed to load WiFi config';
+        });
+    }
+
+    function collectWifiValues() {
+      return new URLSearchParams({
+        wifiEnabled: wifiEnabledInput.checked ? '1' : '0',
+        wifiSsid: wifiSsidInput.value.trim(),
+        wifiPassword: wifiPasswordInput.value,
+        wifiClearPassword: wifiClearPasswordInput.checked ? '1' : '0'
+      });
+    }
+
+    function saveWifi(event) {
+      event.preventDefault();
+      wifiStatusElement.textContent = 'Saving WiFi config...';
+      fetch('/wifi', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: collectWifiValues()
+      })
+      .then(response => response.text().then(text => ({ ok: response.ok, text })))
+      .then(result => {
+        wifiStatusElement.textContent = result.text;
+        logMessage(result.text);
+        if (result.ok) {
+          waitForControllerReload();
+        }
+      })
+      .catch(() => {
+        wifiStatusElement.textContent = 'WiFi config save failed';
+      });
+    }
+
+    function resetWifi() {
+      if (!confirm('Forget saved WiFi network and restart setup AP?')) return;
+      wifiStatusElement.textContent = 'Resetting WiFi config...';
+      fetch('/wifi/reset', { method: 'POST' })
+        .then(response => response.text().then(text => ({ ok: response.ok, text })))
+        .then(result => {
+          wifiStatusElement.textContent = result.text;
+          logMessage(result.text);
+          if (result.ok) {
+            waitForControllerReload();
+          }
+        })
+        .catch(() => {
+          wifiStatusElement.textContent = 'WiFi config reset failed';
+        });
+    }
+
     function handleRealtimeMessage(message) {
       message.split('\n').map(line => line.trim()).filter(line => !!line).forEach(line => {
         if (line.startsWith('FW: progress ')) {
@@ -1016,12 +1146,15 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     gcodeContentInput.addEventListener('input', updateButtonStates);
     configForm.addEventListener('submit', saveConfig);
     resetConfigButton.addEventListener('click', resetConfig);
+    wifiForm.addEventListener('submit', saveWifi);
+    resetWifiButton.addEventListener('click', resetWifi);
     tftFileInput.addEventListener('change', uploadTftFile);
     firmwareFileInput.addEventListener('change', uploadFirmwareFile);
 
     document.addEventListener('DOMContentLoaded', () => {
       renderConfigFields();
       loadConfig();
+      loadWifi();
       updateButtonStates();
     });
 
@@ -1597,6 +1730,9 @@ WebServer server(80);
 WebSocketsServer webSocket(81);
 String wifiStatus = "No WiFi";
 unsigned long wifiStatusMillis = 0;
+bool wifiSetupApActive = false;
+bool wifiStationConnected = false;
+String wifiIpAddress = "";
 volatile bool tftUploadActive = false;
 bool tftUploadFailed = false;
 int tftUploadHttpStatus = 200;
@@ -2101,6 +2237,110 @@ String getMachineConfigResponse() {
   return response;
 }
 
+void setWifiConfigDefaults() {
+  WIFI_ENABLED = DEFAULT_WIFI_ENABLED;
+  WIFI_SSID = DEFAULT_WIFI_SSID;
+  WIFI_PASSWORD = DEFAULT_WIFI_PASSWORD;
+}
+
+bool validateWifiConfig(String* error) {
+  if (WIFI_SSID.length() > 32) {
+    *error = "wifiSsid must be 32 characters or less";
+    return false;
+  }
+  if (WIFI_PASSWORD.length() > 63) {
+    *error = "wifiPassword must be 63 characters or less";
+    return false;
+  }
+  if (WIFI_PASSWORD.length() > 0 && WIFI_PASSWORD.length() < 8) {
+    *error = "wifiPassword must be empty or at least 8 characters";
+    return false;
+  }
+  return true;
+}
+
+void loadWifiConfig() {
+  setWifiConfigDefaults();
+  Preferences cfg;
+  cfg.begin(WIFI_CONFIG_NAMESPACE);
+  if (cfg.getInt(WCFG_VERSION) != WIFI_CONFIG_VERSION) {
+    cfg.clear();
+    cfg.putInt(WCFG_VERSION, WIFI_CONFIG_VERSION);
+  }
+  WIFI_ENABLED = cfg.getBool(WCFG_ENABLED, WIFI_ENABLED);
+  WIFI_SSID = cfg.getString(WCFG_SSID, WIFI_SSID);
+  WIFI_PASSWORD = cfg.getString(WCFG_PASSWORD, WIFI_PASSWORD);
+  cfg.end();
+
+  String error = "";
+  if (!validateWifiConfig(&error)) {
+    setWifiConfigDefaults();
+  }
+}
+
+void saveWifiConfig() {
+  Preferences cfg;
+  cfg.begin(WIFI_CONFIG_NAMESPACE);
+  cfg.putInt(WCFG_VERSION, WIFI_CONFIG_VERSION);
+  cfg.putBool(WCFG_ENABLED, WIFI_ENABLED);
+  cfg.putString(WCFG_SSID, WIFI_SSID);
+  cfg.putString(WCFG_PASSWORD, WIFI_PASSWORD);
+  cfg.end();
+}
+
+String getWifiMode() {
+  if (!WIFI_ENABLED) return "off";
+  if (wifiSetupApActive) return "setup-ap";
+  if (wifiStationConnected) return "station";
+  return "starting";
+}
+
+String getWifiConfigResponse() {
+  String response = "";
+  response.reserve(360);
+  appendConfigLine(&response, "wifiEnabled", WIFI_ENABLED);
+  appendConfigLine(&response, "wifiSsid", WIFI_SSID);
+  appendConfigLine(&response, "wifiPasswordSet", WIFI_PASSWORD.length() > 0);
+  appendConfigLine(&response, "wifiMode", getWifiMode());
+  appendConfigLine(&response, "wifiIp", wifiIpAddress);
+  appendConfigLine(&response, "wifiStatus", wifiStatus);
+  appendConfigLine(&response, "setupApSsid", WIFI_SETUP_AP_SSID);
+  return response;
+}
+
+bool readWifiConfigFromRequest(String* error) {
+  bool enabled = WIFI_ENABLED;
+  if (!readBoolConfigArg("wifiEnabled", &enabled, error)) {
+    return false;
+  }
+  if (!server.hasArg("wifiSsid")) {
+    *error = "Missing WiFi value: wifiSsid";
+    return false;
+  }
+  if (!server.hasArg("wifiPassword")) {
+    *error = "Missing WiFi value: wifiPassword";
+    return false;
+  }
+
+  bool clearPassword = false;
+  if (!readBoolConfigArg("wifiClearPassword", &clearPassword, error)) {
+    return false;
+  }
+
+  String ssid = server.arg("wifiSsid");
+  ssid.trim();
+  String password = server.arg("wifiPassword");
+
+  WIFI_ENABLED = enabled;
+  WIFI_SSID = ssid;
+  if (clearPassword) {
+    WIFI_PASSWORD = "";
+  } else if (password.length() > 0) {
+    WIFI_PASSWORD = password;
+  }
+  return validateWifiConfig(error);
+}
+
 void scheduleConfigRestart() {
   configRestartPending = true;
   configRestartAt = millis() + 1500;
@@ -2311,6 +2551,41 @@ void handleConfigReset() {
   saveMachineConfig();
   scheduleConfigRestart();
   server.send(200, "text/plain", "Machine config reset. Restarting controller...");
+}
+
+void handleWifiGet() {
+  server.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  server.send(200, "text/plain", getWifiConfigResponse());
+}
+
+void handleWifiSave() {
+  if (machineConfigChangeBlocked()) {
+    server.send(409, "text/plain", "Stop the controller and wait for uploads to finish before changing WiFi config");
+    return;
+  }
+
+  String error = "";
+  if (!readWifiConfigFromRequest(&error)) {
+    loadWifiConfig();
+    server.send(400, "text/plain", error);
+    return;
+  }
+
+  saveWifiConfig();
+  scheduleConfigRestart();
+  server.send(200, "text/plain", "WiFi config saved. Restarting controller...");
+}
+
+void handleWifiReset() {
+  if (machineConfigChangeBlocked()) {
+    server.send(409, "text/plain", "Stop the controller and wait for uploads to finish before resetting WiFi config");
+    return;
+  }
+
+  setWifiConfigDefaults();
+  saveWifiConfig();
+  scheduleConfigRestart();
+  server.send(200, "text/plain", "WiFi config reset. Restarting controller...");
 }
 
 void writeNextionCommandRaw(const String& command) {
@@ -2643,6 +2918,9 @@ void handleStatus() {
     "FW.uploaded=" + String((unsigned long)firmwareUploadReceivedSize) + "\n" +
     "FW.size=" + String((unsigned long)firmwareUploadExpectedSize) + "\n" +
     "FW.message=" + firmwareUploadMessage + "\n" +
+    "WiFi.mode=" + getWifiMode() + "\n" +
+    "WiFi.ip=" + wifiIpAddress + "\n" +
+    "WiFi.status=" + wifiStatus + "\n" +
     "Config.restartPending=" + String(configRestartPending ? 1 : 0) + "\n");
 }
 
@@ -2651,36 +2929,7 @@ void setWiFiStatus(const String& status) {
   wifiStatusMillis = millis();
 }
 
-void taskWiFi(void *param) {
-  WiFi.begin(SSID, PASSWORD);
-  setWiFiStatus("Connecting");
-  for (int i = 0; i < 40; i++) {
-    if (WiFi.status() == WL_CONNECTED) break;
-    DELAY(500);
-    taskYIELD();
-  }
-  if (WiFi.status() != WL_CONNECTED) {
-    if (WiFi.status() == WL_NO_SSID_AVAIL) {
-      setWiFiStatus("No SSID");
-    } else if (WiFi.status() == WL_CONNECT_FAILED) {
-      setWiFiStatus("WiFi failed");
-    } else if (WiFi.status() == WL_CONNECTION_LOST) {
-      setWiFiStatus("WiFi lost");
-    } else if (WiFi.status() == WL_DISCONNECTED) {
-      setWiFiStatus("WiFi disconnected"); // Likely wrong password
-    } else {
-      setWiFiStatus("WiFi error");
-    }
-    vTaskDelete(NULL);
-    return;
-  }
-  setWiFiStatus("See " + WiFi.localIP().toString());
-  Serial.print("Web UI: http://");
-  Serial.println(WiFi.localIP());
-
-  initBuffer(&inBuffer, 1024);
-  initBuffer(&outBuffer, 1024);
-
+void registerWebRoutes() {
   server.on("/", handleClientRequests);
   server.on("/gcode/add", HTTP_POST, handleGcodeAdd);
   server.on("/gcode/list", HTTP_GET, handleGcodeList);
@@ -2689,9 +2938,85 @@ void taskWiFi(void *param) {
   server.on("/config", HTTP_GET, handleConfigGet);
   server.on("/config", HTTP_POST, handleConfigSave);
   server.on("/config/reset", HTTP_POST, handleConfigReset);
+  server.on("/wifi", HTTP_GET, handleWifiGet);
+  server.on("/wifi", HTTP_POST, handleWifiSave);
+  server.on("/wifi/reset", HTTP_POST, handleWifiReset);
   server.on("/tft/upload", HTTP_POST, handleTftUploadResult, handleTftUpload);
   server.on("/firmware/upload", HTTP_POST, handleFirmwareUploadResult, handleFirmwareUpload);
   server.on("/status", HTTP_GET, handleStatus);
+}
+
+String getStationWifiError() {
+  if (WiFi.status() == WL_NO_SSID_AVAIL) return "No SSID";
+  if (WiFi.status() == WL_CONNECT_FAILED) return "WiFi failed";
+  if (WiFi.status() == WL_CONNECTION_LOST) return "WiFi lost";
+  if (WiFi.status() == WL_DISCONNECTED) return "WiFi disconnected";
+  return "WiFi error";
+}
+
+bool connectStationWifi() {
+  wifiSetupApActive = false;
+  wifiStationConnected = false;
+  wifiIpAddress = "";
+
+  if (WIFI_SSID.length() == 0) {
+    setWiFiStatus("No SSID");
+    return false;
+  }
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID.c_str(), WIFI_PASSWORD.c_str());
+  setWiFiStatus("Connecting");
+  for (int i = 0; i < 40; i++) {
+    if (WiFi.status() == WL_CONNECTED) break;
+    DELAY(500);
+    taskYIELD();
+  }
+  if (WiFi.status() != WL_CONNECTED) {
+    setWiFiStatus(getStationWifiError());
+    return false;
+  }
+
+  wifiStationConnected = true;
+  wifiIpAddress = WiFi.localIP().toString();
+  setWiFiStatus("See " + wifiIpAddress);
+  Serial.print("Web UI: http://");
+  Serial.println(wifiIpAddress);
+  return true;
+}
+
+bool startSetupAccessPoint() {
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_AP);
+  wifiSetupApActive = WiFi.softAP(WIFI_SETUP_AP_SSID, WIFI_SETUP_AP_PASSWORD);
+  wifiStationConnected = false;
+  if (!wifiSetupApActive) {
+    wifiIpAddress = "";
+    setWiFiStatus("WiFi AP failed");
+    return false;
+  }
+
+  wifiIpAddress = WiFi.softAPIP().toString();
+  setWiFiStatus("Setup " + wifiIpAddress);
+  Serial.print("Setup AP: ");
+  Serial.print(WIFI_SETUP_AP_SSID);
+  Serial.print(" / ");
+  Serial.println(WIFI_SETUP_AP_PASSWORD);
+  Serial.print("Web UI: http://");
+  Serial.println(wifiIpAddress);
+  return true;
+}
+
+void taskWiFi(void *param) {
+  if (!connectStationWifi() && !startSetupAccessPoint()) {
+    vTaskDelete(NULL);
+    return;
+  }
+
+  initBuffer(&inBuffer, 1024);
+  initBuffer(&outBuffer, 1024);
+
+  registerWebRoutes();
   server.begin();
 
   webSocket.begin();
@@ -2700,6 +3025,11 @@ void taskWiFi(void *param) {
   while (emergencyStop == ESTOP_NONE) {
     server.handleClient();
     webSocket.loop();
+    if (wifiStationConnected && WiFi.status() != WL_CONNECTED) {
+      wifiStationConnected = false;
+      wifiIpAddress = "";
+      setWiFiStatus("WiFi lost");
+    }
     if (firmwareUploadRestartPending && ((long)(millis() - firmwareUploadRestartAt) >= 0)) {
       firmwareUploadLog("restarting now");
       DELAY(50);
@@ -5672,6 +6002,7 @@ void applySettings() {
 
 void setup() {
   loadMachineConfig();
+  loadWifiConfig();
 
   pinMode(ENC_A, INPUT_PULLUP);
   pinMode(ENC_B, INPUT_PULLUP);

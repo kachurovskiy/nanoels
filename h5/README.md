@@ -52,7 +52,7 @@ NOTE: throughout the assembly make sure to avoid static electricity accumulation
 6. Remove screen back cover. Attach the included 4-lead wire to the screen and to the PCB - each `RX` should be attached to `TX` on the other side.
 7. Bolt the case and screen together using the bolts that used to hold the back cover.
 8. Use empty MicroSD card 32 GB or smaller formatted as FAT32. Copy [h5.tft](screen/h5.tft) to the card, insert into the screen. Connect 5V power supply to the POWER terminal, wait for screen to report that flashing has finished. Disconnect the power, remove the card.
-   Alternatively, after [h5.ino](h5.ino) is uploaded and WiFi is connected, open the Web UI at the controller IP address and use `Nextion TFT Upload` to send [h5.tft](screen/h5.tft) over the display RX/TX connection. If the display is not flashed yet, find the IP address in the Arduino serial monitor or on your router. Leave `First upload / factory display` checked for a new 9600-baud Nextion; uncheck it for a display already running the uploaded 115200-baud H5 screen. Keep the controller stopped and power the screen from the `POWER` terminal during upload.
+   Alternatively, after [h5.ino](h5.ino) is uploaded and WiFi is connected or setup AP is running, open the Web UI and use `Nextion TFT Upload` to send [h5.tft](screen/h5.tft) over the display RX/TX connection. If the display is not flashed yet, find the IP address in the Arduino serial monitor, on your router, or connect to the `NanoEls-H5-Setup` access point and open `http://192.168.4.1`. Leave `First upload / factory display` checked for a new 9600-baud Nextion; uncheck it for a display already running the uploaded 115200-baud H5 screen. Keep the controller stopped and power the screen from the `POWER` terminal during upload.
 9. Cut the keyboard cord to the suitable length, find which color corresponds to which line in your particular keyboard [using the port pinout](https://en.wikipedia.org/wiki/PS/2_port) and multimeter continuity tester.
 10. Supply up to 2A of power to the `POWER` terminal. You can flash the ESP32 via the USB but 0.5A provided by standard USB is not enough to start the screen.
 
@@ -122,11 +122,17 @@ On the back of the case there are 2 holes for M5 threaded inserts 130mm on cente
 
 ## GCode over WiFi for complex parts
 
-Specify your WiFi network name and password in https://github.com/kachurovskiy/nanoels/blob/main/h5/h5.ino#L45-L46 and NanoEls will show the IP address on screen once it connects to the network. Enter that address in the browser to see the Web UI. It can be used to save GCode files onto controller and run them later at the machine in the GCODE mode.
+WiFi credentials are configured in the H5 Web UI and stored in ESP32 Preferences. On first boot, or when the saved network cannot be reached, NanoEls starts a setup access point:
+
+- Network: `NanoEls-H5-Setup`
+- Password: `nanoels-h5`
+- Web UI: `http://192.168.4.1`
+
+Open the Web UI, fill in the `WiFi` section, click `Save and restart`, then connect through the IP address shown on the H5 screen or Arduino serial monitor. The Web UI can be used to save GCode files onto the controller and run them later at the machine in the GCODE mode.
 
 The same Web UI can upload new ESP32 firmware `.bin` files after the initial USB upload. Anyone on the local network can access the Web UI, so only enable WiFi on a trusted network.
 
-The Web UI also has a `Machine Config` section for encoder, Z/X/Y axis, handwheel, manual stepping, and joystick parameters. Save changes only while the controller is stopped; NanoEls stores them in ESP32 Preferences and restarts to apply them. WiFi credentials and GPIO pin mapping still require editing `h5.ino`.
+The Web UI also has a `Machine Config` section for encoder, Z/X/Y axis, handwheel, manual stepping, and joystick parameters. Save changes only while the controller is stopped; NanoEls stores them in ESP32 Preferences and restarts to apply them. GPIO pin mapping still requires editing `h5.ino`.
 
 To generate GCode for your parts, upload STL model of your part to https://kachurovskiy.com/lathecode/ and specify parameters like stock diameter and tool used.
 
