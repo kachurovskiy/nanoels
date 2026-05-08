@@ -38,23 +38,49 @@ You can use any other Nextion display model including cheaper and smaller ones w
 
 ![image](https://github.com/user-attachments/assets/9f769450-df6a-4440-b288-81dae1a53ff5)
 
+![image](https://github.com/user-attachments/assets/8a630150-ad79-434e-bc0c-9a0f711de5bb)
+
+## Install firmware from .bin
+
+Download the latest firmware files from this folder on GitHub:
+
+- Use `h5.ino.YYYYMMDD.merged.bin` for first-time USB flashing of a blank ESP32, or when you need to replace the bootloader, partition table, and firmware together. Flash it at address `0x0`.
+- Use `h5.ino.YYYYMMDD.bin` for normal firmware updates after the ESP32 already has the NanoEls bootloader and partition table installed. This is the file to upload in the H5 Web UI under `ESP32 Firmware Upload`.
+
+Precompiled firmware binaries include third-party Arduino/ESP32 components; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for license notices and rebuild/relink information.
+
+Flash the firmware before soldering the ESP32 onto the H5 PCB. Connect a USB cable directly to the ESP32 board `COM` port and open [Espressif esptool-js](https://espressif.github.io/esptool-js/) in Chrome. For a new ESP32, connect and upload `h5.ino.YYYYMMDD.merged.bin` at address `0x0`.
+
 ## Assembly instructions
 
 NOTE: throughout the assembly make sure to avoid static electricity accumulation on your body by wearing suitable clothes and shoes, not using chairs known to cause ESD. Touch any grounded metal device housing to check.
 
-![image](https://github.com/user-attachments/assets/8a630150-ad79-434e-bc0c-9a0f711de5bb)
+1. Check that ESP32 board is working by uploading firmware onto it as per instructions above.
+1. Solder ESP32, 2x SN74HCT245N and optional curved 4-pin header onto the PCB. **Triple check the side and orientation of each piece before soldering.**
+1. Insert USB extension into the COM port
+1. Separate all terminals into 2 pieces. Insert female terminals into the 3D-printed housing. Place the PCB on top and secure it with 4 M3 bolts. Secure the other end of the USB cable in the access hole with an M3 bolt.
+1. Solder 15 terminals to the PCB while everything is positioned in the case.
+1. Remove screen back cover. Attach the included 4-lead wire to the screen and to the PCB - each `RX` should be attached to `TX` on the other side.
+1. Bolt the case and screen together using the bolts that used to hold the back cover.
+1. Supply up to 2A of power to the `POWER` terminal. USB power is enough for flashing the bare ESP32, but 0.5A provided by standard USB is not enough to start the screen.
+1. Upload [h5.tft](screen/h5.tft) to the display over WiFi. See [Upload screen .tft over WiFi](#upload-screen-tft-over-wifi).
+1. Cut the keyboard cord to the suitable length, find which color corresponds to which line in your particular keyboard [using the port pinout](https://en.wikipedia.org/wiki/PS/2_port) and multimeter continuity tester.
 
-1. Check that ESP32 board is working by uploading [h5.ino](h5.ino) onto it using Arduino IDE. See [Programming the controller](#programming-the-controller) section below for more info.
-2. Solder ESP32, 2x SN74HCT245N and optional curved 4-pin header onto the PCB. **Triple check the side and orientation of each piece before soldering.**
-3. Insert USB extension into the COM port
-4. Separate all terminals into 2 pieces. Insert female terminals into the 3D-printed housing. Place the PCB on top and secure it with 4 M3 bolts. Secure the other end of the USB cable in the access hole with an M3 bolt.
-5. Solder 15 terminals to the PCB while everything is positioned in the case.
-6. Remove screen back cover. Attach the included 4-lead wire to the screen and to the PCB - each `RX` should be attached to `TX` on the other side.
-7. Bolt the case and screen together using the bolts that used to hold the back cover.
-8. Use empty MicroSD card 32 GB or smaller formatted as FAT32. Copy [h5.tft](screen/h5.tft) to the card, insert into the screen. Connect 5V power supply to the POWER terminal, wait for screen to report that flashing has finished. Disconnect the power, remove the card.
-   Alternatively, after [h5.ino](h5.ino) is uploaded and WiFi is connected or setup AP is running, open the Web UI and use `Nextion TFT Upload` to send [h5.tft](screen/h5.tft) over the display RX/TX connection. If the display is not flashed yet, find the IP address in the Arduino serial monitor, on your router, or connect to the `NanoEls-H5-Setup` access point and open `http://192.168.4.1`. Leave `First upload / factory display` checked for a new 9600-baud Nextion; uncheck it for a display already running the uploaded 115200-baud H5 screen. Keep the controller stopped and power the screen from the `POWER` terminal during upload.
-9. Cut the keyboard cord to the suitable length, find which color corresponds to which line in your particular keyboard [using the port pinout](https://en.wikipedia.org/wiki/PS/2_port) and multimeter continuity tester.
-10. Supply up to 2A of power to the `POWER` terminal. You can flash the ESP32 via the USB but 0.5A provided by standard USB is not enough to start the screen.
+## Upload screen .tft over WiFi
+
+The normal display update path is the H5 Web UI. The MicroSD method is kept as a fallback at the end of this README.
+
+1. Keep the controller stopped and power the screen from the `POWER` terminal.
+2. On first boot, connect your computer or phone to the `NanoEls-H5-Setup` WiFi network using password `nanoels-h5`, then open `http://192.168.4.1`.
+3. If the controller is already connected to your normal WiFi, open the IP address shown on the H5 screen, in your router, or in the Arduino serial monitor.
+4. In `Nextion TFT Upload`, select [h5.tft](screen/h5.tft).
+5. Leave `First upload / factory display` checked for a new 9600-baud Nextion. Uncheck it only when the display is already running the uploaded 115200-baud H5 screen.
+6. Keep the browser page open until the upload finishes and the display restarts.
+
+## First power-up checks
+
+- Spindle direction: rotate the chuck forward manually - angle on screen should increase. If it decreases, swap `B` and `A` wires in the terminal.
+- Motor direction: try moving motors using keyboard arrows - if a motor is moving in the wrong direction, change `Invert direction` for that axis in the Web UI `Machine Config`, save and restart. You can also swap the motor leads `A+` and `A-` in the stepper driver if it is open loop.
 
 ## Rear label
 
@@ -90,32 +116,6 @@ Joystick support is experimental, untested, optional, and disabled by default in
 
 Scale terminals aren't used in the code yet.
 
-## Programming the controller
-
-- Install the [Arduino IDE](https://docs.arduino.cc/software/ide-v2)
-- Add `https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json` in [Preferences as "Additional board manager URLs"](https://github.com/kachurovskiy/nanoels/assets/517919/dcc023e6-20fc-4284-ba56-d466dbe4ce53)
-- Install `esp32` [via Board Manager](https://github.com/kachurovskiy/nanoels/assets/517919/094d00ff-1e51-4f26-bb81-aa4ad42bde2a)
-  - If you get a `DEADLINE_EXCEEDED` error while installing `esp32`, [see this post for a workaround](https://forum.arduino.cc/t/ide-2-3-7-now-gives-error-4-deadline-exceeded/1422321/2)
-- Install `PS2KeyAdvanced` and `WebSockets` via Arduino IDE Library Manager
-- Download [this repository](https://github.com/kachurovskiy/nanoels/archive/refs/heads/main.zip), unzip, go to `h5` directory and open `h5.ino` file in the Arduino IDE
-- Check the top constants (e.g. encoder steps, motor steps, display offset) and adjust if needed
-- Select "ESP32S3 Dev Module" as device at the top, pick COM port that appears when you connect the device with a USB cable
-- Upload the sketch to your H5 controller
-- For later firmware updates over WiFi, use `Sketch > Export Compiled Binary` in Arduino IDE, open the H5 Web UI, and upload `build\esp32.esp32.esp32s3\h5.ino.bin` under `ESP32 Firmware Upload`. Keep the controller stopped during upload. The controller restarts automatically after a successful upload.
-
-A few things to check after upload:
-
-- Spindle direction: rotate the chuck forward manually - angle on screen should increase. If it decreases, swap `B` and `A` wires in the terminal
-- Motor direction: try moving motors using keyboard arrows - if motor is moving in the wrong direction, change `INVERT_Z` or `INVERT_X` in the code, re-upload the sketch (or swap the motor leads `A+` and `A-` in the stepper driver if it's open loop)
-
-Troubleshooting:
-
-- Arduino IDE doesn't detect NanoEls H5: try a different USB cable
-- Arduino IDE fails to upload the sketch: make sure you plugged the extension into the `COM` port, **not** the `USB` port on the ESP32
-- WiFi firmware upload fails with an OTA partition or space error: upload over USB after selecting an OTA-capable partition scheme. USB is also required when changing the partition scheme.
-- Not sure which COM port is NanoEls H5: unplug it, check the list of available ports in Arduino IDE, plug H5 in, see new port that appeared is H5
-- `ImportError: No module named serial` error on Linux: try `sudo apt install python3-serial`
-
 ## Mounting options
 
 On the back of the case there are 2 holes for M5 threaded inserts 130mm on center.
@@ -130,7 +130,7 @@ WiFi credentials are configured in the H5 Web UI and stored in ESP32 Preferences
 
 Open the Web UI, fill in the `WiFi` section, click `Save and restart`, then connect through the IP address shown on the H5 screen or Arduino serial monitor. The Web UI can be used to save GCode files onto the controller and run them later at the machine in the GCODE mode.
 
-The same Web UI can upload new ESP32 firmware `.bin` files after the initial USB upload. Anyone on the local network can access the Web UI, so only enable WiFi on a trusted network.
+Firmware and screen uploads use the same Web UI described above. Anyone on the local network can access the Web UI, so only enable WiFi on a trusted network.
 
 The Web UI also has a `Machine Config` section for encoder, Z/X/Y axis, handwheel, manual stepping, and joystick parameters. Save changes only while the controller is stopped; NanoEls stores them in ESP32 Preferences and restarts to apply them. GPIO pin mapping still requires editing `h5.ino`.
 
@@ -471,3 +471,39 @@ In this mode the carriage disregards spindle movements and instead moves with co
 You can adjust the pitch using 🖥️`mMinus`/`mPlus` to adjust the movement speed.
 
 Async mode respects limits if they are set.
+
+## Self-compile firmware with Arduino IDE
+
+Use this path only when you need to change the firmware source or rebuild the `.bin` files yourself.
+
+- Install the [Arduino IDE](https://docs.arduino.cc/software/ide-v2)
+- Add `https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json` in [Preferences as "Additional board manager URLs"](https://github.com/kachurovskiy/nanoels/assets/517919/dcc023e6-20fc-4284-ba56-d466dbe4ce53)
+- Install `esp32` [via Board Manager](https://github.com/kachurovskiy/nanoels/assets/517919/094d00ff-1e51-4f26-bb81-aa4ad42bde2a)
+  - If you get a `DEADLINE_EXCEEDED` error while installing `esp32`, [see this post for a workaround](https://forum.arduino.cc/t/ide-2-3-7-now-gives-error-4-deadline-exceeded/1422321/2)
+- Install `PS2KeyAdvanced` and `WebSockets` via Arduino IDE Library Manager
+- Download [this repository](https://github.com/kachurovskiy/nanoels/archive/refs/heads/main.zip), unzip, go to `h5` directory and open `h5.ino` file in the Arduino IDE
+- Check the top constants only if you need to change firmware defaults. Encoder, Z/X/Y axis, handwheel, manual stepping, and joystick parameters can usually be changed later in the Web UI `Machine Config`.
+- Select "ESP32S3 Dev Module" as device at the top, pick the COM port that appears when you connect the device with a USB cable
+- Upload the sketch to your H5 controller, or use `Sketch > Export Compiled Binary` to create `.bin` files
+
+For later firmware updates over WiFi, upload `build\esp32.esp32.esp32s3\h5.ino.bin` in the H5 Web UI under `ESP32 Firmware Upload`. Keep the controller stopped during upload. The controller restarts automatically after a successful upload.
+
+To create a full image for first-time USB flashing, use the Arduino build output `build\esp32.esp32.esp32s3\h5.ino.merged.bin` at address `0x0`.
+
+Troubleshooting:
+
+- Arduino IDE doesn't detect NanoEls H5: try a different USB cable
+- Arduino IDE fails to upload the sketch: make sure you plugged the extension into the `COM` port, **not** the `USB` port on the ESP32
+- WiFi firmware upload fails with an OTA partition or space error: upload over USB after selecting an OTA-capable partition scheme. USB is also required when changing the partition scheme.
+- Not sure which COM port is NanoEls H5: unplug it, check the list of available ports in Arduino IDE, plug H5 in, see new port that appeared is H5
+- `ImportError: No module named serial` error on Linux: try `sudo apt install python3-serial`
+
+## Upload screen from MicroSD card
+
+Use the MicroSD method only if WiFi upload is unavailable.
+
+1. Format an empty MicroSD card 32 GB or smaller as FAT32.
+2. Copy [h5.tft](screen/h5.tft) to the card.
+3. Insert the card into the Nextion display.
+4. Connect 5V power supply to the `POWER` terminal and wait for the screen to report that flashing has finished.
+5. Disconnect the power and remove the card.
