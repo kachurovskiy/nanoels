@@ -115,6 +115,7 @@ Joystick support is experimental, untested, optional, and disabled by default in
 - Connect each potentiometer wiper to the matching `JZ`, `JX`, or `JY` signal
 - Connect the joystick button between `JBUTTON` and `GND`
 - The joystick behaves like proportional handwheel input for Z, X, and Y; Y only moves when `ACTIVE_Y` is enabled, and holding the button enables rapid motion
+- In `JOY` mode, the Z and X joystick axes behave like lathe feed levers: Z/X deflection commands spindle-synchronized feed using the configured pitch magnitude, the joystick Y axis permanently changes the pitch like `+` / `-` with speed based on deflection, pressing the joystick button in neutral toggles `ON`/`OFF`, and pressing it while Z or X is deflected performs rapid movement
 
 Scale terminals aren't used in the code yet.
 
@@ -265,7 +266,7 @@ Lower part of the screen:
   - ⌨️`F9`: gcode
   - ⌨️`F10`: y axis (if configured)
   - ⌨️`F11`: cycle modes
-  - ⌨️`F12`: X gearbox
+  - ⌨️`F12`: joystick lathe mode
 - ⌨️`X` zeroes X axis
 - ⌨️`Z` zeroes Z axis
 - ⌨️`C` disables / enables X axis
@@ -350,7 +351,7 @@ Soft limits are used when preparing an automatic operation like turning, facing,
 
 Press 🖥️`bMode` to switch to the gearbox mode. After turning the controller `ON` with the 🖥️`mPlay` / ⌨️`Enter` button, lead screw will move the distance of 1 pitch for 1 spindle turn.
 
-`XGEAR` works the same way but couples the spindle to the `X` axis instead of `Z`, so the cross-slide moves the distance of 1 pitch for 1 spindle turn. Press ⌨️`F12` to switch to `XGEAR`.
+`XGEAR` works the same way but couples the spindle to the `X` axis instead of `Z`, so the cross-slide moves the distance of 1 pitch for 1 spindle turn. Use ⌨️`F11` mode cycling or the touchscreen mode page to switch to `XGEAR`.
 
 With a small pitch like `0.07mm` this mode is useful for turning - gradually taking off material from the outer diameter of the part.
 
@@ -365,6 +366,18 @@ Cross-slide can be moved with manual move buttons or disabled using 🖥️`bX` 
 In `XGEAR`, the carriage can be moved with manual move buttons or disabled using 🖥️`bZ` / ⌨️`Q` and be operated manually.
 
 Press 🖥️`mStop` / ⌨️`Esc` to turn gearbox mode `off` and decouple lead screw movements from spindle turns.
+
+### Joystick lathe mode
+
+Switch to `JOY` with ⌨️`F12`. This mode requires joystick support to be enabled.
+
+Set the desired pitch magnitude first. When `JOY` is `ON`, moving the Z joystick left/right feeds the carriage left/right at that pitch per spindle revolution. Moving the X joystick positive/negative feeds the cross-slide in the corresponding X direction at the same pitch magnitude. The pitch sign is ignored in this mode; joystick direction selects the cut direction.
+
+Move the joystick Y axis to permanently change the configured pitch like holding `+` or `-`. Larger Y deflection changes pitch faster.
+
+Press the joystick button in neutral to toggle `ON` / `OFF`. Press and hold the button while Z or X is deflected to rapid-traverse in that direction instead of spindle-synchronized feed.
+
+Soft limits are respected for synchronized feed and rapid movement.
 
 ### Automatic turning
 
