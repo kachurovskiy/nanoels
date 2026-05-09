@@ -1515,6 +1515,8 @@ long joystickLathePitchX = 0;
 bool joystickLatheThreadLocked = false;
 int joystickLatheSyncAxis = 0;
 long joystickLatheSyncPitch = 0;
+bool joystickLatheRebaseZAfterSync = false;
+bool joystickLatheRebaseXAfterSync = false;
 
 void adjustPitch(bool plus);
 void buttonPlusMinusPress(bool plus);
@@ -3864,12 +3866,16 @@ void resetJoystickLatheFeedPosition() {
   joystickLatheFeedSignX = 0;
   joystickLathePitchZ = 0;
   joystickLathePitchX = 0;
+  joystickLatheRebaseZAfterSync = false;
+  joystickLatheRebaseXAfterSync = false;
 }
 
 void cancelJoystickLatheSync() {
   if (mode == MODE_JOYSTICK) {
     spindlePosSync = 0;
     joystickLatheSyncPitch = 0;
+    joystickLatheRebaseZAfterSync = false;
+    joystickLatheRebaseXAfterSync = false;
   }
 }
 
@@ -5946,6 +5952,57 @@ bool startJoystickLatheFeedSync(Axis* a, long pitch) {
   return false;
 }
 
+bool rebaseJoystickLatheAxis(Axis* a, long pitch) {
+  if (pitch == 0) return true;
+  if (xSemaphoreTake(a->mutex, 10) != pdTRUE) {
+    beepFlag = true;
+    return false;
+  }
+
+  // Start this JOY feed axis from its current physical position. This avoids
+  // a catch-up move when the axis joins a feed that another axis already began.
+  long target = posFromSpindleWithModePitch(a, spindlePosAvg, false, pitch);
+  long delta = target - a->pos;
+  if (a->leftStop != LONG_MAX) {
+    a->leftStop += delta;
+  }
+  if (a->rightStop != LONG_MIN) {
+    a->rightStop += delta;
+  }
+  a->pos += delta;
+  a->motorPos += delta;
+  a->originPos -= delta;
+  a->fractionalPos = 0;
+  a->pendingPos = 0;
+  a->continuous = false;
+  a->speed = a->speedStart;
+
+  xSemaphoreGive(a->mutex);
+  return true;
+}
+
+bool applyPendingJoystickLatheRebases(long zPitch, long xPitch) {
+  if (joystickLatheRebaseZAfterSync) {
+    if (zPitch != 0 && !rebaseJoystickLatheAxis(&z, zPitch)) return false;
+    joystickLatheRebaseZAfterSync = false;
+  }
+  if (joystickLatheRebaseXAfterSync) {
+    if (xPitch != 0 && !rebaseJoystickLatheAxis(&x, xPitch)) return false;
+    joystickLatheRebaseXAfterSync = false;
+  }
+  return true;
+}
+
+Axis* getJoystickLatheSyncAxis(long previousZPitch, long previousXPitch, long zPitch, long xPitch) {
+  if (previousZPitch != 0 && zPitch != 0) return &z;
+  if (previousXPitch != 0 && xPitch != 0) return &x;
+  return zPitch != 0 ? &z : &x;
+}
+
+long getJoystickLathePitchForAxis(Axis* a, long zPitch, long xPitch) {
+  return a == &z ? zPitch : xPitch;
+}
+
 void modeJoystick() {
   int zDirection = z.movingManually ? 0 : joystickLatheDirectionZ;
   int xDirection = x.movingManually ? 0 : joystickLatheDirectionX;
@@ -5961,19 +6018,36 @@ void modeJoystick() {
 
   long zPitch = zDirection == 0 ? 0 : pitchAbs * zDirection;
   long xPitch = xDirection == 0 ? 0 : pitchAbs * xDirection;
+  if (!applyPendingJoystickLatheRebases(zPitch, xPitch)) {
+    return;
+  }
+
+  long previousZPitch = joystickLathePitchZ;
+  long previousXPitch = joystickLathePitchX;
   bool feedChanged = zPitch != joystickLathePitchZ || xPitch != joystickLathePitchX ||
       zDirection != joystickLatheFeedSignZ || xDirection != joystickLatheFeedSignX;
   if (feedChanged && (joystickLathePitchZ != 0 || joystickLathePitchX != 0 || zPitch != 0 || xPitch != 0)) {
     if (zPitch != 0 || xPitch != 0) {
       if (joystickLatheThreadLocked) {
-        Axis* syncAxis = zPitch != 0 ? &z : &x;
-        long syncPitch = zPitch != 0 ? zPitch : xPitch;
-        if (!startJoystickLatheFeedSync(syncAxis, syncPitch)) {
-          joystickLatheFeedSignZ = zDirection;
-          joystickLatheFeedSignX = xDirection;
-          joystickLathePitchZ = zPitch;
-          joystickLathePitchX = xPitch;
-          return;
+        bool zContinues = previousZPitch != 0 && zPitch == previousZPitch;
+        bool xContinues = previousXPitch != 0 && xPitch == previousXPitch;
+        if (zContinues || xContinues) {
+          // Keep already-feeding axes phase-locked and rebase only changed axes.
+          if (zPitch != 0 && !zContinues && !rebaseJoystickLatheAxis(&z, zPitch)) return;
+          if (xPitch != 0 && !xContinues && !rebaseJoystickLatheAxis(&x, xPitch)) return;
+        } else {
+          Axis* syncAxis = getJoystickLatheSyncAxis(previousZPitch, previousXPitch, zPitch, xPitch);
+          long syncPitch = getJoystickLathePitchForAxis(syncAxis, zPitch, xPitch);
+          joystickLatheRebaseZAfterSync = zPitch != 0 && syncAxis != &z;
+          joystickLatheRebaseXAfterSync = xPitch != 0 && syncAxis != &x;
+          if (!startJoystickLatheFeedSync(syncAxis, syncPitch)) {
+            joystickLatheFeedSignZ = zDirection;
+            joystickLatheFeedSignX = xDirection;
+            joystickLathePitchZ = zPitch;
+            joystickLathePitchX = xPitch;
+            return;
+          }
+          if (!applyPendingJoystickLatheRebases(zPitch, xPitch)) return;
         }
       } else {
         markOrigin();
@@ -6556,7 +6630,7 @@ void loop() {
   }
   if (!isOn || dupr == 0 || spindlePosSync != 0) {
     // None of the modes work.
-    if (mode == MODE_JOYSTICK) {
+    if (mode == MODE_JOYSTICK && (!isOn || dupr == 0)) {
       resetJoystickLatheFeedPosition();
     }
   } else if (mode == MODE_NORMAL) {
