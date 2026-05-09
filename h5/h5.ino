@@ -558,9 +558,20 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     }
     .config-field {
-      align-items: center;
       display: grid;
       gap: 6px;
+    }
+    .config-label {
+      font-weight: 600;
+    }
+    .config-unit {
+      color: #666;
+      font-weight: 400;
+    }
+    .config-help {
+      color: #666;
+      font-size: 0.85em;
+      line-height: 1.35;
     }
     .config-field input[type=number] {
       box-sizing: border-box;
@@ -579,6 +590,12 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       display: flex;
       gap: 8px;
       min-height: 34px;
+    }
+    .config-checkbox-field {
+      align-content: start;
+    }
+    .config-checkbox-field .config-checkbox {
+      min-height: 0;
     }
     .config-actions {
       display: flex;
@@ -701,6 +718,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
   </ul>
 
   <h2>Machine Config</h2>
+  <p>Values are shown in normal machine units. Save changes only while the controller is stopped.</p>
   <form id="config-form">
     <div id="config-fields"></div>
     <div class="config-actions">
@@ -750,81 +768,81 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       {
         title: 'Spindle encoder',
         fields: [
-          { key: 'encoderPpr', label: 'Encoder PPR', min: 1, max: 15000, step: 1 },
-          { key: 'encoderBacklash', label: 'Encoder backlash pulses', min: 0, max: 30000, step: 1 }
+          { key: 'encoderPpr', label: 'Encoder PPR', unit: 'pulses/rev', min: 1, max: 15000, step: 1, help: 'Pulses per spindle revolution from the encoder specification before quadrature counting. Common values are 600 or 1200.' },
+          { key: 'encoderBacklash', label: 'Encoder backlash', unit: 'pulses', min: 0, max: 30000, step: 1, help: 'Encoder pulses ignored after spindle direction reverses. Increase only if the displayed angle flickers after reversal.' }
         ]
       },
       {
         title: 'Z axis',
         fields: [
-          { key: 'zScrewDu', label: 'Screw pitch DU', min: 1, max: 10000000, step: 1 },
-          { key: 'zMotorSteps', label: 'Motor steps per rev', min: 1, max: 1000000, step: 1 },
-          { key: 'zSpeedStart', label: 'Start speed', min: 1, max: 1000000, step: 1 },
-          { key: 'zAcceleration', label: 'Acceleration', min: 1, max: 100000000, step: 1 },
-          { key: 'zSpeedManualMove', label: 'Manual speed', min: 1, max: 1000000, step: 1 },
-          { key: 'zMaxTravelMm', label: 'Max travel mm', min: 1, max: 10000, step: 1 },
-          { key: 'zBacklashDu', label: 'Backlash DU', min: 0, max: 10000000, step: 1 },
-          { key: 'zInvert', label: 'Invert direction', type: 'checkbox' },
-          { key: 'zInvertEnable', label: 'Invert enable', type: 'checkbox' },
-          { key: 'zNeedsRest', label: 'Needs rest', type: 'checkbox' }
+          { key: 'zScrewDu', label: 'Lead screw pitch', unit: 'mm/rev', min: 0.0001, max: 1000, step: 0.0001, firmwareScale: 10000, help: 'Distance Z moves for one lead screw revolution. Metric screw: use the marked pitch. Inch screw: 25.4 / TPI, so 8 TPI = 3.175.' },
+          { key: 'zMotorSteps', label: 'Motor steps per rev', unit: 'steps/rev', min: 1, max: 1000000, step: 1, help: 'Full motor steps * driver microsteps * motor-to-screw ratio. Example: 200-step motor at 4x microstepping = 800.' },
+          { key: 'zSpeedStart', label: 'Start speed', unit: 'steps/s', min: 1, max: 1000000, step: 1, help: 'Initial step pulse rate when motion starts. Use a value the motor can start from reliably without missing steps.' },
+          { key: 'zAcceleration', label: 'Acceleration', unit: 'steps/s^2', min: 1, max: 100000000, step: 1, help: 'Ramp rate for speeding up and slowing down. Higher feels snappier but can skip steps if the motor or load cannot keep up.' },
+          { key: 'zSpeedManualMove', label: 'Manual speed', unit: 'steps/s', min: 1, max: 1000000, step: 1, help: 'Top speed for jogs, rapid returns, and GCode moves on Z. Axis speed depends on both this value and steps per mm.' },
+          { key: 'zMaxTravelMm', label: 'Max travel', unit: 'mm', min: 1, max: 10000, step: 1, help: 'Maximum single Z move the controller will allow. Set a little above the physically safe travel of the carriage.' },
+          { key: 'zBacklashDu', label: 'Backlash', unit: 'mm', min: 0, max: 1000, step: 0.0001, firmwareScale: 10000, help: 'Lost Z motion when reversing direction. Measure with a dial indicator: move one way, zero it, reverse until the indicator starts moving.' },
+          { key: 'zInvert', label: 'Invert direction', type: 'checkbox', help: 'Toggle if the Z axis moves opposite to the screen or keyboard direction.' },
+          { key: 'zInvertEnable', label: 'Invert enable', type: 'checkbox', help: 'Toggle only when the stepper driver enable input works backwards.' },
+          { key: 'zNeedsRest', label: 'Needs rest', type: 'checkbox', help: 'Enable if the driver should be powered only during movement. Leave off when Z must hold position while idle.' }
         ]
       },
       {
         title: 'X axis',
         fields: [
-          { key: 'xScrewDu', label: 'Screw pitch DU', min: 1, max: 10000000, step: 1 },
-          { key: 'xMotorSteps', label: 'Motor steps per rev', min: 1, max: 1000000, step: 1 },
-          { key: 'xSpeedStart', label: 'Start speed', min: 1, max: 1000000, step: 1 },
-          { key: 'xAcceleration', label: 'Acceleration', min: 1, max: 100000000, step: 1 },
-          { key: 'xSpeedManualMove', label: 'Manual speed', min: 1, max: 1000000, step: 1 },
-          { key: 'xMaxTravelMm', label: 'Max travel mm', min: 1, max: 10000, step: 1 },
-          { key: 'xBacklashDu', label: 'Backlash DU', min: 0, max: 10000000, step: 1 },
-          { key: 'xInvert', label: 'Invert direction', type: 'checkbox' },
-          { key: 'xInvertEnable', label: 'Invert enable', type: 'checkbox' },
-          { key: 'xNeedsRest', label: 'Needs rest', type: 'checkbox' }
+          { key: 'xScrewDu', label: 'Lead screw pitch', unit: 'mm/rev', min: 0.0001, max: 1000, step: 0.0001, firmwareScale: 10000, help: 'Distance X moves for one lead screw revolution. Metric screw: use the marked pitch. Inch screw: 25.4 / TPI, so 10 TPI = 2.54.' },
+          { key: 'xMotorSteps', label: 'Motor steps per rev', unit: 'steps/rev', min: 1, max: 1000000, step: 1, help: 'Full motor steps * driver microsteps * motor-to-screw ratio. Example: 200-step motor at 4x microstepping = 800.' },
+          { key: 'xSpeedStart', label: 'Start speed', unit: 'steps/s', min: 1, max: 1000000, step: 1, help: 'Initial step pulse rate when motion starts. Use a value the motor can start from reliably without missing steps.' },
+          { key: 'xAcceleration', label: 'Acceleration', unit: 'steps/s^2', min: 1, max: 100000000, step: 1, help: 'Ramp rate for speeding up and slowing down. Higher feels snappier but can skip steps if the motor or slide cannot keep up.' },
+          { key: 'xSpeedManualMove', label: 'Manual speed', unit: 'steps/s', min: 1, max: 1000000, step: 1, help: 'Top speed for jogs, rapid returns, and GCode moves on X. Axis speed depends on both this value and steps per mm.' },
+          { key: 'xMaxTravelMm', label: 'Max travel', unit: 'mm', min: 1, max: 10000, step: 1, help: 'Maximum single X move the controller will allow. Set a little above the physically safe travel of the cross-slide.' },
+          { key: 'xBacklashDu', label: 'Backlash', unit: 'mm', min: 0, max: 1000, step: 0.0001, firmwareScale: 10000, help: 'Lost X motion when reversing direction. Measure with a dial indicator: move one way, zero it, reverse until the indicator starts moving.' },
+          { key: 'xInvert', label: 'Invert direction', type: 'checkbox', help: 'Toggle if the X axis moves opposite to the screen or keyboard direction.' },
+          { key: 'xInvertEnable', label: 'Invert enable', type: 'checkbox', help: 'Toggle only when the stepper driver enable input works backwards.' },
+          { key: 'xNeedsRest', label: 'Needs rest', type: 'checkbox', help: 'Enable if the driver should be powered only during movement. Leave off when X must hold position while idle.' }
         ]
       },
       {
         title: 'Manual movement',
         fields: [
-          { key: 'stepTimeMs', label: 'Step time ms', min: 1, max: 10000, step: 1 },
-          { key: 'delayBetweenStepsMs', label: 'Step delay ms', min: 0, max: 10000, step: 1 },
-          { key: 'pulsePerRevolution', label: 'Handwheel PPR', min: 1, max: 100000, step: 0.01 }
+          { key: 'stepTimeMs', label: 'Step time', unit: 'ms', min: 1, max: 10000, step: 1, help: 'Target time for one precision button step when the selected move step is not continuous.' },
+          { key: 'delayBetweenStepsMs', label: 'Step delay', unit: 'ms', min: 0, max: 10000, step: 1, help: 'Pause between repeated precision steps while a manual move button is held.' },
+          { key: 'pulsePerRevolution', label: 'Handwheel PPR', unit: 'pulses/rev', min: 1, max: 100000, step: 0.01, help: 'Physical pulses per revolution of the optional manual handwheel encoder. Use the handwheel specification.' }
         ]
       },
       {
         title: 'Y axis',
         fields: [
-          { key: 'activeY', label: 'Y axis connected', type: 'checkbox' },
-          { key: 'rotaryY', label: 'Rotary axis', type: 'checkbox' },
-          { key: 'yMotorSteps', label: 'Motor steps per rev', min: 1, max: 1000000, step: 1 },
-          { key: 'yScrewDu', label: 'Screw pitch DU', min: 1, max: 10000000, step: 1 },
-          { key: 'ySpeedStart', label: 'Start speed', min: 1, max: 1000000, step: 1 },
-          { key: 'yAcceleration', label: 'Acceleration', min: 1, max: 100000000, step: 1 },
-          { key: 'ySpeedManualMove', label: 'Manual speed', min: 1, max: 1000000, step: 1 },
-          { key: 'yMaxTravelMm', label: 'Max travel mm', min: 1, max: 10000, step: 1 },
-          { key: 'yBacklashDu', label: 'Backlash DU', min: 0, max: 10000000, step: 1 },
-          { key: 'yInvert', label: 'Invert direction', type: 'checkbox' },
-          { key: 'yInvertEnable', label: 'Invert enable', type: 'checkbox' },
-          { key: 'yNeedsRest', label: 'Needs rest', type: 'checkbox' }
+          { key: 'activeY', label: 'Y axis connected', type: 'checkbox', help: 'Enable only when the optional Y or dividing-head axis is wired and configured.' },
+          { key: 'rotaryY', label: 'Rotary axis', type: 'checkbox', help: 'On means Y values are degrees. Off means Y values are linear distance.' },
+          { key: 'yMotorSteps', label: 'Motor steps per rev', unit: 'steps/rev', min: 1, max: 1000000, step: 1, help: 'Full motor steps * driver microsteps * motor-to-axis ratio.' },
+          { key: 'yScrewDu', label: 'Travel per screw rev', unit: 'mm or deg/rev', min: 0.0001, max: 1000, step: 0.0001, firmwareScale: 10000, help: 'For rotary Y, degrees moved per worm screw revolution. For linear Y, mm moved per lead screw revolution.' },
+          { key: 'ySpeedStart', label: 'Start speed', unit: 'steps/s', min: 1, max: 1000000, step: 1, help: 'Initial step pulse rate when Y motion starts. Use a value the motor can start from reliably.' },
+          { key: 'yAcceleration', label: 'Acceleration', unit: 'steps/s^2', min: 1, max: 100000000, step: 1, help: 'Ramp rate for speeding up and slowing down Y motion.' },
+          { key: 'ySpeedManualMove', label: 'Manual speed', unit: 'steps/s', min: 1, max: 1000000, step: 1, help: 'Top speed for manual and GCode Y moves.' },
+          { key: 'yMaxTravelMm', label: 'Max travel', unit: 'mm or deg', min: 1, max: 10000, step: 1, help: 'Maximum single Y move the controller will allow. For rotary Y this is degrees.' },
+          { key: 'yBacklashDu', label: 'Backlash', unit: 'mm or deg', min: 0, max: 1000, step: 0.0001, firmwareScale: 10000, help: 'Lost Y motion when reversing direction. For rotary Y enter degrees; for linear Y enter mm.' },
+          { key: 'yInvert', label: 'Invert direction', type: 'checkbox', help: 'Toggle if Y moves opposite to the expected direction.' },
+          { key: 'yInvertEnable', label: 'Invert enable', type: 'checkbox', help: 'Toggle only when the Y stepper driver enable input works backwards.' },
+          { key: 'yNeedsRest', label: 'Needs rest', type: 'checkbox', help: 'Enable if the Y driver should be powered only during movement. Leave off when it must hold position while idle.' }
         ]
       },
       {
         title: 'Joystick',
         fields: [
-          { key: 'joystickEnabled', label: 'Joystick enabled', type: 'checkbox' },
-          { key: 'joystickCenterSamples', label: 'Center samples', min: 1, max: 1024, step: 1 },
-          { key: 'joystickOversamples', label: 'Oversamples', min: 1, max: 1024, step: 1 },
-          { key: 'joystickSampleIntervalMs', label: 'Sample interval ms', min: 1, max: 1000, step: 1 },
-          { key: 'joystickAdcMax', label: 'ADC max', min: 1, max: 65535, step: 1 },
-          { key: 'joystickDeadband', label: 'Deadband', min: 0, max: 65534, step: 1 },
-          { key: 'joystickPulseQueueLimit', label: 'Pulse queue limit', min: 1, max: 1000000, step: 1 },
-          { key: 'joystickNormalRevolutionsPerSecond', label: 'Normal rev/s', min: 0.01, max: 1000, step: 0.01 },
-          { key: 'joystickRapidRevolutionsPerSecond', label: 'Rapid rev/s', min: 0.01, max: 1000, step: 0.01 },
-          { key: 'invertJoystickZ', label: 'Invert Z', type: 'checkbox' },
-          { key: 'invertJoystickX', label: 'Invert X', type: 'checkbox' },
-          { key: 'invertJoystickY', label: 'Invert Y', type: 'checkbox' },
-          { key: 'invertJoystickButton', label: 'Invert button', type: 'checkbox' }
+          { key: 'joystickEnabled', label: 'Joystick enabled', type: 'checkbox', help: 'Enable only after the optional analog joystick is wired. Joystick axes must feed ESP32-safe 3.3V ADC inputs.' },
+          { key: 'joystickCenterSamples', label: 'Center samples', unit: 'samples', min: 1, max: 1024, step: 1, help: 'Number of ADC readings averaged at startup to learn the joystick center position.' },
+          { key: 'joystickOversamples', label: 'Oversamples', unit: 'samples', min: 1, max: 1024, step: 1, help: 'ADC readings averaged for each joystick update. Higher values smooth noise but add latency.' },
+          { key: 'joystickSampleIntervalMs', label: 'Sample interval', unit: 'ms', min: 1, max: 1000, step: 1, help: 'Time between joystick updates. Smaller values react faster and use more CPU.' },
+          { key: 'joystickAdcMax', label: 'ADC max', unit: 'counts', min: 1, max: 65535, step: 1, help: 'Maximum raw ADC count. ESP32 12-bit ADC readings normally use 4095.' },
+          { key: 'joystickDeadband', label: 'Deadband', unit: 'counts', min: 0, max: 65534, step: 1, help: 'Raw ADC counts around center treated as zero. Increase if an axis drifts when released.' },
+          { key: 'joystickPulseQueueLimit', label: 'Pulse queue limit', unit: 'pulses', min: 1, max: 1000000, step: 1, help: 'Maximum queued virtual handwheel pulses. Higher allows more buffered joystick motion.' },
+          { key: 'joystickNormalRevolutionsPerSecond', label: 'Normal speed', unit: 'rev/s', min: 0.01, max: 1000, step: 0.01, help: 'Joystick jog speed in equivalent screw revolutions per second when rapid is not pressed.' },
+          { key: 'joystickRapidRevolutionsPerSecond', label: 'Rapid speed', unit: 'rev/s', min: 0.01, max: 1000, step: 0.01, help: 'Joystick jog speed in equivalent screw revolutions per second while the button is held.' },
+          { key: 'invertJoystickZ', label: 'Invert Z', type: 'checkbox', help: 'Toggle if joystick Z deflection moves the carriage in the wrong direction.' },
+          { key: 'invertJoystickX', label: 'Invert X', type: 'checkbox', help: 'Toggle if joystick X deflection moves the cross-slide in the wrong direction.' },
+          { key: 'invertJoystickY', label: 'Invert Y', type: 'checkbox', help: 'Toggle if joystick Y deflection changes the value in the wrong direction.' },
+          { key: 'invertJoystickButton', label: 'Invert button', type: 'checkbox', help: 'Toggle if the joystick button reads pressed when released.' }
         ]
       }
     ];
@@ -923,6 +941,35 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       firmwareStatusPollTimer = 0;
     }
 
+    function formatScaledConfigValue(value) {
+      if (!Number.isFinite(value)) return '';
+      return value.toFixed(4).replace(/\.?0+$/, '');
+    }
+
+    function configValueToDisplay(field, value) {
+      if (field.firmwareScale) {
+        return formatScaledConfigValue(Number(value) / field.firmwareScale);
+      }
+      return value;
+    }
+
+    function configValueToFirmware(field, value) {
+      const trimmed = value.trim();
+      if (field.firmwareScale) {
+        const parsed = Number(trimmed);
+        return Number.isFinite(parsed) ? String(Math.round(parsed * field.firmwareScale)) : trimmed;
+      }
+      return trimmed;
+    }
+
+    function addConfigHelp(row, field) {
+      if (!field.help) return;
+      const help = document.createElement('small');
+      help.className = 'config-help';
+      help.textContent = field.help;
+      row.appendChild(help);
+    }
+
     function renderConfigFields() {
       configFields.innerHTML = '';
       machineConfigSections.forEach(section => {
@@ -934,21 +981,33 @@ const char indexhtml[] PROGMEM = R"rawliteral(
         grid.className = 'config-grid';
         section.fields.forEach(field => {
           const id = `config-${field.key}`;
-          const row = document.createElement('label');
-          row.className = field.type === 'checkbox' ? 'config-checkbox' : 'config-field';
-          row.htmlFor = id;
+          const row = document.createElement('div');
+          row.className = field.type === 'checkbox' ? 'config-field config-checkbox-field' : 'config-field';
           if (field.type === 'checkbox') {
+            const label = document.createElement('label');
+            label.className = 'config-checkbox';
+            label.htmlFor = id;
             const input = document.createElement('input');
             input.type = 'checkbox';
             input.id = id;
             input.dataset.key = field.key;
             const text = document.createElement('span');
             text.textContent = field.label;
-            row.appendChild(input);
-            row.appendChild(text);
+            label.appendChild(input);
+            label.appendChild(text);
+            row.appendChild(label);
+            addConfigHelp(row, field);
           } else {
-            const text = document.createElement('span');
-            text.textContent = field.label;
+            const label = document.createElement('label');
+            label.className = 'config-label';
+            label.htmlFor = id;
+            label.textContent = field.label;
+            if (field.unit) {
+              const unit = document.createElement('span');
+              unit.className = 'config-unit';
+              unit.textContent = ` (${field.unit})`;
+              label.appendChild(unit);
+            }
             const input = document.createElement('input');
             input.type = 'number';
             input.id = id;
@@ -956,8 +1015,10 @@ const char indexhtml[] PROGMEM = R"rawliteral(
             input.min = field.min;
             input.max = field.max;
             input.step = field.step;
-            row.appendChild(text);
+            input.required = true;
+            row.appendChild(label);
             row.appendChild(input);
+            addConfigHelp(row, field);
           }
           grid.appendChild(row);
         });
@@ -974,7 +1035,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
         if (field.type === 'checkbox') {
           input.checked = values[field.key] === '1';
         } else {
-          input.value = values[field.key];
+          input.value = configValueToDisplay(field, values[field.key]);
         }
       });
     }
@@ -996,7 +1057,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       const values = new URLSearchParams();
       machineConfigFields.forEach(field => {
         const input = document.getElementById(`config-${field.key}`);
-        values.append(field.key, field.type === 'checkbox' ? (input.checked ? '1' : '0') : input.value.trim());
+        values.append(field.key, field.type === 'checkbox' ? (input.checked ? '1' : '0') : configValueToFirmware(field, input.value));
       });
       return values;
     }
