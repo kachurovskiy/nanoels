@@ -125,7 +125,7 @@ const int DEFAULT_JOYSTICK_PULSE_QUEUE_LIMIT = 10000;
 const float DEFAULT_JOYSTICK_NORMAL_REVOLUTIONS_PER_SECOND = 1.0;
 const float DEFAULT_JOYSTICK_RAPID_REVOLUTIONS_PER_SECOND = 8.0;
 const float JOYSTICK_PITCH_CHANGES_PER_SECOND = 20.0;
-const unsigned long JOYSTICK_PITCH_STATUS_HOLD_MS = 250;
+const unsigned long JOYSTICK_PITCH_STATUS_HOLD_MS = 500;
 const int JOYSTICK_STARTUP_CENTER_TOLERANCE_MIN = 32; // Reject startup centers too far from ADC midpoint.
 const bool DEFAULT_INVERT_JOYSTICK_Z = false;
 const bool DEFAULT_INVERT_JOYSTICK_X = false;
@@ -636,14 +636,16 @@ const char indexhtml[] PROGMEM = R"rawliteral(
 </head>
 <body>
   <h1>NanoEls H5</h1>
-  <p>This Web UI is served from your NanoEls controller memory. It doesn't need Internet connection. Anyone on your local network has access to it.</p>
+  <p>This page is served directly by the NanoEls H5 controller and works without an Internet connection.</p>
   <p>
-    It communicates with NanoEls in 2 ways. For saving, loading and removing stored GCode files it uses HTTP calls that can succeed or fail
-    individually and it doesn't affect the realtime communication with the NanoEls controller.
+    Use it to manage stored GCode programs, upload firmware or screen files, change machine configuration, and inspect realtime controller messages.
   </p>
   <p>
-    For realtime communication it uses WebSocket that is always open and can be used to send commands to the controller and receive responses from it.
-    Realtime log can also be used for debugging since serial communication with NanoEls can be problematic as that channel is used by the screen.
+    Use NanoEls only on a trusted local network. Anyone connected to the same network can open this page and send commands to the controller.
+  </p>
+  <p>
+    Keep the controller stopped before uploading firmware, uploading screen files, or saving machine configuration. Stored GCode file changes are
+    independent from live control.
   </p>
   <h2>Stored GCode</h2>
   <div id="gcode-list"></div>
@@ -704,7 +706,10 @@ const char indexhtml[] PROGMEM = R"rawliteral(
   </form>
   <p id="wifi-status"></p>
 
-  <h2>WebSocket realtime communication</h2>
+  <h2>Realtime Log and Commands</h2>
+  <p>
+    Use the log to see controller responses and troubleshoot behavior without the serial port, which is shared with the screen.
+  </p>
   <div id="log"></div>
   <div id="command-container">
     <input type="text" id="command" placeholder="Enter command" value="?" minlength="1" required>

@@ -108,7 +108,7 @@ Z and X axes - stepper terminal for the lead screws:
 
 Pulse motion wheels for Z and X axes (`ZPULSE`, `XPULSE`) are wired in the same manner as the encoder. For any encoder terminal, switch `A` and `B` wires to invert the encoder direction.
 
-Joystick support is experimental, untested, optional, and disabled by default in `h5.ino`. Set `JOYSTICK_ENABLED` to `true` only after wiring a 3-axis potentiometer joystick:
+Joystick support is experimental, optional, and disabled by default in `h5.ino`. Set `JOYSTICK_ENABLED` to `true` only after wiring a 3-axis potentiometer joystick:
 
 - `JSIGNAL` carries signals only: `JZ`, `JX`, `JY`, `JBUTTON`
 - Power the joystick potentiometers from `JPOWER` 5V through a resistor divider that brings the joystick supply down to about 3.3V, or use a small 3.3V regulator sharing controller `GND`; do not feed 5V into the potentiometers because the ESP32 ADC pins are not 5V analog inputs
