@@ -3709,7 +3709,7 @@ void updateDisplay() {
       else if (!isOn && setupIndex == 2) result = auxForward ? "External?" : "Internal?";
       else if (!isOn && setupIndex == 3) result = "Go?";
       else if (isOn && numpadResult == 0) result = "Cone ratio " + printNoTrailing0(coneRatio);
-    } else if (mode == MODE_JOYSTICK) {
+    } else if (mode == MODE_JOYSTICK && !inNumpad) {
       String directionText = joystickLatheDirectionText(joystickLatheDirectionZ, joystickLatheDirectionX);
       if (!JOYSTICK_ENABLED) result = "Joystick disabled";
       else if (!joystickAvailable) result = "Joystick not connected";
