@@ -125,6 +125,7 @@ const int DEFAULT_JOYSTICK_PULSE_QUEUE_LIMIT = 10000;
 const float DEFAULT_JOYSTICK_NORMAL_REVOLUTIONS_PER_SECOND = 1.0;
 const float DEFAULT_JOYSTICK_RAPID_REVOLUTIONS_PER_SECOND = 8.0;
 const float JOYSTICK_PITCH_CHANGES_PER_SECOND = 20.0;
+const int JOYSTICK_STARTUP_CENTER_TOLERANCE_MIN = 32; // Reject startup centers too far from ADC midpoint.
 const bool DEFAULT_INVERT_JOYSTICK_Z = false;
 const bool DEFAULT_INVERT_JOYSTICK_X = false;
 const bool DEFAULT_INVERT_JOYSTICK_Y = false;
@@ -171,7 +172,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 23
+#define SOFTWARE_VERSION 24
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -1491,6 +1492,7 @@ volatile int joystickManualDirectionZ = 0;
 volatile int joystickManualDirectionX = 0;
 volatile int joystickManualDirectionY = 0;
 volatile int joystickPitchAdjustDirection = 0;
+bool joystickAvailable = false;
 portMUX_TYPE joystickPulseMux = portMUX_INITIALIZER_UNLOCKED;
 volatile int joystickPulseZ = 0;
 volatile int joystickPulseX = 0;
@@ -3710,6 +3712,7 @@ void updateDisplay() {
     } else if (mode == MODE_JOYSTICK) {
       String directionText = joystickLatheDirectionText(joystickLatheDirectionZ, joystickLatheDirectionX);
       if (!JOYSTICK_ENABLED) result = "Joystick disabled";
+      else if (!joystickAvailable) result = "Joystick not connected";
       else if (joystickLatheRapid && directionText != "") {
         result = "Rapid ";
         result += directionText;
@@ -3870,6 +3873,10 @@ void cancelJoystickLatheSync() {
   }
 }
 
+bool joystickUsable() {
+  return JOYSTICK_ENABLED && joystickAvailable;
+}
+
 void prepareJoystickLatheManualMove() {
   if (isOn && mode == MODE_JOYSTICK) {
     cancelJoystickLatheSync();
@@ -3882,7 +3889,7 @@ bool isContinuousStep() {
 }
 
 bool isRapidManualMove() {
-  return JOYSTICK_ENABLED && joystickRapidPressed;
+  return joystickUsable() && joystickRapidPressed;
 }
 
 int joystickDirectionFromDeflection(float deflection) {
@@ -3897,11 +3904,11 @@ int getJoystickManualDirection(Axis* a) {
 }
 
 bool isJoystickManualMove(Axis* a) {
-  return JOYSTICK_ENABLED && getJoystickManualDirection(a) != 0;
+  return joystickUsable() && getJoystickManualDirection(a) != 0;
 }
 
 bool joystickManualMoveActive(Axis* a, int sign) {
-  return JOYSTICK_ENABLED && getJoystickManualDirection(a) == sign;
+  return joystickUsable() && getJoystickManualDirection(a) == sign;
 }
 
 bool pulseDeltaMatchesDirection(int pulseDelta, int sign) {
@@ -4052,25 +4059,39 @@ int getJoystickPulseDelta(float deflection, float* pulseFraction, unsigned long 
   return delta;
 }
 
+bool joystickStartupCenterLooksNeutral(int center) {
+  int midpoint = JOYSTICK_ADC_MAX / 2;
+  int tolerance = max(JOYSTICK_DEADBAND, JOYSTICK_STARTUP_CENTER_TOLERANCE_MIN);
+  return abs(center - midpoint) <= tolerance;
+}
+
 void initJoystick() {
+  joystickAvailable = false;
   if (!JOYSTICK_ENABLED) return;
   analogReadResolution(12);
-  pinMode(JOY_Z, INPUT);
-  pinMode(JOY_X, INPUT);
-  pinMode(JOY_Y, INPUT);
+  pinMode(JOY_Z, INPUT_PULLDOWN);
+  pinMode(JOY_X, INPUT_PULLDOWN);
+  pinMode(JOY_Y, INPUT_PULLDOWN);
   pinMode(JOY_BUTTON, INPUT_PULLUP);
 
   joystickCenterZ = calibrateJoystickCenter(JOY_Z);
   joystickCenterX = calibrateJoystickCenter(JOY_X);
   joystickCenterY = calibrateJoystickCenter(JOY_Y);
+  if (!joystickStartupCenterLooksNeutral(joystickCenterZ) ||
+      !joystickStartupCenterLooksNeutral(joystickCenterX) ||
+      !joystickStartupCenterLooksNeutral(joystickCenterY)) {
+    return;
+  }
+
   joystickFilteredZ = joystickCenterZ;
   joystickFilteredX = joystickCenterX;
   joystickFilteredY = joystickCenterY;
   joystickSampleTimeUs = micros();
+  joystickAvailable = true;
 }
 
 void taskJoystick(void *param) {
-  while (emergencyStop == ESTOP_NONE) {
+  while (emergencyStop == ESTOP_NONE && joystickUsable()) {
     bool buttonPressed = digitalRead(JOY_BUTTON) == (INVERT_JOYSTICK_BUTTON ? HIGH : LOW);
     joystickRapidPressed = buttonPressed;
     unsigned long now = micros();
@@ -6502,7 +6523,7 @@ void setup() {
   // Initialize the keyboard.
   keyboard.begin(KEY_DATA, KEY_CLOCK);
   xTaskCreatePinnedToCore(taskKeypad, "taskKeypad", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
-  if (JOYSTICK_ENABLED) xTaskCreatePinnedToCore(taskJoystick, "taskJoystick", 4000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
+  if (joystickUsable()) xTaskCreatePinnedToCore(taskJoystick, "taskJoystick", 4000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
 
   // Non-time-sensitive tasks on core 0.
   delay(1300); // Nextion needs time to boot or first display update will be ignored.

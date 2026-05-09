@@ -114,6 +114,7 @@ Joystick support is experimental, untested, optional, and disabled by default in
 - Power the joystick potentiometers from `JPOWER` 5V through a resistor divider that brings the joystick supply down to about 3.3V, or use a small 3.3V regulator sharing controller `GND`; do not feed 5V into the potentiometers because the ESP32 ADC pins are not 5V analog inputs
 - Connect each potentiometer wiper to the matching `JZ`, `JX`, or `JY` signal
 - Connect the joystick button between `JBUTTON` and `GND`
+- Leave the stick centered while powering on. If joystick support is enabled while the joystick is unplugged or any axis is not centered at startup, H5 ignores joystick input until the next restart
 - The joystick behaves like proportional handwheel input for Z and X. Y deflection adjusts pitch in modes that allow joystick pitch changes; when it is not used for pitch, Y moves the optional Y axis if `ACTIVE_Y` is enabled. Holding the button enables rapid motion for manual joystick moves
 - In `JOY` mode, use `ON`/`OFF` as the feed clutch. With feed off, Z/X deflection jogs the carriage or cross-slide normally. With feed on, Z/X deflection commands spindle-synchronized feed using the configured pitch magnitude. Pressing the joystick button while Z or X is deflected performs rapid movement; pressing it in neutral does not toggle `ON`/`OFF`. After the first feed engagement, `JOY` preserves the thread phase and waits for the correct spindle angle before later feed engagements.
 
