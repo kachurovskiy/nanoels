@@ -115,7 +115,7 @@ Joystick support is experimental, untested, optional, and disabled by default in
 - Connect each potentiometer wiper to the matching `JZ`, `JX`, or `JY` signal
 - Connect the joystick button between `JBUTTON` and `GND`
 - The joystick behaves like proportional handwheel input for Z, X, and Y; Y only moves when `ACTIVE_Y` is enabled, and holding the button enables rapid motion
-- In `JOY` mode, the Z and X joystick axes behave like lathe feed levers: Z/X deflection commands spindle-synchronized feed using the configured pitch magnitude, the joystick Y axis permanently changes the pitch like `+` / `-` with speed based on deflection, pressing the joystick button in neutral toggles `ON`/`OFF`, and pressing it while Z or X is deflected performs rapid movement
+- In `JOY` mode, use `ON`/`OFF` as the feed clutch. With feed off, Z/X deflection jogs the carriage or cross-slide normally. With feed on, Z/X deflection commands spindle-synchronized feed using the configured pitch magnitude. Pressing the joystick button while Z or X is deflected performs rapid movement; pressing it in neutral does not toggle `ON`/`OFF`. After the first feed engagement, `JOY` preserves the thread phase and waits for the correct spindle angle before later feed engagements.
 
 Scale terminals aren't used in the code yet.
 
@@ -371,11 +371,13 @@ Press 🖥️`mStop` / ⌨️`Esc` to turn gearbox mode `off` and decouple lead 
 
 Switch to `JOY` with ⌨️`F12`. This mode requires joystick support to be enabled.
 
-Set the desired pitch magnitude first. When `JOY` is `ON`, moving the Z joystick left/right feeds the carriage left/right at that pitch per spindle revolution. Moving the X joystick positive/negative feeds the cross-slide in the corresponding X direction at the same pitch magnitude. The pitch sign is ignored in this mode; joystick direction selects the cut direction.
+Set the desired pitch magnitude first and use `ON` / `OFF` as the feed clutch. When `JOY` is `ON`, moving the Z joystick left/right feeds the carriage left/right at that pitch per spindle revolution. Moving the X joystick in/out feeds the cross-slide in/out at the same pitch magnitude. The pitch sign is ignored in this mode; joystick direction selects the cut direction.
 
 Move the joystick Y axis to permanently change the configured pitch like holding `+` or `-`. Larger Y deflection changes pitch faster.
 
-Press the joystick button in neutral to toggle `ON` / `OFF`. Press and hold the button while Z or X is deflected to rapid-traverse in that direction instead of spindle-synchronized feed.
+When `JOY` is off, moving the Z or X joystick jogs the carriage or cross-slide normally. Press and hold the joystick button while Z or X is deflected to rapid-traverse in that direction. The joystick button is rapid-only; it does not toggle `ON` / `OFF`.
+
+For manual multi-pass threading, the first feed engagement establishes the thread phase. Later passes stay in that thread: after you retract, return the carriage, and engage feed again, the controller shows `Sync` and waits for the matching spindle phase before moving the carriage. The operator does not need to track spindle angle.
 
 Soft limits are respected for synchronized feed and rapid movement.
 

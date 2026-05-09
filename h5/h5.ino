@@ -1423,8 +1423,8 @@ bool buttonBackPressed = false;
 bool buttonForwardPressed = false;
 
 volatile bool joystickRapidPressed = false;
-volatile int joystickLatheDirectionZ = 0; // -1 right, 0 neutral, 1 left in joystick lathe mode.
-volatile int joystickLatheDirectionX = 0; // -1 X-, 0 neutral, 1 X+ in joystick lathe mode.
+volatile int joystickLatheDirectionZ = 0; // -1 carriage right, 0 neutral, 1 carriage left in joystick lathe mode.
+volatile int joystickLatheDirectionX = 0; // -1 cross out, 0 neutral, 1 cross in in joystick lathe mode.
 volatile bool joystickLatheRapid = false;
 volatile int joystickLathePitchAdjustDirection = 0;
 portMUX_TYPE joystickPulseMux = portMUX_INITIALIZER_UNLOCKED;
@@ -1446,8 +1446,14 @@ int joystickLatheFeedSignZ = 0;
 int joystickLatheFeedSignX = 0;
 long joystickLathePitchZ = 0;
 long joystickLathePitchX = 0;
+bool joystickLatheThreadLocked = false;
+int joystickLatheSyncAxis = 0;
+long joystickLatheSyncPitch = 0;
 
 void buttonPlusMinusPress(bool plus);
+void resetJoystickLatheFeedPosition();
+void cancelJoystickLatheSync();
+void resetJoystickLatheFeed();
 
 bool inNumpad = false;
 int numpadDigits[20];
@@ -1620,7 +1626,7 @@ long spindlePosAvg = 0; // Spindle position accounting for encoder backlash
 long savedSpindlePosAvg = 0; // spindlePosAvg saved in Preferences
 long savedSpindlePos = 0; // spindlePos value saved in Preferences
 int spindleCount = 0; // Last processed spindle encoder pulse counter value.
-int spindlePosSync = 0; // Non-zero if gearbox is on and a soft limit was removed while axis was on it
+int spindlePosSync = 0; // Non-zero while waiting for spindle phase before resuming synchronized motion.
 int savedSpindlePosSync = 0; // spindlePosSync saved in Preferences
 long spindlePosGlobal = 0; // global spindle position that is unaffected by e.g. zeroing
 long savedSpindlePosGlobal = 0; // spindlePosGlobal saved in Preferences
@@ -3162,6 +3168,7 @@ void setIsOnFromLoop(bool on) {
   if (isOn && on) {
     return;
   }
+  bool joystickMode = mode == MODE_JOYSTICK;
   if (!on) {
     isOn = false;
     setupIndex = 0;
@@ -3169,7 +3176,12 @@ void setIsOnFromLoop(bool on) {
   stepperEnable(&z, on);
   stepperEnable(&x, on);
   stepperEnable(&y, on);
-  markOrigin();
+  if (joystickMode) {
+    cancelJoystickLatheSync();
+    resetJoystickLatheFeedPosition();
+  } else {
+    markOrigin();
+  }
   if (on) {
     isOn = true;
     opDuprSign = dupr >= 0 ? 1 : -1;
@@ -3331,6 +3343,17 @@ String printNoTrailing0(float value) {
     points = 1;
   }
   return String(value, points);
+}
+
+String joystickLatheDirectionText(int zDirection, int xDirection) {
+  String result = "";
+  if (zDirection > 0) result += "Carriage left";
+  else if (zDirection < 0) result += "Carriage right";
+  if (xDirection != 0) {
+    if (result != "") result += " ";
+    result += (xDirection > 0 ? "Cross in" : "Cross out");
+  }
+  return result;
 }
 
 bool needZStops() {
@@ -3541,7 +3564,7 @@ void updateDisplay() {
       (z.leftStop == LONG_MAX ? 123 : z.leftStop) + (z.rightStop == LONG_MIN ? 1234 : z.rightStop) +
       (x.leftStop == LONG_MAX ? 1235 : x.leftStop) + (x.rightStop == LONG_MIN ? 123456 : x.rightStop) + gcodeCommandHash +
       (mode == MODE_Y ? y.pos + y.originPos + (y.leftStop == LONG_MAX ? 123 : y.leftStop) + (y.rightStop == LONG_MIN ? 1234 : y.rightStop) + y.disabled : 0) +
-      (mode == MODE_JOYSTICK ? joystickLatheDirectionZ * 97 + joystickLatheDirectionX * 101 + joystickLatheFeedSignZ * 131 + joystickLatheFeedSignX * 137 + joystickLathePitchAdjustDirection * 149 + joystickLatheRapid * 17 + JOYSTICK_ENABLED * 19 : 0) + x.pos + x.originPos + z.pos;
+      (mode == MODE_JOYSTICK ? joystickLatheDirectionZ * 97 + joystickLatheDirectionX * 101 + joystickLatheFeedSignZ * 131 + joystickLatheFeedSignX * 137 + joystickLathePitchAdjustDirection * 149 + joystickLatheRapid * 17 + JOYSTICK_ENABLED * 19 + spindlePosSync * 151 : 0) + x.pos + x.originPos + z.pos;
   if (lcdHashLine3 != newHashLine3) {
     lcdHashLine3 = newHashLine3;
     String result = "";
@@ -3609,19 +3632,25 @@ void updateDisplay() {
       else if (!isOn && setupIndex == 3) result = "Go?";
       else if (isOn && numpadResult == 0) result = "Cone ratio " + printNoTrailing0(coneRatio);
     } else if (mode == MODE_JOYSTICK) {
+      String directionText = joystickLatheDirectionText(joystickLatheDirectionZ, joystickLatheDirectionX);
       if (!JOYSTICK_ENABLED) result = "Joystick disabled";
-      else if (dupr == 0) result = "Set pitch";
-      else if (!isOn) result = "Joystick off";
-      else if (joystickLatheRapid) result = "Rapid";
-      else if (joystickLatheDirectionZ != 0 || joystickLatheDirectionX != 0) {
-        result = "Feed";
-        if (joystickLatheDirectionZ > 0) result += " ZL";
-        else if (joystickLatheDirectionZ < 0) result += " ZR";
-        if (joystickLatheDirectionX > 0) result += " X+";
-        else if (joystickLatheDirectionX < 0) result += " X-";
+      else if (joystickLatheRapid && directionText != "") {
+        result = "Rapid ";
+        result += directionText;
+      } else if (spindlePosSync != 0 && directionText != "") {
+        result = "Sync ";
+        result += directionText;
       } else if (joystickLathePitchAdjustDirection > 0) result = "Pitch +";
       else if (joystickLathePitchAdjustDirection < 0) result = "Pitch -";
-      else result = "Joystick neutral";
+      else if (!isOn && directionText != "") {
+        result = "Jog ";
+        result += directionText;
+      } else if (dupr == 0) result = "Set pitch";
+      else if (!isOn) result = "Feed off";
+      else if (directionText != "") {
+        result = "Feed ";
+        result += directionText;
+      } else result = "Feed neutral";
     }
 
     if (inNumpad && result == "") result = "Use " + printDupr(numpadToDeciMicrons()) + "?";
@@ -3758,8 +3787,16 @@ void resetJoystickLatheFeedPosition() {
   joystickLathePitchX = 0;
 }
 
+void cancelJoystickLatheSync() {
+  if (mode == MODE_JOYSTICK) {
+    spindlePosSync = 0;
+    joystickLatheSyncPitch = 0;
+  }
+}
+
 void prepareJoystickLatheManualMove() {
-  if (isOn && mode == MODE_JOYSTICK && markOriginOrEmergencyStop()) {
+  if (isOn && mode == MODE_JOYSTICK) {
+    cancelJoystickLatheSync();
     resetJoystickLatheFeedPosition();
   }
 }
@@ -3907,8 +3944,6 @@ void initJoystick() {
 }
 
 void taskJoystick(void *param) {
-  bool previousButtonPressed = false;
-  unsigned long previousButtonEventMs = 0;
   while (emergencyStop == ESTOP_NONE) {
     bool buttonPressed = digitalRead(JOY_BUTTON) == (INVERT_JOYSTICK_BUTTON ? HIGH : LOW);
     joystickRapidPressed = buttonPressed;
@@ -3923,10 +3958,11 @@ void taskJoystick(void *param) {
     if (mode == MODE_JOYSTICK) {
       int zDirection = zDeflection > 0 ? 1 : (zDeflection < 0 ? -1 : 0);
       int xDirection = xDeflection > 0 ? 1 : (xDeflection < 0 ? -1 : 0);
-      int pitchDirection = yDeflection > 0 ? 1 : (yDeflection < 0 ? -1 : 0);
+      int pitchDirection = buttonPressed ? 0 : (yDeflection > 0 ? 1 : (yDeflection < 0 ? -1 : 0));
       bool moveNeutral = zDirection == 0 && xDirection == 0;
-      joystickLatheDirectionZ = buttonPressed ? 0 : zDirection;
-      joystickLatheDirectionX = buttonPressed ? 0 : xDirection;
+      bool manualJoystickMove = buttonPressed || !isOn;
+      joystickLatheDirectionZ = zDirection;
+      joystickLatheDirectionX = xDirection;
       joystickLathePitchAdjustDirection = pitchDirection;
       joystickLatheRapid = buttonPressed && !moveNeutral;
       if (pitchDirection != 0) {
@@ -3939,22 +3975,17 @@ void taskJoystick(void *param) {
       } else {
         joystickPitchChangeFraction = 0;
       }
-      if (buttonPressed && zDirection != 0) {
+      if (manualJoystickMove && zDirection != 0) {
         addJoystickPulses(&z, getJoystickPulseDelta(zDeflection, &joystickPulseFractionZ, elapsedUs));
       } else {
         joystickPulseFractionZ = 0;
       }
-      if (buttonPressed && xDirection != 0) {
+      if (manualJoystickMove && xDirection != 0) {
         addJoystickPulses(&x, getJoystickPulseDelta(xDeflection, &joystickPulseFractionX, elapsedUs));
       } else {
         joystickPulseFractionX = 0;
       }
       joystickPulseFractionY = 0;
-      unsigned long nowMs = millis();
-      if (buttonPressed && !previousButtonPressed && moveNeutral && pitchDirection == 0 && (previousButtonEventMs == 0 || nowMs - previousButtonEventMs > 250)) {
-        setIsOnFromTask(!isOn);
-        previousButtonEventMs = nowMs;
-      }
     } else {
       joystickLatheDirectionZ = 0;
       joystickLatheDirectionX = 0;
@@ -3968,7 +3999,6 @@ void taskJoystick(void *param) {
       }
     }
 
-    previousButtonPressed = buttonPressed;
     DELAY(JOYSTICK_SAMPLE_INTERVAL_MS);
   }
   vTaskDelete(NULL);
@@ -4160,7 +4190,7 @@ void taskMoveZ(void *param) {
       } while (delta != 0 && (left ? buttonLeftPressed : buttonRightPressed));
       z.continuous = false;
       waitForPendingPos0(&z);
-      if (isOn && (mode == MODE_CONE || mode == MODE_JOYSTICK)) {
+      if (isOn && mode == MODE_CONE) {
         markOriginOrEmergencyStop();
       } else if (isOn && mode == MODE_ASYNC) {
         // Restore async direction.
@@ -4798,11 +4828,17 @@ void applyDupr() {
     return;
   }
   bool signReverse = isOn && (isGearboxMode() || mode == MODE_CONE) && dupr != 0 && nextDupr == -dupr;
+  bool joystickSamePitchMagnitude = mode == MODE_JOYSTICK && abs(nextDupr) == abs(dupr);
   dupr = nextDupr;
-  if (signReverse) {
+  if (joystickSamePitchMagnitude) {
+    return;
+  } else if (signReverse) {
     applyDuprSignReverse();
   } else {
     markOrigin();
+    if (mode == MODE_JOYSTICK) {
+      resetJoystickLatheFeed();
+    }
   }
   if (mode == MODE_ASYNC || mode == MODE_Y) {
     updateAsyncTimerSettings();
@@ -4858,6 +4894,8 @@ void resetJoystickLatheFeed() {
   joystickLatheDirectionX = 0;
   joystickLatheRapid = false;
   joystickLathePitchAdjustDirection = 0;
+  joystickLatheThreadLocked = false;
+  joystickLatheSyncPitch = 0;
   joystickPulseFractionZ = 0;
   joystickPulseFractionX = 0;
   joystickPulseFractionY = 0;
@@ -5718,9 +5756,30 @@ long getJoystickLathePitchAbs() {
   return abs(dupr);
 }
 
+bool joystickLatheFeedCommandActive() {
+  return isOn && dupr != 0 && !joystickLatheRapid && (joystickLatheDirectionZ != 0 || joystickLatheDirectionX != 0);
+}
+
+bool startJoystickLatheFeedSync(Axis* a, long pitch) {
+  joystickLatheSyncAxis = a == &x ? 1 : 0;
+  joystickLatheSyncPitch = pitch;
+  long spindleTarget = spindleFromPosWithModePitch(a, a->pos, pitch);
+  spindlePosSync = spindleModulo(spindlePos - spindleTarget);
+  if (spindlePosSync == 0) {
+    spindlePosAvg = spindlePos = spindleTarget;
+    joystickLatheSyncPitch = 0;
+    return true;
+  }
+  return false;
+}
+
 void modeJoystick() {
   int zDirection = z.movingManually ? 0 : joystickLatheDirectionZ;
   int xDirection = x.movingManually ? 0 : joystickLatheDirectionX;
+  if (joystickLatheRapid) {
+    zDirection = 0;
+    xDirection = 0;
+  }
   long pitchAbs = getJoystickLathePitchAbs();
   if (pitchAbs == 0) {
     zDirection = 0;
@@ -5732,7 +5791,22 @@ void modeJoystick() {
   bool feedChanged = zPitch != joystickLathePitchZ || xPitch != joystickLathePitchX ||
       zDirection != joystickLatheFeedSignZ || xDirection != joystickLatheFeedSignX;
   if (feedChanged && (joystickLathePitchZ != 0 || joystickLathePitchX != 0 || zPitch != 0 || xPitch != 0)) {
-    markOrigin();
+    if (zPitch != 0 || xPitch != 0) {
+      if (joystickLatheThreadLocked) {
+        Axis* syncAxis = zPitch != 0 ? &z : &x;
+        long syncPitch = zPitch != 0 ? zPitch : xPitch;
+        if (!startJoystickLatheFeedSync(syncAxis, syncPitch)) {
+          joystickLatheFeedSignZ = zDirection;
+          joystickLatheFeedSignX = xDirection;
+          joystickLathePitchZ = zPitch;
+          joystickLathePitchX = xPitch;
+          return;
+        }
+      } else {
+        markOrigin();
+        joystickLatheThreadLocked = true;
+      }
+    }
   }
   joystickLatheFeedSignZ = zDirection;
   joystickLatheFeedSignX = xDirection;
@@ -5740,7 +5814,6 @@ void modeJoystick() {
   joystickLathePitchX = xPitch;
 
   if (zPitch == 0 && xPitch == 0) {
-    zeroSpindlePos();
     return;
   }
   if (zPitch != 0) {
@@ -6123,8 +6196,14 @@ void processSpindleCounter() {
     spindlePosSync += delta;
     if (spindlePosSync % ENCODER_STEPS_INT == 0) {
       spindlePosSync = 0;
-      Axis* a = getPitchAxis();
-      spindlePosAvg = spindlePos = spindleFromPos(a, a->pos);
+      if (mode == MODE_JOYSTICK && joystickLatheSyncPitch != 0) {
+        Axis* a = joystickLatheSyncAxis == 1 ? &x : &z;
+        spindlePosAvg = spindlePos = spindleFromPosWithModePitch(a, a->pos, joystickLatheSyncPitch);
+        joystickLatheSyncPitch = 0;
+      } else {
+        Axis* a = getPitchAxis();
+        spindlePosAvg = spindlePos = spindleFromPos(a, a->pos);
+      }
     }
   }
 }
@@ -6298,11 +6377,14 @@ void loop() {
   applySettings();
   processSpindleCounter();
   discountFullSpindleTurns();
+  if (mode == MODE_JOYSTICK && spindlePosSync != 0 && !joystickLatheFeedCommandActive()) {
+    cancelJoystickLatheSync();
+    resetJoystickLatheFeedPosition();
+  }
   if (!isOn || dupr == 0 || spindlePosSync != 0) {
     // None of the modes work.
     if (mode == MODE_JOYSTICK) {
       resetJoystickLatheFeedPosition();
-      zeroSpindlePos();
     }
   } else if (mode == MODE_NORMAL) {
     modeGearbox(&z);
