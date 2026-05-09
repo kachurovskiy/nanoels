@@ -4013,6 +4013,29 @@ void addJoystickPulses(Axis* a, int delta) {
   portEXIT_CRITICAL(&joystickPulseMux);
 }
 
+void clearJoystickPulses(JoystickAxisState* joystickAxis) {
+  portENTER_CRITICAL(&joystickPulseMux);
+  joystickAxis->queuedPulses = 0;
+  portEXIT_CRITICAL(&joystickPulseMux);
+}
+
+void cancelPendingJoystickMove(JoystickAxisState* joystickAxis, int previousDirection) {
+  if (previousDirection == 0) return;
+  clearJoystickPulses(joystickAxis);
+  joystickAxis->pulseFraction = 0;
+
+  Axis* axis = joystickAxis->axis;
+  if (xSemaphoreTake(axis->mutex, 10) != pdTRUE) return;
+  int pendingDirection = axis->pendingPos > 0 ? 1 : (axis->pendingPos < 0 ? -1 : 0);
+  if (pendingDirection == previousDirection) {
+    axis->pendingPos = 0;
+    axis->fractionalPos = 0;
+    axis->continuous = false;
+    axis->speed = axis->speedStart;
+  }
+  xSemaphoreGive(axis->mutex);
+}
+
 int getAndResetJoystickPulses(Axis* a) {
   volatile int* pulseQueue = getJoystickPulseQueue(a);
   if (pulseQueue == nullptr) return 0;
@@ -4065,7 +4088,24 @@ int calibrateJoystickCenter(int pin) {
 
 float getJoystickDeflection(JoystickAxisState* joystickAxis) {
   int raw = readJoystickPin(joystickAxis->pin);
-  joystickAxis->filtered = (joystickAxis->filtered * 3 + raw) / 4;
+  int rawDelta = raw - joystickAxis->center;
+  int filteredDelta = joystickAxis->filtered - joystickAxis->center;
+  if (*joystickAxis->invert) {
+    rawDelta = -rawDelta;
+    filteredDelta = -filteredDelta;
+  }
+
+  bool rawNeutral = abs(rawDelta) <= JOYSTICK_DEADBAND;
+  bool filteredNeutral = abs(filteredDelta) <= JOYSTICK_DEADBAND;
+  bool rawReversed = !rawNeutral && !filteredNeutral && ((rawDelta > 0) != (filteredDelta > 0));
+  if (rawNeutral) {
+    joystickAxis->filtered = joystickAxis->center;
+  } else if (filteredNeutral || rawReversed) {
+    joystickAxis->filtered = raw;
+  } else {
+    joystickAxis->filtered = (joystickAxis->filtered * 3 + raw) / 4;
+  }
+
   int delta = joystickAxis->filtered - joystickAxis->center;
   if (*joystickAxis->invert) delta = -delta;
   int absDelta = abs(delta);
@@ -4101,8 +4141,12 @@ void readJoystickAxis(JoystickAxisState* joystickAxis) {
 }
 
 void updateJoystickManualAxis(JoystickAxisState* joystickAxis, bool enabled, bool queueWhenNeutral, unsigned long elapsedUs) {
+  int previousDirection = joystickAxis->manualDirection;
   joystickAxis->manualDirection = enabled ? joystickAxis->direction : 0;
   joystickAxis->manualSpeed = joystickAxis->manualDirection == 0 ? 0 : getJoystickSpeedFromDeflection(joystickAxis);
+  if (previousDirection != 0 && previousDirection != joystickAxis->manualDirection) {
+    cancelPendingJoystickMove(joystickAxis, previousDirection);
+  }
   if (enabled && (queueWhenNeutral || joystickAxis->manualDirection != 0)) {
     addJoystickPulses(joystickAxis->axis, getJoystickPulseDelta(joystickAxis, elapsedUs));
   } else {
@@ -4111,8 +4155,11 @@ void updateJoystickManualAxis(JoystickAxisState* joystickAxis, bool enabled, boo
 }
 
 void resetJoystickAxisMotion(JoystickAxisState* joystickAxis) {
+  int previousDirection = joystickAxis->manualDirection;
   joystickAxis->manualDirection = 0;
   joystickAxis->manualSpeed = 0;
+  cancelPendingJoystickMove(joystickAxis, previousDirection);
+  clearJoystickPulses(joystickAxis);
   joystickAxis->pulseFraction = 0;
 }
 
