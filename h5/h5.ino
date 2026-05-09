@@ -1487,6 +1487,9 @@ volatile bool joystickRapidPressed = false;
 volatile int joystickLatheDirectionZ = 0; // -1 carriage right, 0 neutral, 1 carriage left in joystick lathe mode.
 volatile int joystickLatheDirectionX = 0; // -1 cross out, 0 neutral, 1 cross in in joystick lathe mode.
 volatile bool joystickLatheRapid = false;
+volatile int joystickManualDirectionZ = 0;
+volatile int joystickManualDirectionX = 0;
+volatile int joystickManualDirectionY = 0;
 volatile int joystickPitchAdjustDirection = 0;
 portMUX_TYPE joystickPulseMux = portMUX_INITIALIZER_UNLOCKED;
 volatile int joystickPulseZ = 0;
@@ -3882,17 +3885,67 @@ bool isRapidManualMove() {
   return JOYSTICK_ENABLED && joystickRapidPressed;
 }
 
+int joystickDirectionFromDeflection(float deflection) {
+  return deflection > 0 ? 1 : (deflection < 0 ? -1 : 0);
+}
+
+int getJoystickManualDirection(Axis* a) {
+  if (a == &z) return joystickManualDirectionZ;
+  if (a == &x) return joystickManualDirectionX;
+  if (a == &y) return joystickManualDirectionY;
+  return 0;
+}
+
+bool isJoystickManualMove(Axis* a) {
+  return JOYSTICK_ENABLED && getJoystickManualDirection(a) != 0;
+}
+
+bool joystickManualMoveActive(Axis* a, int sign) {
+  return JOYSTICK_ENABLED && getJoystickManualDirection(a) == sign;
+}
+
+bool pulseDeltaMatchesDirection(int pulseDelta, int sign) {
+  return pulseDelta != 0 && (pulseDelta > 0 ? 1 : -1) == sign;
+}
+
+void addJoystickPulses(Axis* a, int delta);
+int getAndResetPulses(Axis* a);
+
+// Keep joystick jogs continuous between ADC samples so short task delays do not
+// drain the step queue and force a new acceleration ramp.
+int waitForNextJoystickPulseDelta(Axis* a, int sign) {
+  if (!joystickManualMoveActive(a, sign)) return 0;
+  unsigned long start = millis();
+  unsigned long timeoutMs = min(100, max(10, JOYSTICK_SAMPLE_INTERVAL_MS * 3));
+  while (emergencyStop == ESTOP_NONE && joystickManualMoveActive(a, sign) && millis() - start < timeoutMs) {
+    int pulseDelta = getAndResetPulses(a);
+    if (pulseDelta == 0) {
+      DELAY(1);
+      continue;
+    }
+    if (pulseDeltaMatchesDirection(pulseDelta, sign)) {
+      if (a->speed < a->speedMax) {
+        a->speed = a->speedMax;
+      }
+      return pulseDelta;
+    }
+    addJoystickPulses(a, pulseDelta);
+    return 0;
+  }
+  return 0;
+}
+
 // For rotational axis the moveStep of 0.1" means 0.1°.
 long getMoveStepForAxis(Axis* a) {
   return (a->rotational && measure != MEASURE_METRIC) ? (moveStep / 25.4) : moveStep;
 }
 
 long getStepMaxSpeed(Axis* a) {
-  return (isContinuousStep() || isRapidManualMove()) ? a->speedManualMove : min(long(a->speedManualMove), abs(getMoveStepForAxis(a)) * 1000 / STEP_TIME_MS);
+  return (isContinuousStep() || isRapidManualMove() || isJoystickManualMove(a)) ? a->speedManualMove : min(long(a->speedManualMove), abs(getMoveStepForAxis(a)) * 1000 / STEP_TIME_MS);
 }
 
 void waitForStep(Axis* a) {
-  if (isContinuousStep() || isRapidManualMove()) {
+  if (isContinuousStep() || isRapidManualMove() || isJoystickManualMove(a)) {
     // Move continuously for default step.
     waitForPendingPosNear0(a);
   } else {
@@ -4042,14 +4095,19 @@ void taskJoystick(void *param) {
       joystickPitchChangeFraction = 0;
     }
 
+    int zDirection = joystickDirectionFromDeflection(zDeflection);
+    int xDirection = joystickDirectionFromDeflection(xDeflection);
+    int yDirection = joystickDirectionFromDeflection(yDeflection);
+
     if (mode == MODE_JOYSTICK) {
-      int zDirection = zDeflection > 0 ? 1 : (zDeflection < 0 ? -1 : 0);
-      int xDirection = xDeflection > 0 ? 1 : (xDeflection < 0 ? -1 : 0);
       bool moveNeutral = zDirection == 0 && xDirection == 0;
       bool manualJoystickMove = buttonPressed || !isOn;
       joystickLatheDirectionZ = zDirection;
       joystickLatheDirectionX = xDirection;
       joystickLatheRapid = buttonPressed && !moveNeutral;
+      joystickManualDirectionZ = manualJoystickMove ? zDirection : 0;
+      joystickManualDirectionX = manualJoystickMove ? xDirection : 0;
+      joystickManualDirectionY = 0;
       if (manualJoystickMove && zDirection != 0) {
         addJoystickPulses(&z, getJoystickPulseDelta(zDeflection, &joystickPulseFractionZ, elapsedUs));
       } else {
@@ -4065,6 +4123,9 @@ void taskJoystick(void *param) {
       joystickLatheDirectionZ = 0;
       joystickLatheDirectionX = 0;
       joystickLatheRapid = false;
+      joystickManualDirectionZ = zDirection;
+      joystickManualDirectionX = xDirection;
+      joystickManualDirectionY = y.active && !yAdjustsPitch ? yDirection : 0;
       addJoystickPulses(&z, getJoystickPulseDelta(zDeflection, &joystickPulseFractionZ, elapsedUs));
       addJoystickPulses(&x, getJoystickPulseDelta(xDeflection, &joystickPulseFractionX, elapsedUs));
       if (y.active && !yAdjustsPitch) {
@@ -4243,7 +4304,8 @@ void taskMoveZ(void *param) {
       z.speedMax = getStepMaxSpeed(&z);
       int delta = 0;
       do {
-        float fractionalDelta = (pulseDelta == 0 ? moveStep * sign / z.screwPitch : pulseDelta / PULSE_PER_REVOLUTION) * z.motorSteps + z.fractionalPos;
+        bool pulseMove = pulseDelta != 0;
+        float fractionalDelta = (pulseMove ? pulseDelta / PULSE_PER_REVOLUTION : moveStep * sign / z.screwPitch) * z.motorSteps + z.fractionalPos;
         delta = round(fractionalDelta);
         // Don't lose fractional steps when moving by 0.01" or 0.001".
         z.fractionalPos = fractionalDelta - delta;
@@ -4262,7 +4324,8 @@ void taskMoveZ(void *param) {
         z.speedMax = getStepMaxSpeed(&z);
         stepToContinuous(&z, posCopy + delta);
         waitForStep(&z);
-      } while (delta != 0 && (left ? buttonLeftPressed : buttonRightPressed));
+        pulseDelta = pulseMove && joystickManualMoveActive(&z, sign) ? waitForNextJoystickPulseDelta(&z, sign) : 0;
+      } while (delta != 0 && (pulseDelta != 0 || (left ? buttonLeftPressed : buttonRightPressed)));
       z.continuous = false;
       waitForPendingPos0(&z);
       if (isOn && mode == MODE_CONE) {
@@ -4314,7 +4377,8 @@ void taskMoveX(void *param) {
       stepperOn = moveGearboxAxisManually(&x, pulseDelta, sign);
     } else {
       do {
-        float fractionalDelta = (pulseDelta == 0 ? moveStep * sign / x.screwPitch : pulseDelta / PULSE_PER_REVOLUTION) * x.motorSteps + x.fractionalPos;
+        bool pulseMove = pulseDelta != 0;
+        float fractionalDelta = (pulseMove ? pulseDelta / PULSE_PER_REVOLUTION : moveStep * sign / x.screwPitch) * x.motorSteps + x.fractionalPos;
         delta = round(fractionalDelta);
         // Don't lose fractional steps when moving by 0.01" or 0.001".
         x.fractionalPos = fractionalDelta - delta;
@@ -4329,9 +4393,10 @@ void taskMoveX(void *param) {
         } else if (posCopy + delta < x.rightStop) {
           delta = x.rightStop - posCopy;
         }
+        x.speedMax = getStepMaxSpeed(&x);
         stepToContinuous(&x, posCopy + delta);
         waitForStep(&x);
-        pulseDelta = getAndResetPulses(&x);
+        pulseDelta = pulseMove && joystickManualMoveActive(&x, sign) ? waitForNextJoystickPulseDelta(&x, sign) : getAndResetPulses(&x);
       } while (delta != 0 && (pulseDelta != 0 || (positiveMove ? buttonUpPressed : buttonDownPressed)));
       x.continuous = false;
       waitForPendingPos0(&x);
@@ -4366,7 +4431,8 @@ void taskMoveY(void *param) {
     int delta = 0;
     int sign = plus ? 1 : -1;
     do {
-      float fractionalDelta = (pulseDelta == 0 ? getMoveStepForAxis(&y) * sign / y.screwPitch : pulseDelta / PULSE_PER_REVOLUTION) * y.motorSteps + y.fractionalPos;
+      bool pulseMove = pulseDelta != 0;
+      float fractionalDelta = (pulseMove ? pulseDelta / PULSE_PER_REVOLUTION : getMoveStepForAxis(&y) * sign / y.screwPitch) * y.motorSteps + y.fractionalPos;
       delta = round(fractionalDelta);
       y.fractionalPos = fractionalDelta - delta;
       if (delta == 0) delta = sign;
@@ -4377,9 +4443,10 @@ void taskMoveY(void *param) {
       } else if (posCopy + delta < y.rightStop) {
         delta = y.rightStop - posCopy;
       }
+      y.speedMax = getStepMaxSpeed(&y);
       stepToContinuous(&y, posCopy + delta);
       waitForStep(&y);
-      pulseDelta = getAndResetPulses(&y);
+      pulseDelta = pulseMove && joystickManualMoveActive(&y, sign) ? waitForNextJoystickPulseDelta(&y, sign) : getAndResetPulses(&y);
     } while (delta != 0 && (pulseDelta != 0 || (plus ? buttonForwardPressed : buttonBackPressed)));
     y.continuous = false;
     waitForPendingPos0(&y);
@@ -4968,6 +5035,9 @@ void resetJoystickLatheFeed() {
   joystickLatheDirectionZ = 0;
   joystickLatheDirectionX = 0;
   joystickLatheRapid = false;
+  joystickManualDirectionZ = 0;
+  joystickManualDirectionX = 0;
+  joystickManualDirectionY = 0;
   joystickPitchAdjustDirection = 0;
   joystickLatheThreadLocked = false;
   joystickLatheSyncPitch = 0;
