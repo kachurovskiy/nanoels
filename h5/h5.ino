@@ -125,6 +125,7 @@ const int DEFAULT_JOYSTICK_PULSE_QUEUE_LIMIT = 10000;
 const float DEFAULT_JOYSTICK_NORMAL_REVOLUTIONS_PER_SECOND = 1.0;
 const float DEFAULT_JOYSTICK_RAPID_REVOLUTIONS_PER_SECOND = 8.0;
 const float JOYSTICK_PITCH_CHANGES_PER_SECOND = 20.0;
+const unsigned long JOYSTICK_PITCH_STATUS_HOLD_MS = 250;
 const int JOYSTICK_STARTUP_CENTER_TOLERANCE_MIN = 32; // Reject startup centers too far from ADC midpoint.
 const bool DEFAULT_INVERT_JOYSTICK_Z = false;
 const bool DEFAULT_INVERT_JOYSTICK_X = false;
@@ -1489,6 +1490,8 @@ volatile int joystickLatheDirectionZ = 0; // -1 carriage right, 0 neutral, 1 car
 volatile int joystickLatheDirectionX = 0; // -1 cross out, 0 neutral, 1 cross in in joystick lathe mode.
 volatile bool joystickLatheRapid = false;
 volatile int joystickPitchAdjustDirection = 0;
+volatile int joystickPitchStatusDirection = 0;
+volatile unsigned long joystickPitchStatusMillis = 0;
 bool joystickAvailable = false;
 portMUX_TYPE joystickPulseMux = portMUX_INITIALIZER_UNLOCKED;
 float joystickPitchChangeFraction = 0;
@@ -3463,6 +3466,15 @@ bool joystickPitchAdjustmentAllowed() {
   return mode != MODE_THREAD && mode != MODE_ELLIPSE;
 }
 
+int getJoystickPitchStatusDirection() {
+  int direction = joystickPitchAdjustDirection;
+  if (direction != 0) return direction;
+  if (millis() - joystickPitchStatusMillis < JOYSTICK_PITCH_STATUS_HOLD_MS) {
+    return joystickPitchStatusDirection;
+  }
+  return 0;
+}
+
 int getLastSetupIndex() {
   if (mode == MODE_CONE || mode == MODE_GCODE) return 2;
   if (mode == MODE_THREAD) return 4;
@@ -3646,19 +3658,20 @@ void updateDisplay() {
     gcodeCommandHash += wifiStatus.charAt(i);
   }
   bool spindleStopped = micros() > spindleEncTime + 100000;
+  int pitchStatusDirection = getJoystickPitchStatusDirection();
   long newHashLine3 = z.pos + (showAngle ? spindlePos : -1) + (showTacho ? rpm : -2) + measure + (numpadResult > 0 ? numpadResult : -1) + mode * 5 + dupr +
       (mode == MODE_CONE ? round(coneRatio * 10000) : 0) + turnPasses + opIndex + setupIndex + gcodeProgramIndex + gcodeProgramCount + spindleStopped * 3 + (isOn ? 139 : -117) + (inNumpad ? 10 : 0) + (auxForward ? 17 : -31) +
       (z.leftStop == LONG_MAX ? 123 : z.leftStop) + (z.rightStop == LONG_MIN ? 1234 : z.rightStop) +
       (x.leftStop == LONG_MAX ? 1235 : x.leftStop) + (x.rightStop == LONG_MIN ? 123456 : x.rightStop) + gcodeCommandHash +
       (mode == MODE_Y ? y.pos + y.originPos + (y.leftStop == LONG_MAX ? 123 : y.leftStop) + (y.rightStop == LONG_MIN ? 1234 : y.rightStop) + y.disabled : 0) +
-      joystickPitchAdjustDirection * 149 +
+      pitchStatusDirection * 149 +
       (mode == MODE_JOYSTICK ? joystickLatheDirectionZ * 97 + joystickLatheDirectionX * 101 + joystickLatheFeedSignZ * 131 + joystickLatheFeedSignX * 137 + joystickLatheRapid * 17 + JOYSTICK_ENABLED * 19 + spindlePosSync * 151 : 0) + x.pos + x.originPos + z.pos;
   if (lcdHashLine3 != newHashLine3) {
     lcdHashLine3 = newHashLine3;
     String result = "";
-    if (mode != MODE_JOYSTICK && joystickPitchAdjustDirection > 0) {
+    if (mode != MODE_JOYSTICK && pitchStatusDirection > 0) {
       result = "Pitch +";
-    } else if (mode != MODE_JOYSTICK && joystickPitchAdjustDirection < 0) {
+    } else if (mode != MODE_JOYSTICK && pitchStatusDirection < 0) {
       result = "Pitch -";
     } else if (mode == MODE_GCODE) {
       if (setupIndex == 1 && gcodeProgramCount == 0) {
@@ -3733,8 +3746,8 @@ void updateDisplay() {
       } else if (spindlePosSync != 0 && directionText != "") {
         result = "Sync ";
         result += directionText;
-      } else if (joystickPitchAdjustDirection > 0) result = "Pitch +";
-      else if (joystickPitchAdjustDirection < 0) result = "Pitch -";
+      } else if (pitchStatusDirection > 0) result = "Pitch +";
+      else if (pitchStatusDirection < 0) result = "Pitch -";
       else if (!isOn && directionText != "") {
         result = "Jog ";
         result += directionText;
@@ -4211,6 +4224,8 @@ void taskJoystick(void *param) {
     int pitchDirection = yAdjustsPitch ? joystickY->direction : 0;
     joystickPitchAdjustDirection = pitchDirection;
     if (pitchDirection != 0) {
+      joystickPitchStatusDirection = pitchDirection;
+      joystickPitchStatusMillis = millis();
       joystickPitchChangeFraction += abs(joystickY->deflection) * JOYSTICK_PITCH_CHANGES_PER_SECOND * elapsedUs / 1000000.0;
       int changes = min(10, int(joystickPitchChangeFraction));
       joystickPitchChangeFraction -= changes;
@@ -5153,6 +5168,8 @@ void resetJoystickLatheFeed() {
     resetJoystickAxisMotion(&joystickAxes[i]);
   }
   joystickPitchAdjustDirection = 0;
+  joystickPitchStatusDirection = 0;
+  joystickPitchStatusMillis = 0;
   joystickLatheThreadLocked = false;
   joystickLatheSyncPitch = 0;
   joystickPitchChangeFraction = 0;
