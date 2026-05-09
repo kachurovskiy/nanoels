@@ -114,7 +114,7 @@ Joystick support is experimental, untested, optional, and disabled by default in
 - Power the joystick potentiometers from `JPOWER` 5V through a resistor divider that brings the joystick supply down to about 3.3V, or use a small 3.3V regulator sharing controller `GND`; do not feed 5V into the potentiometers because the ESP32 ADC pins are not 5V analog inputs
 - Connect each potentiometer wiper to the matching `JZ`, `JX`, or `JY` signal
 - Connect the joystick button between `JBUTTON` and `GND`
-- The joystick behaves like proportional handwheel input for Z, X, and Y; Y only moves when `ACTIVE_Y` is enabled, and holding the button enables rapid motion
+- The joystick behaves like proportional handwheel input for Z and X. Y deflection adjusts pitch in modes that allow joystick pitch changes; when it is not used for pitch, Y moves the optional Y axis if `ACTIVE_Y` is enabled. Holding the button enables rapid motion for manual joystick moves
 - In `JOY` mode, use `ON`/`OFF` as the feed clutch. With feed off, Z/X deflection jogs the carriage or cross-slide normally. With feed on, Z/X deflection commands spindle-synchronized feed using the configured pitch magnitude. Pressing the joystick button while Z or X is deflected performs rapid movement; pressing it in neutral does not toggle `ON`/`OFF`. After the first feed engagement, `JOY` preserves the thread phase and waits for the correct spindle angle before later feed engagements.
 
 Scale terminals aren't used in the code yet.
@@ -373,7 +373,7 @@ Switch to `JOY` with ⌨️`F12`. This mode requires joystick support to be enab
 
 Set the desired pitch magnitude first and use `ON` / `OFF` as the feed clutch. When `JOY` is `ON`, moving the Z joystick left/right feeds the carriage left/right at that pitch per spindle revolution. Moving the X joystick in/out feeds the cross-slide in/out at the same pitch magnitude. The pitch sign is ignored in this mode; joystick direction selects the cut direction.
 
-Move the joystick Y axis to permanently change the configured pitch like holding `+` or `-`. Larger Y deflection changes pitch faster.
+Move the joystick Y axis to permanently change the configured pitch like holding `+` or `-`. This also works outside `JOY` while the controller is `OFF`, and while compatible modes are `ON` such as `GEAR`, `XGEAR`, `TURN`, `FACE`, `CUT`, `CONE`, `ASYNC`, and `Y`. Joystick Y does not adjust pitch in `GCODE` or while `THREAD` or `ELLIPSE` operations are running. Larger Y deflection changes pitch faster.
 
 When `JOY` is off, moving the Z or X joystick jogs the carriage or cross-slide normally. Press and hold the joystick button while Z or X is deflected to rapid-traverse in that direction. The joystick button is rapid-only; it does not toggle `ON` / `OFF`.
 
