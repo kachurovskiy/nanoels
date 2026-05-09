@@ -194,7 +194,7 @@ Top line:
 - `bStatus` turns the controller off - stops the ongoing operation or manual move, resets spindle angle and turns to 0
 - `bMode` turns the controller off and changes the mode
 - `mMultistart` increases the number of starts by 1 when pressed in short intervals, sets the number of starts to 1 if pressed after a pause
-- `tPitch` reverses the pitch - makes it positive if it's negative, makes it negative if it's positive. Reversing makes the controller "lose the thread" so don't use it for returning back for another threading pass.
+- `tPitch` reverses the pitch - makes it positive if it's negative, makes it negative if it's positive. In gearbox modes, reversing while ON keeps the current spindle/axis phase so the controller stays in the thread.
 - `bMeasure` changes measuring system between metric, imperial and tpi
 - `mPlus` increments the pitch or number of passes in a multi-pass operation
 - `mMinus` decrements the pitch or number of passes in a multi-pass operation

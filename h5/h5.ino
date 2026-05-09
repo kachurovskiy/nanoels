@@ -3138,8 +3138,8 @@ void zeroSpindlePos() {
 }
 
 // Lose the thread and mark current physical positions of
-// encoder and stepper as a new 0. To be called when dupr changes
-// or ELS is turned on/off. Without this, changing dupr will
+// encoder and stepper as a new 0. To be called when pitch magnitude
+// changes or ELS is turned on/off. Without this, changing dupr will
 // result in stepper rushing across the lathe to the new position.
 // Must be called while holding motionMutex.
 void markOrigin() {
@@ -4783,13 +4783,27 @@ void setDupr(long value) {
   nextDuprFlag = true;
 }
 
+void applyDuprSignReverse() {
+  spindlePos = -spindlePos;
+  spindlePosAvg = -spindlePosAvg;
+  if (spindlePosSync != 0) {
+    Axis* a = getPitchAxis();
+    spindlePosSync = spindleModulo(spindlePos - spindleFromPos(a, a->pos));
+  }
+}
+
 // Must be called while holding motionMutex.
 void applyDupr() {
   if (nextDupr == dupr) {
     return;
   }
+  bool signReverse = isOn && (isGearboxMode() || mode == MODE_CONE) && dupr != 0 && nextDupr == -dupr;
   dupr = nextDupr;
-  markOrigin();
+  if (signReverse) {
+    applyDuprSignReverse();
+  } else {
+    markOrigin();
+  }
   if (mode == MODE_ASYNC || mode == MODE_Y) {
     updateAsyncTimerSettings();
   }
