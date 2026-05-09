@@ -1488,27 +1488,9 @@ volatile bool joystickRapidPressed = false;
 volatile int joystickLatheDirectionZ = 0; // -1 carriage right, 0 neutral, 1 carriage left in joystick lathe mode.
 volatile int joystickLatheDirectionX = 0; // -1 cross out, 0 neutral, 1 cross in in joystick lathe mode.
 volatile bool joystickLatheRapid = false;
-volatile int joystickManualDirectionZ = 0;
-volatile int joystickManualDirectionX = 0;
-volatile int joystickManualDirectionY = 0;
-volatile long joystickManualSpeedZ = 0;
-volatile long joystickManualSpeedX = 0;
-volatile long joystickManualSpeedY = 0;
 volatile int joystickPitchAdjustDirection = 0;
 bool joystickAvailable = false;
 portMUX_TYPE joystickPulseMux = portMUX_INITIALIZER_UNLOCKED;
-volatile int joystickPulseZ = 0;
-volatile int joystickPulseX = 0;
-volatile int joystickPulseY = 0;
-int joystickCenterZ = 2048;
-int joystickCenterX = 2048;
-int joystickCenterY = 2048;
-int joystickFilteredZ = 2048;
-int joystickFilteredX = 2048;
-int joystickFilteredY = 2048;
-float joystickPulseFractionZ = 0;
-float joystickPulseFractionX = 0;
-float joystickPulseFractionY = 0;
 float joystickPitchChangeFraction = 0;
 unsigned long joystickSampleTimeUs = 0;
 int joystickLatheFeedSignZ = 0;
@@ -1684,6 +1666,33 @@ void initAxis(Axis* a, char name, bool active, bool rotational, float motorSteps
 Axis z;
 Axis x;
 Axis y;
+
+struct JoystickAxisState {
+  Axis* axis;
+  int pin;
+  bool* invert;
+  volatile int manualDirection;
+  volatile long manualSpeed;
+  volatile int queuedPulses;
+  int center;
+  int filtered;
+  float pulseFraction;
+  float deflection;
+  int direction;
+};
+
+enum JoystickAxisIndex {
+  JOYSTICK_AXIS_Z = 0,
+  JOYSTICK_AXIS_X = 1,
+  JOYSTICK_AXIS_Y = 2,
+};
+
+JoystickAxisState joystickAxes[] = {
+  {&z, JOY_Z, &INVERT_JOYSTICK_Z, 0, 0, 0, 2048, 2048, 0, 0, 0},
+  {&x, JOY_X, &INVERT_JOYSTICK_X, 0, 0, 0, 2048, 2048, 0, 0, 0},
+  {&y, JOY_Y, &INVERT_JOYSTICK_Y, 0, 0, 0, 2048, 2048, 0, 0, 0},
+};
+const int JOYSTICK_AXIS_COUNT = sizeof(joystickAxes) / sizeof(joystickAxes[0]);
 
 pcnt_unit_handle_t pulseUnits[PULSE_COUNTER_COUNT] = {};
 volatile bool pulseCountersReady = false;
@@ -3905,18 +3914,21 @@ int joystickDirectionFromDeflection(float deflection) {
   return deflection > 0 ? 1 : (deflection < 0 ? -1 : 0);
 }
 
+JoystickAxisState* getJoystickAxisState(Axis* a) {
+  for (int i = 0; i < JOYSTICK_AXIS_COUNT; i++) {
+    if (joystickAxes[i].axis == a) return &joystickAxes[i];
+  }
+  return nullptr;
+}
+
 int getJoystickManualDirection(Axis* a) {
-  if (a == &z) return joystickManualDirectionZ;
-  if (a == &x) return joystickManualDirectionX;
-  if (a == &y) return joystickManualDirectionY;
-  return 0;
+  JoystickAxisState* joystickAxis = getJoystickAxisState(a);
+  return joystickAxis == nullptr ? 0 : joystickAxis->manualDirection;
 }
 
 long getJoystickManualSpeed(Axis* a) {
-  if (a == &z) return joystickManualSpeedZ;
-  if (a == &x) return joystickManualSpeedX;
-  if (a == &y) return joystickManualSpeedY;
-  return 0;
+  JoystickAxisState* joystickAxis = getJoystickAxisState(a);
+  return joystickAxis == nullptr ? 0 : joystickAxis->manualSpeed;
 }
 
 bool isJoystickManualMove(Axis* a) {
@@ -3982,10 +3994,8 @@ void waitForStep(Axis* a) {
 }
 
 volatile int* getJoystickPulseQueue(Axis* a) {
-  if (a == &z) return &joystickPulseZ;
-  if (a == &x) return &joystickPulseX;
-  if (a == &y) return &joystickPulseY;
-  return nullptr;
+  JoystickAxisState* joystickAxis = getJoystickAxisState(a);
+  return joystickAxis == nullptr ? nullptr : &joystickAxis->queuedPulses;
 }
 
 void addJoystickPulses(Axis* a, int delta) {
@@ -4053,15 +4063,15 @@ int calibrateJoystickCenter(int pin) {
   return total / JOYSTICK_CENTER_SAMPLES;
 }
 
-float getJoystickDeflection(int pin, int* filtered, int center, bool invert) {
-  int raw = readJoystickPin(pin);
-  *filtered = (*filtered * 3 + raw) / 4;
-  int delta = *filtered - center;
-  if (invert) delta = -delta;
+float getJoystickDeflection(JoystickAxisState* joystickAxis) {
+  int raw = readJoystickPin(joystickAxis->pin);
+  joystickAxis->filtered = (joystickAxis->filtered * 3 + raw) / 4;
+  int delta = joystickAxis->filtered - joystickAxis->center;
+  if (*joystickAxis->invert) delta = -delta;
   int absDelta = abs(delta);
   if (absDelta <= JOYSTICK_DEADBAND) return 0;
 
-  int range = delta > 0 ? JOYSTICK_ADC_MAX - center : center;
+  int range = delta > 0 ? JOYSTICK_ADC_MAX - joystickAxis->center : joystickAxis->center;
   range = max(1, range - JOYSTICK_DEADBAND);
   float normalized = (absDelta - JOYSTICK_DEADBAND) / float(range);
   if (normalized > 1.0) normalized = 1.0;
@@ -4069,20 +4079,41 @@ float getJoystickDeflection(int pin, int* filtered, int center, bool invert) {
   return delta > 0 ? curved : -curved;
 }
 
-int getJoystickPulseDelta(float deflection, float* pulseFraction, unsigned long elapsedUs) {
+int getJoystickPulseDelta(JoystickAxisState* joystickAxis, unsigned long elapsedUs) {
   float revolutionsPerSecond = joystickRapidPressed ? JOYSTICK_RAPID_REVOLUTIONS_PER_SECOND : JOYSTICK_NORMAL_REVOLUTIONS_PER_SECOND;
-  *pulseFraction += deflection * PULSE_PER_REVOLUTION * revolutionsPerSecond * elapsedUs / 1000000.0;
-  int delta = int(*pulseFraction);
-  *pulseFraction -= delta;
+  joystickAxis->pulseFraction += joystickAxis->deflection * PULSE_PER_REVOLUTION * revolutionsPerSecond * elapsedUs / 1000000.0;
+  int delta = int(joystickAxis->pulseFraction);
+  joystickAxis->pulseFraction -= delta;
   return delta;
 }
 
-long getJoystickSpeedFromDeflection(Axis* a, float deflection) {
-  if (deflection == 0) return 0;
+long getJoystickSpeedFromDeflection(JoystickAxisState* joystickAxis) {
+  if (joystickAxis->deflection == 0) return 0;
   float revolutionsPerSecond = joystickRapidPressed ? JOYSTICK_RAPID_REVOLUTIONS_PER_SECOND : JOYSTICK_NORMAL_REVOLUTIONS_PER_SECOND;
-  long speed = round(abs(deflection) * revolutionsPerSecond * a->motorSteps);
+  long speed = round(abs(joystickAxis->deflection) * revolutionsPerSecond * joystickAxis->axis->motorSteps);
   if (speed < 1) speed = 1;
-  return min(a->speedManualMove, speed);
+  return min(joystickAxis->axis->speedManualMove, speed);
+}
+
+void readJoystickAxis(JoystickAxisState* joystickAxis) {
+  joystickAxis->deflection = getJoystickDeflection(joystickAxis);
+  joystickAxis->direction = joystickDirectionFromDeflection(joystickAxis->deflection);
+}
+
+void updateJoystickManualAxis(JoystickAxisState* joystickAxis, bool enabled, bool queueWhenNeutral, unsigned long elapsedUs) {
+  joystickAxis->manualDirection = enabled ? joystickAxis->direction : 0;
+  joystickAxis->manualSpeed = joystickAxis->manualDirection == 0 ? 0 : getJoystickSpeedFromDeflection(joystickAxis);
+  if (enabled && (queueWhenNeutral || joystickAxis->manualDirection != 0)) {
+    addJoystickPulses(joystickAxis->axis, getJoystickPulseDelta(joystickAxis, elapsedUs));
+  } else {
+    joystickAxis->pulseFraction = 0;
+  }
+}
+
+void resetJoystickAxisMotion(JoystickAxisState* joystickAxis) {
+  joystickAxis->manualDirection = 0;
+  joystickAxis->manualSpeed = 0;
+  joystickAxis->pulseFraction = 0;
 }
 
 bool joystickStartupCenterLooksNeutral(int center) {
@@ -4095,28 +4126,29 @@ void initJoystick() {
   joystickAvailable = false;
   if (!JOYSTICK_ENABLED) return;
   analogReadResolution(12);
-  pinMode(JOY_Z, INPUT_PULLDOWN);
-  pinMode(JOY_X, INPUT_PULLDOWN);
-  pinMode(JOY_Y, INPUT_PULLDOWN);
+  for (int i = 0; i < JOYSTICK_AXIS_COUNT; i++) {
+    pinMode(joystickAxes[i].pin, INPUT_PULLDOWN);
+  }
   pinMode(JOY_BUTTON, INPUT_PULLUP);
 
-  joystickCenterZ = calibrateJoystickCenter(JOY_Z);
-  joystickCenterX = calibrateJoystickCenter(JOY_X);
-  joystickCenterY = calibrateJoystickCenter(JOY_Y);
-  if (!joystickStartupCenterLooksNeutral(joystickCenterZ) ||
-      !joystickStartupCenterLooksNeutral(joystickCenterX) ||
-      !joystickStartupCenterLooksNeutral(joystickCenterY)) {
-    return;
+  for (int i = 0; i < JOYSTICK_AXIS_COUNT; i++) {
+    joystickAxes[i].center = calibrateJoystickCenter(joystickAxes[i].pin);
+    if (!joystickStartupCenterLooksNeutral(joystickAxes[i].center)) {
+      return;
+    }
   }
 
-  joystickFilteredZ = joystickCenterZ;
-  joystickFilteredX = joystickCenterX;
-  joystickFilteredY = joystickCenterY;
+  for (int i = 0; i < JOYSTICK_AXIS_COUNT; i++) {
+    joystickAxes[i].filtered = joystickAxes[i].center;
+  }
   joystickSampleTimeUs = micros();
   joystickAvailable = true;
 }
 
 void taskJoystick(void *param) {
+  JoystickAxisState* joystickZ = &joystickAxes[JOYSTICK_AXIS_Z];
+  JoystickAxisState* joystickX = &joystickAxes[JOYSTICK_AXIS_X];
+  JoystickAxisState* joystickY = &joystickAxes[JOYSTICK_AXIS_Y];
   while (emergencyStop == ESTOP_NONE && joystickUsable()) {
     bool buttonPressed = digitalRead(JOY_BUTTON) == (INVERT_JOYSTICK_BUTTON ? HIGH : LOW);
     joystickRapidPressed = buttonPressed;
@@ -4124,15 +4156,15 @@ void taskJoystick(void *param) {
     unsigned long elapsedUs = now - joystickSampleTimeUs;
     joystickSampleTimeUs = now;
 
-    float zDeflection = getJoystickDeflection(JOY_Z, &joystickFilteredZ, joystickCenterZ, INVERT_JOYSTICK_Z);
-    float xDeflection = getJoystickDeflection(JOY_X, &joystickFilteredX, joystickCenterX, INVERT_JOYSTICK_X);
-    float yDeflection = getJoystickDeflection(JOY_Y, &joystickFilteredY, joystickCenterY, INVERT_JOYSTICK_Y);
+    readJoystickAxis(joystickZ);
+    readJoystickAxis(joystickX);
+    readJoystickAxis(joystickY);
 
     bool yAdjustsPitch = !buttonPressed && joystickPitchAdjustmentAllowed();
-    int pitchDirection = yAdjustsPitch ? (yDeflection > 0 ? 1 : (yDeflection < 0 ? -1 : 0)) : 0;
+    int pitchDirection = yAdjustsPitch ? joystickY->direction : 0;
     joystickPitchAdjustDirection = pitchDirection;
     if (pitchDirection != 0) {
-      joystickPitchChangeFraction += abs(yDeflection) * JOYSTICK_PITCH_CHANGES_PER_SECOND * elapsedUs / 1000000.0;
+      joystickPitchChangeFraction += abs(joystickY->deflection) * JOYSTICK_PITCH_CHANGES_PER_SECOND * elapsedUs / 1000000.0;
       int changes = min(10, int(joystickPitchChangeFraction));
       joystickPitchChangeFraction -= changes;
       for (int i = 0; i < changes; i++) {
@@ -4142,50 +4174,22 @@ void taskJoystick(void *param) {
       joystickPitchChangeFraction = 0;
     }
 
-    int zDirection = joystickDirectionFromDeflection(zDeflection);
-    int xDirection = joystickDirectionFromDeflection(xDeflection);
-    int yDirection = joystickDirectionFromDeflection(yDeflection);
-
     if (mode == MODE_JOYSTICK) {
-      bool moveNeutral = zDirection == 0 && xDirection == 0;
+      bool moveNeutral = joystickZ->direction == 0 && joystickX->direction == 0;
       bool manualJoystickMove = buttonPressed || !isOn;
-      joystickLatheDirectionZ = zDirection;
-      joystickLatheDirectionX = xDirection;
+      joystickLatheDirectionZ = joystickZ->direction;
+      joystickLatheDirectionX = joystickX->direction;
       joystickLatheRapid = buttonPressed && !moveNeutral;
-      joystickManualDirectionZ = manualJoystickMove ? zDirection : 0;
-      joystickManualDirectionX = manualJoystickMove ? xDirection : 0;
-      joystickManualDirectionY = 0;
-      joystickManualSpeedZ = manualJoystickMove ? getJoystickSpeedFromDeflection(&z, zDeflection) : 0;
-      joystickManualSpeedX = manualJoystickMove ? getJoystickSpeedFromDeflection(&x, xDeflection) : 0;
-      joystickManualSpeedY = 0;
-      if (manualJoystickMove && zDirection != 0) {
-        addJoystickPulses(&z, getJoystickPulseDelta(zDeflection, &joystickPulseFractionZ, elapsedUs));
-      } else {
-        joystickPulseFractionZ = 0;
-      }
-      if (manualJoystickMove && xDirection != 0) {
-        addJoystickPulses(&x, getJoystickPulseDelta(xDeflection, &joystickPulseFractionX, elapsedUs));
-      } else {
-        joystickPulseFractionX = 0;
-      }
-      joystickPulseFractionY = 0;
+      updateJoystickManualAxis(joystickZ, manualJoystickMove, false, elapsedUs);
+      updateJoystickManualAxis(joystickX, manualJoystickMove, false, elapsedUs);
+      updateJoystickManualAxis(joystickY, false, false, elapsedUs);
     } else {
       joystickLatheDirectionZ = 0;
       joystickLatheDirectionX = 0;
       joystickLatheRapid = false;
-      joystickManualDirectionZ = zDirection;
-      joystickManualDirectionX = xDirection;
-      joystickManualDirectionY = y.active && !yAdjustsPitch ? yDirection : 0;
-      joystickManualSpeedZ = getJoystickSpeedFromDeflection(&z, zDeflection);
-      joystickManualSpeedX = getJoystickSpeedFromDeflection(&x, xDeflection);
-      joystickManualSpeedY = y.active && !yAdjustsPitch ? getJoystickSpeedFromDeflection(&y, yDeflection) : 0;
-      addJoystickPulses(&z, getJoystickPulseDelta(zDeflection, &joystickPulseFractionZ, elapsedUs));
-      addJoystickPulses(&x, getJoystickPulseDelta(xDeflection, &joystickPulseFractionX, elapsedUs));
-      if (y.active && !yAdjustsPitch) {
-        addJoystickPulses(&y, getJoystickPulseDelta(yDeflection, &joystickPulseFractionY, elapsedUs));
-      } else {
-        joystickPulseFractionY = 0;
-      }
+      updateJoystickManualAxis(joystickZ, true, true, elapsedUs);
+      updateJoystickManualAxis(joystickX, true, true, elapsedUs);
+      updateJoystickManualAxis(joystickY, y.active && !yAdjustsPitch, true, elapsedUs);
     }
 
     DELAY(JOYSTICK_SAMPLE_INTERVAL_MS);
@@ -5098,18 +5102,12 @@ void resetJoystickLatheFeed() {
   joystickLatheDirectionZ = 0;
   joystickLatheDirectionX = 0;
   joystickLatheRapid = false;
-  joystickManualDirectionZ = 0;
-  joystickManualDirectionX = 0;
-  joystickManualDirectionY = 0;
-  joystickManualSpeedZ = 0;
-  joystickManualSpeedX = 0;
-  joystickManualSpeedY = 0;
+  for (int i = 0; i < JOYSTICK_AXIS_COUNT; i++) {
+    resetJoystickAxisMotion(&joystickAxes[i]);
+  }
   joystickPitchAdjustDirection = 0;
   joystickLatheThreadLocked = false;
   joystickLatheSyncPitch = 0;
-  joystickPulseFractionZ = 0;
-  joystickPulseFractionX = 0;
-  joystickPulseFractionY = 0;
   joystickPitchChangeFraction = 0;
 }
 
