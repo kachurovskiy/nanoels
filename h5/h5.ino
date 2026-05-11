@@ -173,7 +173,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 24
+#define SOFTWARE_VERSION 25
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -771,6 +771,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     let firmwareReloadTimer = 0;
     let firmwareStatusPollTimer = 0;
     let firmwareStatusPollBusy = false;
+    const tftFirstUploadStorageKey = 'nanoels-h5.tft-first-upload';
     const machineConfigSections = [
       {
         title: 'Spindle encoder',
@@ -1219,15 +1220,36 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     resetConfigButton.addEventListener('click', resetConfig);
     wifiForm.addEventListener('submit', saveWifi);
     resetWifiButton.addEventListener('click', resetWifi);
+    tftFirstUploadCheckbox.addEventListener('change', saveTftFirstUploadPreference);
     tftFileInput.addEventListener('change', uploadTftFile);
     firmwareFileInput.addEventListener('change', uploadFirmwareFile);
 
     document.addEventListener('DOMContentLoaded', () => {
+      loadTftFirstUploadPreference();
       renderConfigFields();
       loadConfig();
       loadWifi();
       updateButtonStates();
     });
+
+    function loadTftFirstUploadPreference() {
+      try {
+        const stored = localStorage.getItem(tftFirstUploadStorageKey);
+        if (stored === 'true') {
+          tftFirstUploadCheckbox.checked = true;
+        } else if (stored === 'false') {
+          tftFirstUploadCheckbox.checked = false;
+        }
+      } catch (error) {
+      }
+    }
+
+    function saveTftFirstUploadPreference() {
+      try {
+        localStorage.setItem(tftFirstUploadStorageKey, tftFirstUploadCheckbox.checked ? 'true' : 'false');
+      } catch (error) {
+      }
+    }
 
     function send() {
       const command = commandInput.value.trim();
@@ -3824,7 +3846,7 @@ bool saveIfChanged() {
 }
 
 void beep() {
-  // TODO
+  toScreen("play 0,0,0");
 }
 
 void taskDisplay(void *param) {

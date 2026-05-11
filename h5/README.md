@@ -63,6 +63,7 @@ NOTE: throughout the assembly make sure to avoid static electricity accumulation
 1. Separate all terminals into 2 pieces. Insert female terminals into the 3D-printed housing. Place the PCB on top and secure it with 4 M3 bolts. Secure the other end of the USB cable in the access hole with an M3 bolt.
 1. Solder 15 terminals to the PCB while everything is positioned in the case.
 1. Remove screen back cover. Attach the included 4-lead wire to the screen and to the PCB - each `RX` should be attached to `TX` on the other side.
+1. Move dynamic from screen back cover to the main Nextion PCB - e.g. add 3 drops of hot glue and place the dynamic on them with a hard steel side (soft side up)
 1. Bolt the case and screen together using the bolts that used to hold the back cover.
 1. Supply up to 2A of power to the `POWER` terminal. USB power is enough for flashing the bare ESP32, but 0.5A provided by standard USB is not enough to start the screen.
 1. Upload [h5.tft](screen/h5.tft) to the display over WiFi. See [Upload screen .tft over WiFi](#upload-screen-tft-over-wifi).
