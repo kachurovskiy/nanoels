@@ -177,7 +177,7 @@ Supported syntax:
 - `%` program start/end markers are accepted and ignored.
 - `Y` moves only work when the optional Y axis is enabled with `ACTIVE_Y`.
 
-![image](https://github.com/user-attachments/assets/aa6fadc7-5d02-4daa-a4c3-610740492b99)
+<img width="692" height="518" alt="h5v26" src="https://github.com/user-attachments/assets/16243b74-b248-450e-a368-536a61e6671a" />
 
 ## Custom keyboard mapping
 
