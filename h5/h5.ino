@@ -165,6 +165,8 @@ const long STEPPED_ENABLE_DELAY_MS = 100; // Delay after stepper is enabled and 
 #define CONFIG_NAMESPACE "h5cfg"
 #define WIFI_CONFIG_VERSION 1
 #define WIFI_CONFIG_NAMESPACE "h5wifi"
+#define KEYBOARD_CONFIG_VERSION 1
+#define KEYBOARD_CONFIG_NAMESPACE "h5keys"
 
 // GCode-related constants.
 const float LINEAR_INTERPOLATION_PRECISION = 0.1; // 0 < x <= 1, smaller values make for quicker G0 and G1 moves
@@ -173,7 +175,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 25
+#define SOFTWARE_VERSION 26
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -206,6 +208,9 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 #define KEY_DATA 37
 #define KEY_CLOCK 36
+
+const bool DEFAULT_SHOW_KEY_PRESSES = false;
+bool SHOW_KEY_PRESSES = DEFAULT_SHOW_KEY_PRESSES;
 
 #define B_LEFT 21 // Left arrow - controls Z axis movement to the left
 #define B_RIGHT 22 // Right arrow - controls Z axis movement to the right
@@ -259,6 +264,73 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 #define B_X_ENA 67 // c - enables / disables X axis
 #define B_Z_ENA 81 // q - enables / disables Z axis
 #define B_Y_ENA 89 // y - enables / disables Y axis
+
+struct KeyboardBinding {
+  const char* id;
+  const char* label;
+  byte actionCode;
+  byte defaultCode;
+  byte code;
+};
+
+#define KEY_BINDING(id, label, code) { id, label, code, code, code }
+
+KeyboardBinding keyboardBindings[] = {
+  KEY_BINDING("left", "Left", B_LEFT),
+  KEY_BINDING("right", "Right", B_RIGHT),
+  KEY_BINDING("up", "Up", B_UP),
+  KEY_BINDING("down", "Down", B_DOWN),
+  KEY_BINDING("forward", "Y forward", B_FORWARD),
+  KEY_BINDING("back", "Y back", B_BACK),
+  KEY_BINDING("minus", "Minus", B_MINUS),
+  KEY_BINDING("plus", "Plus", B_PLUS),
+  KEY_BINDING("on", "On / start", B_ON),
+  KEY_BINDING("off", "Off / stop", B_OFF),
+  KEY_BINDING("stopL", "Set Z left stop", B_STOPL),
+  KEY_BINDING("stopR", "Set Z right stop", B_STOPR),
+  KEY_BINDING("stopU", "Set X forward stop", B_STOPU),
+  KEY_BINDING("stopD", "Set X rear stop", B_STOPD),
+  KEY_BINDING("stopF", "Set Y forward stop", B_STOPF),
+  KEY_BINDING("stopB", "Set Y back stop", B_STOPB),
+  KEY_BINDING("multistart", "Multi-start", B_MULTISTART),
+  KEY_BINDING("display", "Display info", B_DISPL),
+  KEY_BINDING("step", "Move step", B_STEP),
+  KEY_BINDING("measure", "Measure units", B_MEASURE),
+  KEY_BINDING("reverse", "Reverse pitch", B_REVERSE),
+  KEY_BINDING("diameter", "Set diameter", B_DIAMETER),
+  KEY_BINDING("digit0", "Digit 0", B_0),
+  KEY_BINDING("digit1", "Digit 1", B_1),
+  KEY_BINDING("digit2", "Digit 2", B_2),
+  KEY_BINDING("digit3", "Digit 3", B_3),
+  KEY_BINDING("digit4", "Digit 4", B_4),
+  KEY_BINDING("digit5", "Digit 5", B_5),
+  KEY_BINDING("digit6", "Digit 6", B_6),
+  KEY_BINDING("digit7", "Digit 7", B_7),
+  KEY_BINDING("digit8", "Digit 8", B_8),
+  KEY_BINDING("digit9", "Digit 9", B_9),
+  KEY_BINDING("backspace", "Backspace", B_BACKSPACE),
+  KEY_BINDING("modeGears", "Mode gearbox", B_MODE_GEARS),
+  KEY_BINDING("modeTurn", "Mode turn", B_MODE_TURN),
+  KEY_BINDING("modeFace", "Mode face", B_MODE_FACE),
+  KEY_BINDING("modeCone", "Mode cone", B_MODE_CONE),
+  KEY_BINDING("modeCut", "Mode cut", B_MODE_CUT),
+  KEY_BINDING("modeThread", "Mode thread", B_MODE_THREAD),
+  KEY_BINDING("modeAsync", "Mode async", B_MODE_ASYNC),
+  KEY_BINDING("modeEllipse", "Mode ellipse", B_MODE_ELLIPSE),
+  KEY_BINDING("modeGcode", "Mode GCode", B_MODE_GCODE),
+  KEY_BINDING("modeY", "Mode Y", B_MODE_Y),
+  KEY_BINDING("mode", "Mode menu", B_MODE),
+  KEY_BINDING("modeJoystick", "Mode joystick", B_MODE_JOYSTICK),
+  KEY_BINDING("modeXGear", "Mode X gearbox", B_MODE_XGEAR),
+  KEY_BINDING("zeroX", "Zero X", B_X),
+  KEY_BINDING("zeroZ", "Zero Z", B_Z),
+  KEY_BINDING("zeroY", "Zero Y", B_Y),
+  KEY_BINDING("enableX", "Enable X", B_X_ENA),
+  KEY_BINDING("enableZ", "Enable Z", B_Z_ENA),
+  KEY_BINDING("enableY", "Enable Y", B_Y_ENA),
+};
+
+const int KEYBOARD_BINDING_COUNT = sizeof(keyboardBindings) / sizeof(keyboardBindings[0]);
 
 #define PREF_VERSION "v"
 #define PREF_DUPR "d"
@@ -353,6 +425,9 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 #define WCFG_ENABLED "en"
 #define WCFG_SSID "ssid"
 #define WCFG_PASSWORD "pwd"
+
+#define KCFG_VERSION "v"
+#define KCFG_SHOW_KEY_PRESSES "showKeys"
 
 #define MOVE_STEP_1 10000 // 1mm
 #define MOVE_STEP_2 1000 // 0.1mm
@@ -604,13 +679,38 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       gap: 10px;
       margin: 10px 0;
     }
+    .keyboard-grid {
+      display: grid;
+      gap: 10px 16px;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    }
+    .keyboard-binding {
+      align-items: end;
+      display: grid;
+      gap: 6px 8px;
+      grid-template-columns: minmax(110px, 1fr) 78px auto;
+    }
+    .keyboard-binding label {
+      font-weight: 600;
+    }
+    .keyboard-binding input[type=number] {
+      box-sizing: border-box;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      width: 100%;
+    }
+    .keyboard-binding button {
+      padding: 8px 10px;
+      white-space: nowrap;
+    }
     button.secondary {
       background-color: #666;
     }
     button.secondary:hover {
       background-color: #444;
     }
-    #config-status {
+    #config-status, #keyboard-status {
       min-height: 1.2em;
     }
     #tft-upload-controls, #firmware-upload-controls {
@@ -706,6 +806,23 @@ const char indexhtml[] PROGMEM = R"rawliteral(
   </form>
   <p id="wifi-status"></p>
 
+  <h2>Keyboard</h2>
+  <form id="keyboard-form">
+    <section class="config-section">
+      <label class="config-checkbox" for="keyboard-show-keys">
+        <input type="checkbox" id="keyboard-show-keys">
+        <span>Show key presses on screen</span>
+      </label>
+      <small class="config-help">Last physical key code: <span id="keyboard-last-key">none</span></small>
+    </section>
+    <div id="keyboard-fields"></div>
+    <div class="config-actions">
+      <button id="save-keyboard" type="submit">Save keyboard</button>
+      <button id="reset-keyboard" type="button" class="secondary">Reset keyboard</button>
+    </div>
+  </form>
+  <p id="keyboard-status"></p>
+
   <h2>Realtime Log and Commands</h2>
   <p>
     Use the log to see controller responses and troubleshoot behavior without the serial port, which is shared with the screen.
@@ -766,11 +883,20 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     const saveWifiButton = document.getElementById('save-wifi');
     const resetWifiButton = document.getElementById('reset-wifi');
     const wifiStatusElement = document.getElementById('wifi-status');
+    const keyboardForm = document.getElementById('keyboard-form');
+    const keyboardFields = document.getElementById('keyboard-fields');
+    const keyboardShowKeysInput = document.getElementById('keyboard-show-keys');
+    const keyboardLastKey = document.getElementById('keyboard-last-key');
+    const keyboardStatus = document.getElementById('keyboard-status');
+    const saveKeyboardButton = document.getElementById('save-keyboard');
+    const resetKeyboardButton = document.getElementById('reset-keyboard');
     let tftUploadInProgress = false;
     let firmwareUploadInProgress = false;
     let firmwareReloadTimer = 0;
     let firmwareStatusPollTimer = 0;
     let firmwareStatusPollBusy = false;
+    let keyboardLearnTarget = '';
+    let keyboardLearnTimer = 0;
     const tftFirstUploadStorageKey = 'nanoels-h5.tft-first-upload';
     const machineConfigSections = [
       {
@@ -855,6 +981,86 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       }
     ];
     const machineConfigFields = machineConfigSections.flatMap(section => section.fields);
+    const keyboardBindingSections = [
+      {
+        title: 'Movement',
+        fields: [
+          { key: 'left', label: 'Left' },
+          { key: 'right', label: 'Right' },
+          { key: 'up', label: 'Up' },
+          { key: 'down', label: 'Down' },
+          { key: 'forward', label: 'Y forward' },
+          { key: 'back', label: 'Y back' }
+        ]
+      },
+      {
+        title: 'Operation',
+        fields: [
+          { key: 'on', label: 'On / start' },
+          { key: 'off', label: 'Off / stop' },
+          { key: 'plus', label: 'Plus' },
+          { key: 'minus', label: 'Minus' },
+          { key: 'step', label: 'Move step' },
+          { key: 'reverse', label: 'Reverse pitch' },
+          { key: 'measure', label: 'Measure units' },
+          { key: 'display', label: 'Display info' },
+          { key: 'multistart', label: 'Multi-start' }
+        ]
+      },
+      {
+        title: 'Stops and axes',
+        fields: [
+          { key: 'stopL', label: 'Set Z left stop' },
+          { key: 'stopR', label: 'Set Z right stop' },
+          { key: 'stopU', label: 'Set X forward stop' },
+          { key: 'stopD', label: 'Set X rear stop' },
+          { key: 'stopF', label: 'Set Y forward stop' },
+          { key: 'stopB', label: 'Set Y back stop' },
+          { key: 'zeroX', label: 'Zero X' },
+          { key: 'zeroZ', label: 'Zero Z' },
+          { key: 'zeroY', label: 'Zero Y' },
+          { key: 'diameter', label: 'Set diameter' },
+          { key: 'enableX', label: 'Enable X' },
+          { key: 'enableZ', label: 'Enable Z' },
+          { key: 'enableY', label: 'Enable Y' }
+        ]
+      },
+      {
+        title: 'Number entry',
+        fields: [
+          { key: 'digit0', label: 'Digit 0' },
+          { key: 'digit1', label: 'Digit 1' },
+          { key: 'digit2', label: 'Digit 2' },
+          { key: 'digit3', label: 'Digit 3' },
+          { key: 'digit4', label: 'Digit 4' },
+          { key: 'digit5', label: 'Digit 5' },
+          { key: 'digit6', label: 'Digit 6' },
+          { key: 'digit7', label: 'Digit 7' },
+          { key: 'digit8', label: 'Digit 8' },
+          { key: 'digit9', label: 'Digit 9' },
+          { key: 'backspace', label: 'Backspace' }
+        ]
+      },
+      {
+        title: 'Modes',
+        fields: [
+          { key: 'mode', label: 'Mode menu' },
+          { key: 'modeGears', label: 'Mode gearbox' },
+          { key: 'modeXGear', label: 'Mode X gearbox' },
+          { key: 'modeJoystick', label: 'Mode joystick' },
+          { key: 'modeTurn', label: 'Mode turn' },
+          { key: 'modeFace', label: 'Mode face' },
+          { key: 'modeCone', label: 'Mode cone' },
+          { key: 'modeCut', label: 'Mode cut' },
+          { key: 'modeThread', label: 'Mode thread' },
+          { key: 'modeEllipse', label: 'Mode ellipse' },
+          { key: 'modeGcode', label: 'Mode GCode' },
+          { key: 'modeAsync', label: 'Mode async' },
+          { key: 'modeY', label: 'Mode Y' }
+        ]
+      }
+    ];
+    const keyboardBindingFields = keyboardBindingSections.flatMap(section => section.fields);
 
     const ws = new WebSocket(`ws://${window.location.host.split(':')[0]}:81`);
 
@@ -863,8 +1069,8 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     };
 
     ws.onmessage = (event) => {
-      logMessage('Received: ' + event.data);
-      handleRealtimeMessage(event.data);
+      const handled = handleRealtimeMessage(event.data);
+      if (!handled) logMessage('Received: ' + event.data);
     };
 
     ws.onclose = () => {
@@ -879,6 +1085,8 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       resetConfigButton.disabled = uploadInProgress;
       saveWifiButton.disabled = uploadInProgress;
       resetWifiButton.disabled = uploadInProgress;
+      saveKeyboardButton.disabled = uploadInProgress;
+      resetKeyboardButton.disabled = uploadInProgress;
       tftFirstUploadCheckbox.disabled = uploadInProgress;
       tftFileInput.disabled = uploadInProgress;
       firmwareFileInput.disabled = uploadInProgress;
@@ -888,6 +1096,12 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       resetConfigButton.classList.toggle('disabled', resetConfigButton.disabled);
       saveWifiButton.classList.toggle('disabled', saveWifiButton.disabled);
       resetWifiButton.classList.toggle('disabled', resetWifiButton.disabled);
+      saveKeyboardButton.classList.toggle('disabled', saveKeyboardButton.disabled);
+      resetKeyboardButton.classList.toggle('disabled', resetKeyboardButton.disabled);
+      document.querySelectorAll('.keyboard-learn').forEach(button => {
+        button.disabled = uploadInProgress;
+        button.classList.toggle('disabled', button.disabled);
+      });
       tftBrowseButton.classList.toggle('disabled', uploadInProgress);
       firmwareBrowseButton.classList.toggle('disabled', uploadInProgress);
     }
@@ -1108,6 +1322,172 @@ const char indexhtml[] PROGMEM = R"rawliteral(
         });
     }
 
+    function renderKeyboardFields() {
+      keyboardFields.innerHTML = '';
+      keyboardBindingSections.forEach(section => {
+        const sectionElement = document.createElement('section');
+        sectionElement.className = 'config-section';
+        const title = document.createElement('h3');
+        title.textContent = section.title;
+        const grid = document.createElement('div');
+        grid.className = 'keyboard-grid';
+        section.fields.forEach(field => {
+          const id = `keyboard-${field.key}`;
+          const row = document.createElement('div');
+          row.className = 'keyboard-binding';
+
+          const label = document.createElement('label');
+          label.htmlFor = id;
+          label.textContent = field.label;
+
+          const input = document.createElement('input');
+          input.type = 'number';
+          input.id = id;
+          input.dataset.key = field.key;
+          input.min = 1;
+          input.max = 255;
+          input.step = 1;
+          input.required = true;
+
+          const learnButton = document.createElement('button');
+          learnButton.type = 'button';
+          learnButton.className = 'secondary keyboard-learn';
+          learnButton.dataset.key = field.key;
+          learnButton.textContent = 'Learn';
+          learnButton.addEventListener('click', () => beginKeyboardLearn(field));
+
+          row.appendChild(label);
+          row.appendChild(input);
+          row.appendChild(learnButton);
+          grid.appendChild(row);
+        });
+        sectionElement.appendChild(title);
+        sectionElement.appendChild(grid);
+        keyboardFields.appendChild(sectionElement);
+      });
+    }
+
+    function applyKeyboardValues(values) {
+      keyboardShowKeysInput.checked = values.showKeyPresses === '1';
+      keyboardBindingFields.forEach(field => {
+        const input = document.getElementById(`keyboard-${field.key}`);
+        if (input && field.key in values) input.value = values[field.key];
+      });
+    }
+
+    function loadKeyboardConfig() {
+      keyboardStatus.textContent = 'Loading keyboard config...';
+      fetch('/keyboard-config', { cache: 'no-store' })
+        .then(response => response.text())
+        .then(data => {
+          applyKeyboardValues(parseKeyValueText(data));
+          keyboardStatus.textContent = '';
+        })
+        .catch(() => {
+          keyboardStatus.textContent = 'Failed to load keyboard config';
+        });
+    }
+
+    function collectKeyboardConfigValues() {
+      const values = new URLSearchParams();
+      values.append('showKeyPresses', keyboardShowKeysInput.checked ? '1' : '0');
+      keyboardBindingFields.forEach(field => {
+        const input = document.getElementById(`keyboard-${field.key}`);
+        values.append(field.key, input.value.trim());
+      });
+      return values;
+    }
+
+    function stopKeyboardCaptureRequest() {
+      fetch('/keyboard-capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ enabled: '0' })
+      }).catch(() => {});
+    }
+
+    function clearKeyboardLearn() {
+      clearTimeout(keyboardLearnTimer);
+      keyboardLearnTimer = 0;
+      keyboardLearnTarget = '';
+    }
+
+    function saveKeyboardConfig(event) {
+      event.preventDefault();
+      clearKeyboardLearn();
+      stopKeyboardCaptureRequest();
+      keyboardStatus.textContent = 'Saving keyboard config...';
+      fetch('/keyboard-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: collectKeyboardConfigValues()
+      })
+      .then(response => response.text().then(text => ({ ok: response.ok, text })))
+      .then(result => {
+        keyboardStatus.textContent = result.text;
+        logMessage(result.text);
+      })
+      .catch(() => {
+        keyboardStatus.textContent = 'Keyboard config save failed';
+      });
+    }
+
+    function resetKeyboardConfig() {
+      if (!confirm('Reset keyboard mapping to firmware defaults?')) return;
+      clearKeyboardLearn();
+      stopKeyboardCaptureRequest();
+      keyboardStatus.textContent = 'Resetting keyboard config...';
+      fetch('/keyboard-config/reset', { method: 'POST' })
+        .then(response => response.text().then(text => ({ ok: response.ok, text })))
+        .then(result => {
+          keyboardStatus.textContent = result.text;
+          logMessage(result.text);
+          if (result.ok) loadKeyboardConfig();
+        })
+        .catch(() => {
+          keyboardStatus.textContent = 'Keyboard config reset failed';
+        });
+    }
+
+    function beginKeyboardLearn(field) {
+      clearKeyboardLearn();
+      keyboardLearnTarget = field.key;
+      keyboardStatus.textContent = `Learning ${field.label}: press a physical keyboard key`;
+      keyboardLearnTimer = setTimeout(() => {
+        keyboardLearnTarget = '';
+        keyboardStatus.textContent = 'Keyboard capture timed out';
+        stopKeyboardCaptureRequest();
+      }, 30000);
+      fetch('/keyboard-capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ enabled: '1' })
+      })
+      .then(response => response.text().then(text => ({ ok: response.ok, text })))
+      .then(result => {
+        if (!result.ok) {
+          clearKeyboardLearn();
+          keyboardStatus.textContent = result.text;
+        }
+      })
+      .catch(() => {
+        clearKeyboardLearn();
+        keyboardStatus.textContent = 'Keyboard capture failed';
+      });
+    }
+
+    function handleKeyboardPressCode(code) {
+      keyboardLastKey.textContent = String(code);
+      if (!keyboardLearnTarget) return;
+      const input = document.getElementById(`keyboard-${keyboardLearnTarget}`);
+      if (input) {
+        input.value = String(code);
+        const field = keyboardBindingFields.find(item => item.key === keyboardLearnTarget);
+        keyboardStatus.textContent = `${field ? field.label : keyboardLearnTarget} set to key code ${code}`;
+      }
+      clearKeyboardLearn();
+    }
+
     function applyWifiValues(values) {
       wifiEnabledInput.checked = values.wifiEnabled === '1';
       wifiSsidInput.value = values.wifiSsid || '';
@@ -1180,18 +1560,29 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     }
 
     function handleRealtimeMessage(message) {
+      let handled = false;
       message.split('\n').map(line => line.trim()).filter(line => !!line).forEach(line => {
-        if (line.startsWith('FW: progress ')) {
+        if (line.startsWith('KEY.press=')) {
+          const code = Number(line.substring('KEY.press='.length));
+          if (!Number.isNaN(code)) handleKeyboardPressCode(code);
+          handled = true;
+        } else if (line.startsWith('KEY.release=') || line.startsWith('KEY.action=')) {
+          handled = true;
+        } else if (line.startsWith('FW: progress ')) {
           const percent = Number(line.substring('FW: progress '.length).replace('%', ''));
           if (!Number.isNaN(percent)) {
             updateFirmwareProgress(percent, `Writing firmware ${percent}%`);
           }
+          handled = true;
         } else if (line === 'FW: upload complete, restarting controller') {
           updateFirmwareProgress(100, 'Firmware upload complete. Restarting controller...');
+          handled = true;
         } else if (line.startsWith('FW: error:')) {
           firmwareStatus.textContent = line.substring('FW: '.length);
+          handled = true;
         }
       });
+      return handled;
     }
 
     function waitForControllerReload() {
@@ -1220,6 +1611,8 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     resetConfigButton.addEventListener('click', resetConfig);
     wifiForm.addEventListener('submit', saveWifi);
     resetWifiButton.addEventListener('click', resetWifi);
+    keyboardForm.addEventListener('submit', saveKeyboardConfig);
+    resetKeyboardButton.addEventListener('click', resetKeyboardConfig);
     tftFirstUploadCheckbox.addEventListener('change', saveTftFirstUploadPreference);
     tftFileInput.addEventListener('change', uploadTftFile);
     firmwareFileInput.addEventListener('change', uploadFirmwareFile);
@@ -1227,8 +1620,10 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     document.addEventListener('DOMContentLoaded', () => {
       loadTftFirstUploadPreference();
       renderConfigFields();
+      renderKeyboardFields();
       loadConfig();
       loadWifi();
+      loadKeyboardConfig();
       updateButtonStates();
     });
 
@@ -1890,6 +2285,9 @@ bool firmwareUploadRestartPending = false;
 unsigned long firmwareUploadRestartAt = 0;
 bool configRestartPending = false;
 unsigned long configRestartAt = 0;
+bool keyboardCaptureActive = false;
+byte keyboardCaptureReleaseCode = 0;
+unsigned long keyboardCaptureUntil = 0;
 
 long clampLongValue(long value, long minValue, long maxValue) {
   if (value < minValue) return minValue;
@@ -2312,6 +2710,159 @@ void appendConfigLine(String* response, const char* name, float value) {
   appendConfigLine(response, name, String(value, 4));
 }
 
+void setText(const String &id, const String &text);
+
+void setKeyboardConfigDefaults() {
+  SHOW_KEY_PRESSES = DEFAULT_SHOW_KEY_PRESSES;
+  for (int i = 0; i < KEYBOARD_BINDING_COUNT; i++) {
+    keyboardBindings[i].code = keyboardBindings[i].defaultCode;
+  }
+}
+
+const char* keyboardActionLabel(byte actionCode) {
+  for (int i = 0; i < KEYBOARD_BINDING_COUNT; i++) {
+    if (keyboardBindings[i].actionCode == actionCode) {
+      return keyboardBindings[i].label;
+    }
+  }
+  return "Unmapped";
+}
+
+byte keyboardActionForCode(byte physicalCode) {
+  // Keep factory Esc/Stop active even if the user changes the stop binding.
+  if (physicalCode == B_OFF) return B_OFF;
+  for (int i = 0; i < KEYBOARD_BINDING_COUNT; i++) {
+    if (keyboardBindings[i].code == physicalCode) {
+      return keyboardBindings[i].actionCode;
+    }
+  }
+  return 0;
+}
+
+bool validateKeyboardConfig(String* error) {
+  for (int i = 0; i < KEYBOARD_BINDING_COUNT; i++) {
+    if (keyboardBindings[i].code == 0) {
+      *error = String(keyboardBindings[i].label) + " must use key code 1..255";
+      return false;
+    }
+    if (keyboardBindings[i].code == 170) {
+      *error = String(keyboardBindings[i].label) + " cannot use reserved keyboard code 170";
+      return false;
+    }
+    if (keyboardBindings[i].actionCode != B_OFF && keyboardBindings[i].code == B_OFF) {
+      *error = String("Key code ") + String(B_OFF) + " is reserved as the factory Stop key";
+      return false;
+    }
+    for (int j = i + 1; j < KEYBOARD_BINDING_COUNT; j++) {
+      if (keyboardBindings[i].code == keyboardBindings[j].code) {
+        *error = String("Key code ") + String(keyboardBindings[i].code) + " is assigned to both " + keyboardBindings[i].label + " and " + keyboardBindings[j].label;
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+void saveKeyboardConfig() {
+  Preferences cfg;
+  cfg.begin(KEYBOARD_CONFIG_NAMESPACE);
+  cfg.putInt(KCFG_VERSION, KEYBOARD_CONFIG_VERSION);
+  cfg.putBool(KCFG_SHOW_KEY_PRESSES, SHOW_KEY_PRESSES);
+  for (int i = 0; i < KEYBOARD_BINDING_COUNT; i++) {
+    cfg.putUChar(keyboardBindings[i].id, keyboardBindings[i].code);
+  }
+  cfg.end();
+}
+
+void loadKeyboardConfig() {
+  setKeyboardConfigDefaults();
+  Preferences cfg;
+  cfg.begin(KEYBOARD_CONFIG_NAMESPACE);
+  if (cfg.getInt(KCFG_VERSION) != KEYBOARD_CONFIG_VERSION) {
+    cfg.clear();
+    cfg.putInt(KCFG_VERSION, KEYBOARD_CONFIG_VERSION);
+  }
+  SHOW_KEY_PRESSES = cfg.getBool(KCFG_SHOW_KEY_PRESSES, SHOW_KEY_PRESSES);
+  for (int i = 0; i < KEYBOARD_BINDING_COUNT; i++) {
+    keyboardBindings[i].code = cfg.getUChar(keyboardBindings[i].id, keyboardBindings[i].code);
+  }
+  cfg.end();
+
+  String error = "";
+  if (!validateKeyboardConfig(&error)) {
+    setKeyboardConfigDefaults();
+    saveKeyboardConfig();
+  }
+}
+
+bool readKeyboardConfigFromRequest(String* error) {
+  if (!readBoolConfigArg("showKeyPresses", &SHOW_KEY_PRESSES, error)) return false;
+
+  for (int i = 0; i < KEYBOARD_BINDING_COUNT; i++) {
+    if (!server.hasArg(keyboardBindings[i].id)) {
+      *error = String("Missing keyboard value: ") + keyboardBindings[i].id;
+      return false;
+    }
+    long value;
+    if (!parseLongValue(server.arg(keyboardBindings[i].id), &value) || value < 1 || value > 255) {
+      *error = String(keyboardBindings[i].label) + " must use key code 1..255";
+      return false;
+    }
+    keyboardBindings[i].code = byte(value);
+  }
+
+  return validateKeyboardConfig(error);
+}
+
+String getKeyboardConfigResponse() {
+  String response = "";
+  response.reserve(1200);
+  appendConfigLine(&response, "showKeyPresses", SHOW_KEY_PRESSES);
+  for (int i = 0; i < KEYBOARD_BINDING_COUNT; i++) {
+    appendConfigLine(&response, keyboardBindings[i].id, int(keyboardBindings[i].code));
+  }
+  return response;
+}
+
+void publishKeyboardEvent(byte physicalCode, byte actionCode, bool isPress) {
+  String line = String("KEY.") + (isPress ? "press=" : "release=") + String(physicalCode) + "\n";
+  line += "KEY.action=";
+  line += keyboardActionLabel(actionCode);
+  line += "\n";
+  webSocket.broadcastTXT(line);
+  if (SHOW_KEY_PRESSES) {
+    setText("t3", (isPress ? "Press " : "Release ") + String(physicalCode));
+  }
+}
+
+void startKeyboardCapture() {
+  keyboardCaptureActive = true;
+  keyboardCaptureReleaseCode = 0;
+  keyboardCaptureUntil = millis() + 30000;
+}
+
+void stopKeyboardCapture() {
+  keyboardCaptureActive = false;
+  keyboardCaptureReleaseCode = 0;
+}
+
+bool shouldConsumeKeyboardCapture(byte physicalCode, bool isPress) {
+  if (keyboardCaptureReleaseCode != 0 && physicalCode == keyboardCaptureReleaseCode && !isPress) {
+    keyboardCaptureReleaseCode = 0;
+    return true;
+  }
+  if (!keyboardCaptureActive) return false;
+  if (long(millis() - keyboardCaptureUntil) > 0) {
+    stopKeyboardCapture();
+    return false;
+  }
+  if (isPress) {
+    keyboardCaptureActive = false;
+    keyboardCaptureReleaseCode = physicalCode;
+  }
+  return true;
+}
+
 String getMachineConfigResponse() {
   String response = "";
   response.reserve(2200);
@@ -2682,6 +3233,60 @@ void handleConfigReset() {
   saveMachineConfig();
   scheduleConfigRestart();
   server.send(200, "text/plain", "Machine config reset. Restarting controller...");
+}
+
+void handleKeyboardConfigGet() {
+  server.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  server.send(200, "text/plain", getKeyboardConfigResponse());
+}
+
+void handleKeyboardConfigSave() {
+  if (machineConfigChangeBlocked()) {
+    server.send(409, "text/plain", "Stop the controller and wait for uploads to finish before changing keyboard config");
+    return;
+  }
+
+  String error = "";
+  if (!readKeyboardConfigFromRequest(&error)) {
+    loadKeyboardConfig();
+    server.send(400, "text/plain", error);
+    return;
+  }
+
+  saveKeyboardConfig();
+  server.send(200, "text/plain", "Keyboard config saved");
+}
+
+void handleKeyboardConfigReset() {
+  if (machineConfigChangeBlocked()) {
+    server.send(409, "text/plain", "Stop the controller and wait for uploads to finish before resetting keyboard config");
+    return;
+  }
+
+  setKeyboardConfigDefaults();
+  saveKeyboardConfig();
+  server.send(200, "text/plain", "Keyboard config reset");
+}
+
+void handleKeyboardCapture() {
+  bool enabled = false;
+  String error = "";
+  if (!readBoolConfigArg("enabled", &enabled, &error)) {
+    server.send(400, "text/plain", error);
+    return;
+  }
+  if (enabled && machineConfigChangeBlocked()) {
+    server.send(409, "text/plain", "Stop the controller and wait for uploads to finish before learning keyboard keys");
+    return;
+  }
+
+  if (enabled) {
+    startKeyboardCapture();
+    server.send(200, "text/plain", "Keyboard capture started");
+  } else {
+    stopKeyboardCapture();
+    server.send(200, "text/plain", "Keyboard capture stopped");
+  }
 }
 
 void handleWifiGet() {
@@ -3069,6 +3674,10 @@ void registerWebRoutes() {
   server.on("/config", HTTP_GET, handleConfigGet);
   server.on("/config", HTTP_POST, handleConfigSave);
   server.on("/config/reset", HTTP_POST, handleConfigReset);
+  server.on("/keyboard-config", HTTP_GET, handleKeyboardConfigGet);
+  server.on("/keyboard-config", HTTP_POST, handleKeyboardConfigSave);
+  server.on("/keyboard-config/reset", HTTP_POST, handleKeyboardConfigReset);
+  server.on("/keyboard-capture", HTTP_POST, handleKeyboardCapture);
   server.on("/wifi", HTTP_GET, handleWifiGet);
   server.on("/wifi", HTTP_POST, handleWifiSave);
   server.on("/wifi/reset", HTTP_POST, handleWifiReset);
@@ -5820,12 +6429,15 @@ void setModeFromUi(int modeToSet, bool eventFromNextion) {
 void processKeypadEvent() {
   int event = 0;
   bool eventFromNextion = false;
+  bool eventUsesKeyboardMap = false;
   lastNextionPageId = 255;
   if (wsKeycode != 0) {
     event = wsKeycode;
     wsKeycode = 0;
+    eventUsesKeyboardMap = true;
   } else if (keyboard.available()) {
     event = keyboard.read();
+    eventUsesKeyboardMap = true;
   } else if (!tftUploadActive && Serial1.available() > 0) {
     byte incomingByte = Serial1.read();
     if (nextionBufferIndex < NEXTION_BUFFER_LENGTH) {
@@ -5841,18 +6453,26 @@ void processKeypadEvent() {
     }
   }
   if (event == 0) return;
-  int keyCode = event & 0xFF;
+  int physicalKeyCode = event & 0xFF;
   bool isPress = !(event & PS2_BREAK);
+  int keyCode = eventUsesKeyboardMap ? keyboardActionForCode(byte(physicalKeyCode)) : physicalKeyCode;
   keypadTimeUs = micros();
 
-  // Uncomment the line below to see the key codes on screen.
-  // setText("t3", (isPress ? "Press " : "Release ") + String(keyCode));
+  if (eventUsesKeyboardMap) {
+    publishKeyboardEvent(byte(physicalKeyCode), byte(keyCode), isPress);
+  }
 
   // Some keyboards send this code and expect an answer to initialize.
-  if (keyCode == 170) {
+  if (physicalKeyCode == 170) {
     keyboard.echo();
     return;
   }
+
+  if (eventUsesKeyboardMap && shouldConsumeKeyboardCapture(byte(physicalKeyCode), isPress)) {
+    return;
+  }
+
+  if (keyCode == 0) return;
 
   // Off button always gets handled.
   if (keyCode == B_OFF) {
@@ -6634,6 +7254,7 @@ void applySettings() {
 void setup() {
   loadMachineConfig();
   loadWifiConfig();
+  loadKeyboardConfig();
 
   pinMode(ENC_A, INPUT_PULLUP);
   pinMode(ENC_B, INPUT_PULLUP);

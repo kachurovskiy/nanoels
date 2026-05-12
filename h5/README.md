@@ -137,7 +137,9 @@ Open the Web UI, fill in the `WiFi` section, click `Save and restart`, then conn
 
 Firmware and screen uploads use the same Web UI described above. Anyone on the local network can access the Web UI, so only enable WiFi on a trusted network.
 
-The Web UI also has a `Machine Config` section for encoder, Z/X/Y axis, handwheel, manual stepping, and joystick parameters. Save changes only while the controller is stopped; NanoEls stores them in ESP32 Preferences and restarts to apply them. GPIO pin mapping still requires editing `h5.ino`.
+The Web UI also has a `Machine Config` section for encoder, Z/X/Y axis, handwheel, manual stepping, and joystick parameters. Save changes only while the controller is stopped; NanoEls stores them in ESP32 Preferences and restarts to apply them.
+
+The `Keyboard` section lets you change PS/2 keyboard key-code mapping, learn key codes from the connected keyboard, and toggle showing key presses on the Nextion screen. Keyboard mapping is stored in ESP32 Preferences and takes effect without recompiling firmware. GPIO pin mapping still requires editing `h5.ino`.
 
 To generate GCode for your parts, upload STL model of your part to https://kachurovskiy.com/lathecode/ and specify parameters like stock diameter and tool used.
 
@@ -179,7 +181,16 @@ Supported syntax:
 
 ## Custom keyboard mapping
 
-Use [`#define B_...`](https://github.com/kachurovskiy/nanoels/blob/main/h5/h5.ino#L124) constants to adjust key mapping, uncomment [a line](https://github.com/kachurovskiy/nanoels/blob/main/h5/h5.ino#L3001) in `void processKeypadEvent()` function to see on Nextion which key code your keyboard sends for any given key.
+Keyboard key-code mapping is configurable from the H5 Web UI and does not require rebuilding `.bin` files.
+
+1. Open the H5 Web UI through the setup access point or the controller IP address.
+2. Keep the controller stopped.
+3. In the `Keyboard` section, use `Learn` next to an action, then press the physical keyboard key you want to assign. The learned PS/2 key code is filled in automatically.
+4. Alternatively, type a key code manually in the action's number field.
+5. Enable `Show key presses on screen` if you want the Nextion bottom line to show the last physical key code while testing a keyboard.
+6. Click `Save keyboard`. The new mapping is stored in ESP32 Preferences and takes effect immediately.
+
+`Reset keyboard` restores the firmware default mapping. The factory `Esc` stop key remains active even if `Off / stop` is remapped, so a bad keyboard mapping should not remove the normal stop key.
 
 ## Usage manual
 
@@ -501,7 +512,7 @@ Use this path only when you need to change the firmware source or rebuild the `.
   - If you get a `DEADLINE_EXCEEDED` error while installing `esp32`, [see this post for a workaround](https://forum.arduino.cc/t/ide-2-3-7-now-gives-error-4-deadline-exceeded/1422321/2)
 - Install `PS2KeyAdvanced` and `WebSockets` via Arduino IDE Library Manager
 - Download [this repository](https://github.com/kachurovskiy/nanoels/archive/refs/heads/main.zip), unzip, go to `h5` directory and open `h5.ino` file in the Arduino IDE
-- Check the top constants only if you need to change firmware defaults. Encoder, Z/X/Y axis, handwheel, manual stepping, and joystick parameters can usually be changed later in the Web UI `Machine Config`.
+- Check the top constants only if you need to change firmware defaults. Encoder, Z/X/Y axis, handwheel, manual stepping, and joystick parameters can usually be changed later in the Web UI `Machine Config`; PS/2 keyboard mapping can be changed in the Web UI `Keyboard` section.
 - Select "ESP32S3 Dev Module" as device at the top, pick the COM port that appears when you connect the device with a USB cable
 - Upload the sketch to your H5 controller, or use `Sketch > Export Compiled Binary` to create `.bin` files
 
