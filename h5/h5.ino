@@ -2198,6 +2198,7 @@ bool timerAttached = false;
 
 CircleBuffer inBuffer;
 CircleBuffer outBuffer;
+volatile bool webBuffersReady = false;
 
 bool bufferAvailable(CircleBuffer* b) {
   return b->head != b->tail;
@@ -2824,12 +2825,17 @@ String getKeyboardConfigResponse() {
   return response;
 }
 
+void queueWebSocketText(const String& text) {
+  if (!webBuffersReady) return;
+  writeBuffer(&outBuffer, text);
+}
+
 void publishKeyboardEvent(byte physicalCode, byte actionCode, bool isPress) {
   String line = String("KEY.") + (isPress ? "press=" : "release=") + String(physicalCode) + "\n";
   line += "KEY.action=";
   line += keyboardActionLabel(actionCode);
   line += "\n";
-  webSocket.broadcastTXT(line);
+  queueWebSocketText(line);
   if (SHOW_KEY_PRESSES) {
     setText("t3", (isPress ? "Press " : "Release ") + String(physicalCode));
   }
@@ -3755,6 +3761,7 @@ void taskWiFi(void *param) {
 
   initBuffer(&inBuffer, 1024);
   initBuffer(&outBuffer, 1024);
+  webBuffersReady = true;
 
   registerWebRoutes();
   server.begin();
