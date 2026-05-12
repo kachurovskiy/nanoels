@@ -180,6 +180,10 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
 
+#define NANOELS_STRINGIFY_VALUE(value) #value
+#define NANOELS_STRINGIFY(value) NANOELS_STRINGIFY_VALUE(value)
+#define CONTROLLER_VERSION_TEXT "H" NANOELS_STRINGIFY(HARDWARE_VERSION) "V" NANOELS_STRINGIFY(SOFTWARE_VERSION)
+
 #define Z_ENA 41
 #define Z_DIR 42
 #define Z_STEP 35
@@ -504,72 +508,178 @@ const char indexhtml[] PROGMEM = R"rawliteral(
   <title>NanoEls H5</title>
   <link rel="icon" href="data:;base64,">
   <style>
+    :root {
+      --bg: #f4f6f8;
+      --panel: #fff;
+      --border: #c9d0d6;
+      --text: #222;
+      --muted: #5d6770;
+      --primary: #217346;
+      --primary-dark: #14572f;
+      --secondary: #59636d;
+      --secondary-dark: #3f474f;
+      --link: #0a5d9f;
+      color-scheme: light;
+    }
+    * {
+      box-sizing: border-box;
+    }
     body {
-      font-family: Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: Roboto, Arial, sans-serif;
+      margin: 0;
+    }
+    a {
+      color: var(--link);
+    }
+    .page-shell {
       margin: 0 auto;
-      max-width: 800px;
-      padding: 20px;
-      background-color: #f4f4f4;
+      max-width: 920px;
+      padding: 16px;
     }
     h1, h2 {
-      color: #333;
+      color: var(--text);
+      margin: 0;
+    }
+    h1 {
+      font-size: 1.8rem;
+    }
+    h2 {
+      font-size: 1.35rem;
+    }
+    h3 {
+      font-size: 1rem;
+      margin: 0 0 10px;
+    }
+    p {
+      line-height: 1.4;
+      margin: 8px 0;
+    }
+    .app-footer {
+      color: var(--muted);
+      font-size: 0.85rem;
+      line-height: 1.35;
+      margin-top: 18px;
+      text-align: center;
+    }
+    .app-footer p {
+      margin: 0;
+    }
+    .section-note, .action-status {
+      color: var(--muted);
+    }
+    .notice {
+      background: #fff7e8;
+      border: 1px solid #e0b46a;
+      border-radius: 4px;
+      margin: 0;
+      padding: 10px 12px;
+    }
+    .section-tabs {
+      background: var(--bg);
+      display: flex;
+      gap: 6px;
+      margin: 0 0 14px;
+      overflow-x: auto;
+      padding: 8px 0;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .section-tabs a {
+      background: #e7ecef;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      flex: 0 0 auto;
+      font-weight: 600;
+      padding: 10px 12px;
+      text-decoration: none;
+    }
+    .section-tabs a.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+    .app-section {
+      display: none;
+    }
+    .app-section.active {
+      display: block;
+    }
+    .section-header {
+      display: grid;
+      gap: 4px;
+      margin-bottom: 12px;
+    }
+    .section-stack {
+      display: grid;
+      gap: 14px;
+    }
+    .panel, .config-section {
+      background-color: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 12px;
     }
     input[type=text], input[type=file], input[type=number], input[type=password], textarea {
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font: inherit;
+      padding: 10px;
       width: 100%;
     }
     #log {
-      height: 200px;
+      background-color: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      height: 260px;
+      margin-bottom: 12px;
       overflow-y: scroll;
-      border: 1px solid #ccc;
       padding: 10px;
-      background-color: #fff;
-      margin-bottom: 20px;
     }
     #log p {
-      padding: 0;
       margin: 0;
+      padding: 0;
     }
-    #command-container, #gcode-container {
+    #command-container {
       display: flex;
       align-items: center;
-      margin-bottom: 20px;
+      gap: 10px;
+      margin-bottom: 12px;
     }
     #command {
       flex: 1;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      margin-right: 10px;
     }
     button, .button-like {
-      padding: 10px 20px;
+      background-color: var(--primary);
       border: none;
       border-radius: 4px;
-      cursor: pointer;
       color: #fff;
-      background-color: #218838;
+      cursor: pointer;
       display: inline-block;
       font: inherit;
+      min-height: 40px;
+      padding: 10px 18px;
+      text-align: center;
     }
     button:hover, .button-like:hover {
-      background-color: #105b21;
+      background-color: var(--primary-dark);
     }
     #gcode-list {
-      margin-top: 20px;
-      background-color: #fff;
-      padding: 0;
-      border: 1px solid #ccc;
+      background-color: var(--panel);
+      border: 1px solid var(--border);
       border-radius: 4px;
+      margin-top: 10px;
+      padding: 0;
     }
     #gcode-list.empty {
       padding: 10px;
       text-align: center;
     }
     #gcode-name, #gcode-content {
-      box-sizing: border-box;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
       margin-bottom: 10px;
     }
     #gcode-content {
@@ -586,17 +696,19 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       color: #c82333;
     }
     button.disabled, .button-like.disabled {
-      background-color: #ccc;
+      background-color: #b7bec5;
       cursor: not-allowed;
       pointer-events: none;
     }
     button.disabled:hover, .button-like.disabled:hover {
-      background-color: #ccc;
+      background-color: #b7bec5;
     }
     .gcode-row {
-      display: flex;
-      justify-content: space-between;
       align-items: center;
+      display: flex;
+      gap: 10px;
+      justify-content: space-between;
+      min-height: 44px;
       padding: 10px;
       cursor: pointer;
     }
@@ -605,29 +717,23 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     }
     .gcode-item {
       flex: 1;
+      min-width: 0;
+      overflow-wrap: anywhere;
     }
     .gcode-size {
       flex-basis: 80px;
       font-size: 0.9em;
-      color: #666;
+      color: var(--muted);
     }
     .checkbox-container {
       align-items: center;
       display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
       margin-bottom: 10px;
     }
     .checkbox-container input {
-      margin: 10px 10px 10px 20px;
-    }
-    .config-section {
-      background-color: #fff;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      margin-bottom: 12px;
-      padding: 12px;
-    }
-    .config-section h3 {
-      margin: 0 0 10px 0;
+      margin: 0;
     }
     .config-grid {
       display: grid;
@@ -642,25 +748,13 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       font-weight: 600;
     }
     .config-unit {
-      color: #666;
+      color: var(--muted);
       font-weight: 400;
     }
     .config-help {
-      color: #666;
+      color: var(--muted);
       font-size: 0.85em;
       line-height: 1.35;
-    }
-    .config-field input[type=number] {
-      box-sizing: border-box;
-      padding: 8px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-    }
-    .config-field input[type=text], .config-field input[type=password] {
-      box-sizing: border-box;
-      padding: 8px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
     }
     .config-checkbox {
       align-items: center;
@@ -675,9 +769,50 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       min-height: 0;
     }
     .config-actions {
+      align-items: center;
       display: flex;
+      flex-wrap: wrap;
       gap: 10px;
       margin: 10px 0;
+    }
+    .sticky-actions {
+      background: rgba(244, 246, 248, 0.96);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      bottom: 0;
+      margin-top: 12px;
+      padding: 10px;
+      position: sticky;
+      z-index: 8;
+    }
+    .action-status {
+      flex: 1 1 220px;
+      min-height: 1.2em;
+      overflow-wrap: anywhere;
+    }
+    #config-fields, #keyboard-fields {
+      display: grid;
+      gap: 10px;
+      margin: 10px 0;
+    }
+    .settings-group, .keyboard-group {
+      padding: 0;
+    }
+    .settings-group summary, .keyboard-group summary {
+      cursor: pointer;
+      font-weight: 700;
+      padding: 12px;
+    }
+    .settings-group[open] summary, .keyboard-group[open] summary {
+      border-bottom: 1px solid var(--border);
+    }
+    .settings-group .config-grid, .keyboard-group .keyboard-grid {
+      padding: 12px;
+    }
+    .config-field > .config-help {
+      color: var(--muted);
+      display: block;
+      line-height: 1.35;
     }
     .keyboard-grid {
       display: grid;
@@ -685,7 +820,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
     }
     .keyboard-binding {
-      align-items: end;
+      align-items: center;
       display: grid;
       gap: 6px 8px;
       grid-template-columns: minmax(110px, 1fr) 78px auto;
@@ -694,10 +829,6 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       font-weight: 600;
     }
     .keyboard-binding input[type=number] {
-      box-sizing: border-box;
-      padding: 8px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
       width: 100%;
     }
     .keyboard-binding button {
@@ -705,17 +836,15 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       white-space: nowrap;
     }
     button.secondary {
-      background-color: #666;
+      background-color: var(--secondary);
     }
     button.secondary:hover {
-      background-color: #444;
-    }
-    #config-status, #keyboard-status {
-      min-height: 1.2em;
+      background-color: var(--secondary-dark);
     }
     #tft-upload-controls, #firmware-upload-controls {
       align-items: center;
       display: flex;
+      flex-wrap: wrap;
       gap: 10px;
       margin-bottom: 10px;
     }
@@ -732,127 +861,200 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     #tft-status, #firmware-status {
       min-height: 1.2em;
     }
+    @media (max-width: 640px) {
+      .page-shell {
+        padding: 10px;
+      }
+      h1 {
+        font-size: 1.55rem;
+      }
+      .section-tabs {
+        margin-left: -10px;
+        margin-right: -10px;
+        padding: 8px 10px;
+      }
+      .section-tabs a {
+        padding: 10px;
+      }
+      .config-grid, .keyboard-grid {
+        grid-template-columns: 1fr;
+      }
+      .keyboard-binding {
+        grid-template-columns: minmax(0, 1fr) 82px 76px;
+      }
+      #command-container {
+        align-items: stretch;
+        flex-direction: column;
+      }
+      #command-container button {
+        width: 100%;
+      }
+      .config-actions, .sticky-actions {
+        align-items: stretch;
+        flex-direction: column;
+      }
+      .config-actions button, .sticky-actions button {
+        width: 100%;
+      }
+      .action-status {
+        flex-basis: auto;
+        width: 100%;
+      }
+      #gcode-content {
+        height: 180px;
+      }
+      #log {
+        height: 220px;
+      }
+    }
   </style>
 </head>
 <body>
-  <h1>NanoEls H5</h1>
-  <p>This page is served directly by the NanoEls H5 controller and works without an Internet connection.</p>
-  <p>
-    Use it to manage stored GCode programs, upload firmware or screen files, change machine configuration, and inspect realtime controller messages.
-  </p>
-  <p>
-    Use NanoEls only on a trusted local network. Anyone connected to the same network can open this page and send commands to the controller.
-  </p>
-  <p>
-    Keep the controller stopped before uploading firmware, uploading screen files, or saving machine configuration. Stored GCode file changes are
-    independent from live control.
-  </p>
-  <h2>Stored GCode</h2>
-  <div id="gcode-list"></div>
-  <p id="free-space"></p>
-  <h2>Add GCode</h2>
-  <p>You can generate suitable GCode using <a href="https://kachurovskiy.com/lathecode/" target="_blank">lathecode</a> by uploading STL model of the part
-    and specifying other parameters like tool and stock diameter.</p>
-  <input type="text" id="gcode-name" placeholder="GCode name" required minlength="2">
-  <textarea id="gcode-content" placeholder="GCode content" required minlength="2"></textarea>
-  <div class="checkbox-container">
-    <button id="add-gcode">Save</button>
-    <input type="checkbox" id="remove-comments" checked>
-    <label for="remove-comments">Remove comments before saving</label>
+  <div class="page-shell">
+    <nav class="section-tabs" aria-label="Main sections">
+      <a href="#gcode" data-section-link="gcode" class="active">GCode</a>
+      <a href="#updates" data-section-link="updates">Updates</a>
+      <a href="#wifi" data-section-link="wifi">WiFi</a>
+      <a href="#settings" data-section-link="settings">Settings</a>
+      <a href="#keyboard" data-section-link="keyboard">Keyboard</a>
+      <a href="#logs" data-section-link="logs">Logs</a>
+    </nav>
+
+    <main>
+      <section id="section-gcode" class="app-section active" data-section="gcode">
+        <div class="section-stack">
+          <section class="panel">
+            <h3>Stored GCode</h3>
+            <div id="gcode-list"></div>
+            <p id="free-space"></p>
+          </section>
+          <section class="panel">
+            <h3>Add GCode</h3>
+            <p class="section-note">Generate compatible files with <a href="https://kachurovskiy.com/lathecode/" target="_blank">lathecode</a>.</p>
+            <input type="text" id="gcode-name" placeholder="GCode name" required minlength="2">
+            <textarea id="gcode-content" placeholder="GCode content" required minlength="2"></textarea>
+            <div class="checkbox-container">
+              <button id="add-gcode">Save</button>
+              <input type="checkbox" id="remove-comments" checked>
+              <label for="remove-comments">Remove comments before saving</label>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section id="section-updates" class="app-section" data-section="updates">
+        <div class="section-header">
+          <p class="section-note">Keep this page open until an upload finishes.</p>
+        </div>
+        <div class="section-stack">
+          <section class="panel">
+            <h3>Nextion TFT Upload</h3>
+            <div id="tft-upload-controls">
+              <label for="tft-file" id="tft-browse" class="button-like">Browse</label>
+              <input type="file" id="tft-file" accept=".tft">
+              <input type="checkbox" id="tft-first-upload" checked>
+              <label for="tft-first-upload">First upload / factory display (9600 baud)</label>
+            </div>
+            <progress id="tft-progress" value="0" max="100" hidden></progress>
+            <p id="tft-status"></p>
+          </section>
+          <section class="panel">
+            <h3>ESP32 Firmware Upload</h3>
+            <div id="firmware-upload-controls">
+              <label for="firmware-file" id="firmware-browse" class="button-like">Browse</label>
+              <input type="file" id="firmware-file" accept=".bin,application/octet-stream">
+            </div>
+            <progress id="firmware-progress" value="0" max="100" hidden></progress>
+            <p id="firmware-status"></p>
+          </section>
+        </div>
+      </section>
+
+      <section id="section-wifi" class="app-section" data-section="wifi">
+        <form id="wifi-form" class="config-section">
+          <div class="config-grid">
+            <label class="config-checkbox" for="wifi-enabled">
+              <input type="checkbox" id="wifi-enabled">
+              <span>WiFi enabled</span>
+            </label>
+            <label class="config-field" for="wifi-ssid">
+              <span>Network name</span>
+              <input type="text" id="wifi-ssid" maxlength="32" autocomplete="off">
+            </label>
+            <label class="config-field" for="wifi-password">
+              <span>Password</span>
+              <input type="password" id="wifi-password" maxlength="63" autocomplete="new-password" placeholder="Leave unchanged">
+            </label>
+            <label class="config-checkbox" for="wifi-clear-password">
+              <input type="checkbox" id="wifi-clear-password">
+              <span>Clear saved password</span>
+            </label>
+          </div>
+          <div class="config-actions">
+            <button id="save-wifi" type="submit">Save and restart</button>
+            <button id="reset-wifi" type="button" class="secondary">Forget network</button>
+            <span id="wifi-status" class="action-status" role="status" aria-live="polite"></span>
+          </div>
+        </form>
+      </section>
+
+      <section id="section-settings" class="app-section" data-section="settings">
+        <form id="config-form">
+          <div id="config-fields"></div>
+          <div class="config-actions sticky-actions">
+            <button id="save-config" type="submit">Save and restart</button>
+            <button id="reset-config" type="button" class="secondary">Reset defaults</button>
+            <span id="config-status" class="action-status" role="status" aria-live="polite"></span>
+          </div>
+        </form>
+      </section>
+
+      <section id="section-keyboard" class="app-section" data-section="keyboard">
+        <form id="keyboard-form">
+          <section class="config-section">
+            <label class="config-checkbox" for="keyboard-show-keys">
+              <input type="checkbox" id="keyboard-show-keys">
+              <span>Show key presses on screen</span>
+            </label>
+            <small class="config-help">Last physical key code: <span id="keyboard-last-key">none</span></small>
+          </section>
+          <div id="keyboard-fields"></div>
+          <div class="config-actions sticky-actions">
+            <button id="save-keyboard" type="submit">Save keyboard</button>
+            <button id="reset-keyboard" type="button" class="secondary">Reset keyboard</button>
+            <span id="keyboard-status" class="action-status" role="status" aria-live="polite"></span>
+          </div>
+        </form>
+      </section>
+
+      <section id="section-logs" class="app-section" data-section="logs">
+        <div id="log"></div>
+        <div id="command-container">
+          <input type="text" id="command" placeholder="Enter command" value="?" minlength="1" required>
+          <button id="send">Send</button>
+        </div>
+        <details class="panel">
+          <summary>Supported websocket commands</summary>
+          <ul>
+            <li><code>?</code> requests controller status</li>
+            <li><code>=20</code> sends key code 20 as if it is pressed on the keyboard</li>
+            <li><code>!</code> turns the controller off</li>
+            <li><code>~</code> turns the controller on</li>
+            <li><code>""</code> removes all GCode</li>
+          </ul>
+        </details>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <p>NanoEls )rawliteral" CONTROLLER_VERSION_TEXT R"rawliteral(. Trusted local network only. Stop the controller before uploads or settings changes.</p>
+    </footer>
   </div>
-
-  <h2>Nextion TFT Upload</h2>
-  <div id="tft-upload-controls">
-    <label for="tft-file" id="tft-browse" class="button-like">Browse</label>
-    <input type="file" id="tft-file" accept=".tft">
-    <input type="checkbox" id="tft-first-upload" checked>
-    <label for="tft-first-upload">First upload / factory display (9600 baud)</label>
-  </div>
-  <progress id="tft-progress" value="0" max="100" hidden></progress>
-  <p id="tft-status"></p>
-
-  <h2>ESP32 Firmware Upload</h2>
-  <div id="firmware-upload-controls">
-    <label for="firmware-file" id="firmware-browse" class="button-like">Browse</label>
-    <input type="file" id="firmware-file" accept=".bin,application/octet-stream">
-  </div>
-  <progress id="firmware-progress" value="0" max="100" hidden></progress>
-  <p id="firmware-status"></p>
-
-  <h2>WiFi</h2>
-  <form id="wifi-form" class="config-section">
-    <div class="config-grid">
-      <label class="config-checkbox" for="wifi-enabled">
-        <input type="checkbox" id="wifi-enabled">
-        <span>WiFi enabled</span>
-      </label>
-      <label class="config-field" for="wifi-ssid">
-        <span>Network name</span>
-        <input type="text" id="wifi-ssid" maxlength="32" autocomplete="off">
-      </label>
-      <label class="config-field" for="wifi-password">
-        <span>Password</span>
-        <input type="password" id="wifi-password" maxlength="63" autocomplete="new-password" placeholder="Leave unchanged">
-      </label>
-      <label class="config-checkbox" for="wifi-clear-password">
-        <input type="checkbox" id="wifi-clear-password">
-        <span>Clear saved password</span>
-      </label>
-    </div>
-    <div class="config-actions">
-      <button id="save-wifi" type="submit">Save and restart</button>
-      <button id="reset-wifi" type="button" class="secondary">Forget network</button>
-    </div>
-  </form>
-  <p id="wifi-status"></p>
-
-  <h2>Keyboard</h2>
-  <form id="keyboard-form">
-    <section class="config-section">
-      <label class="config-checkbox" for="keyboard-show-keys">
-        <input type="checkbox" id="keyboard-show-keys">
-        <span>Show key presses on screen</span>
-      </label>
-      <small class="config-help">Last physical key code: <span id="keyboard-last-key">none</span></small>
-    </section>
-    <div id="keyboard-fields"></div>
-    <div class="config-actions">
-      <button id="save-keyboard" type="submit">Save keyboard</button>
-      <button id="reset-keyboard" type="button" class="secondary">Reset keyboard</button>
-    </div>
-  </form>
-  <p id="keyboard-status"></p>
-
-  <h2>Realtime Log and Commands</h2>
-  <p>
-    Use the log to see controller responses and troubleshoot behavior without the serial port, which is shared with the screen.
-  </p>
-  <div id="log"></div>
-  <div id="command-container">
-    <input type="text" id="command" placeholder="Enter command" value="?" minlength="1" required>
-    <button id="send">Send</button>
-  </div>
-  <p>Supported websocket commands:</p>
-  <ul>
-    <li><code>?</code> requests controller status</li>
-    <li><code>=20</code> send key code 20 as if it's pressed on the keyboard</li>
-    <li><code>!</code> turns the controller off</li>
-    <li><code>~</code> turns the controller on</li>
-    <li><code>""</code> removes all GCode</li>
-  </ul>
-
-  <h2>Machine Config</h2>
-  <p>Values are shown in normal machine units. Save changes only while the controller is stopped.</p>
-  <form id="config-form">
-    <div id="config-fields"></div>
-    <div class="config-actions">
-      <button id="save-config" type="submit">Save and restart</button>
-      <button id="reset-config" type="button" class="secondary">Reset defaults</button>
-    </div>
-  </form>
-  <p id="config-status"></p>
 
   <script>
+    const defaultSection = 'gcode';
+    const sectionLinks = Array.from(document.querySelectorAll('[data-section-link]'));
+    const appSections = Array.from(document.querySelectorAll('[data-section]'));
     const log = document.getElementById('log');
     const commandInput = document.getElementById('command');
     const sendButton = document.getElementById('send');
@@ -1062,6 +1264,32 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     ];
     const keyboardBindingFields = keyboardBindingSections.flatMap(section => section.fields);
 
+    const normalizeSection = (section) => {
+      return appSections.some(element => element.dataset.section === section) ? section : defaultSection;
+    };
+
+    const sectionFromHash = () => {
+      const hash = window.location.hash || '';
+      return normalizeSection(hash.length > 1 ? hash.substring(1).toLowerCase() : '');
+    };
+
+    const showSection = (section) => {
+      const activeSection = normalizeSection(section);
+      appSections.forEach(element => {
+        element.classList.toggle('active', element.dataset.section === activeSection);
+      });
+      sectionLinks.forEach(link => {
+        link.classList.toggle('active', link.dataset.sectionLink === activeSection);
+      });
+    };
+
+    const handleSectionChange = (scrollToTop) => {
+      showSection(sectionFromHash());
+      if (scrollToTop) window.scrollTo(0, 0);
+    };
+
+    window.addEventListener('hashchange', () => handleSectionChange(true));
+
     const ws = new WebSocket(`ws://${window.location.host.split(':')[0]}:81`);
 
     ws.onopen = () => {
@@ -1194,11 +1422,12 @@ const char indexhtml[] PROGMEM = R"rawliteral(
 
     function renderConfigFields() {
       configFields.innerHTML = '';
-      machineConfigSections.forEach(section => {
-        const sectionElement = document.createElement('section');
-        sectionElement.className = 'config-section';
-        const title = document.createElement('h3');
-        title.textContent = section.title;
+      machineConfigSections.forEach((section, index) => {
+        const sectionElement = document.createElement('details');
+        sectionElement.className = 'config-section settings-group';
+        sectionElement.open = index === 0;
+        const summary = document.createElement('summary');
+        summary.textContent = `${section.title} (${section.fields.length})`;
         const grid = document.createElement('div');
         grid.className = 'config-grid';
         section.fields.forEach(field => {
@@ -1244,7 +1473,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
           }
           grid.appendChild(row);
         });
-        sectionElement.appendChild(title);
+        sectionElement.appendChild(summary);
         sectionElement.appendChild(grid);
         configFields.appendChild(sectionElement);
       });
@@ -1324,11 +1553,12 @@ const char indexhtml[] PROGMEM = R"rawliteral(
 
     function renderKeyboardFields() {
       keyboardFields.innerHTML = '';
-      keyboardBindingSections.forEach(section => {
-        const sectionElement = document.createElement('section');
-        sectionElement.className = 'config-section';
-        const title = document.createElement('h3');
-        title.textContent = section.title;
+      keyboardBindingSections.forEach((section, index) => {
+        const sectionElement = document.createElement('details');
+        sectionElement.className = 'config-section keyboard-group';
+        sectionElement.open = index === 0;
+        const summary = document.createElement('summary');
+        summary.textContent = `${section.title} (${section.fields.length})`;
         const grid = document.createElement('div');
         grid.className = 'keyboard-grid';
         section.fields.forEach(field => {
@@ -1361,7 +1591,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
           row.appendChild(learnButton);
           grid.appendChild(row);
         });
-        sectionElement.appendChild(title);
+        sectionElement.appendChild(summary);
         sectionElement.appendChild(grid);
         keyboardFields.appendChild(sectionElement);
       });
@@ -1618,6 +1848,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     firmwareFileInput.addEventListener('change', uploadFirmwareFile);
 
     document.addEventListener('DOMContentLoaded', () => {
+      handleSectionChange(false);
       loadTftFirstUploadPreference();
       renderConfigFields();
       renderKeyboardFields();
