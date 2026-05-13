@@ -190,7 +190,7 @@ Keyboard key-code mapping is configurable from the H5 Web UI and does not requir
 5. Enable `Show key presses on screen` if you want the Nextion bottom line to show the last physical key code while testing a keyboard.
 6. Click `Save keyboard`. The new mapping is stored in ESP32 Preferences and takes effect immediately.
 
-`Reset keyboard` restores the firmware default mapping. The factory `Esc` stop key remains active even if `Off / stop` is remapped, so a bad keyboard mapping should not remove the normal stop key.
+`Reset keyboard` restores the firmware default mapping.
 
 ## Usage manual
 

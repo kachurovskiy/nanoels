@@ -2961,8 +2961,6 @@ const char* keyboardActionLabel(byte actionCode) {
 }
 
 byte keyboardActionForCode(byte physicalCode) {
-  // Keep factory Esc/Stop active even if the user changes the stop binding.
-  if (physicalCode == B_OFF) return B_OFF;
   for (int i = 0; i < KEYBOARD_BINDING_COUNT; i++) {
     if (keyboardBindings[i].code == physicalCode) {
       return keyboardBindings[i].actionCode;
@@ -2979,10 +2977,6 @@ bool validateKeyboardConfig(String* error) {
     }
     if (keyboardBindings[i].code == 170) {
       *error = String(keyboardBindings[i].label) + " cannot use reserved keyboard code 170";
-      return false;
-    }
-    if (keyboardBindings[i].actionCode != B_OFF && keyboardBindings[i].code == B_OFF) {
-      *error = String("Key code ") + String(B_OFF) + " is reserved as the factory Stop key";
       return false;
     }
     for (int j = i + 1; j < KEYBOARD_BINDING_COUNT; j++) {
