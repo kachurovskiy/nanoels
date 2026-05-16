@@ -113,9 +113,12 @@ const char NAME_Y = 'Y'; // Text shown on screen before axis position value, GCo
 const float DEFAULT_PULSE_PER_REVOLUTION = 600; // PPR of handwheels.
 float PULSE_PER_REVOLUTION = DEFAULT_PULSE_PER_REVOLUTION;
 
-// 3-axis analog joystick. Leave disabled unless the joystick is wired and its
+// Up to 3-axis analog joystick. Leave disabled unless the joystick is wired and its
 // potentiometers are powered from 3.3V, not 5V.
 const bool DEFAULT_JOYSTICK_ENABLED = false;
+const bool DEFAULT_JOYSTICK_Z_ENABLED = true;
+const bool DEFAULT_JOYSTICK_X_ENABLED = true;
+const bool DEFAULT_JOYSTICK_Y_ENABLED = true;
 const int DEFAULT_JOYSTICK_CENTER_SAMPLES = 64;
 const int DEFAULT_JOYSTICK_OVERSAMPLES = 4;
 const int DEFAULT_JOYSTICK_SAMPLE_INTERVAL_MS = 20;
@@ -132,6 +135,9 @@ const bool DEFAULT_INVERT_JOYSTICK_X = false;
 const bool DEFAULT_INVERT_JOYSTICK_Y = false;
 const bool DEFAULT_INVERT_JOYSTICK_BUTTON = false;
 bool JOYSTICK_ENABLED = DEFAULT_JOYSTICK_ENABLED;
+bool JOYSTICK_Z_ENABLED = DEFAULT_JOYSTICK_Z_ENABLED;
+bool JOYSTICK_X_ENABLED = DEFAULT_JOYSTICK_X_ENABLED;
+bool JOYSTICK_Y_ENABLED = DEFAULT_JOYSTICK_Y_ENABLED;
 int JOYSTICK_CENTER_SAMPLES = DEFAULT_JOYSTICK_CENTER_SAMPLES;
 int JOYSTICK_OVERSAMPLES = DEFAULT_JOYSTICK_OVERSAMPLES;
 int JOYSTICK_SAMPLE_INTERVAL_MS = DEFAULT_JOYSTICK_SAMPLE_INTERVAL_MS;
@@ -175,7 +181,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 26
+#define SOFTWARE_VERSION 27
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -412,6 +418,9 @@ const int KEYBOARD_BINDING_COUNT = sizeof(keyboardBindings) / sizeof(keyboardBin
 #define CFG_BACKLASH_DU_Y "yBacklash"
 #define CFG_PULSE_PER_REVOLUTION "pulseRev"
 #define CFG_JOYSTICK_ENABLED "joyOn"
+#define CFG_JOYSTICK_Z_ENABLED "joyZOn"
+#define CFG_JOYSTICK_X_ENABLED "joyXOn"
+#define CFG_JOYSTICK_Y_ENABLED "joyYOn"
 #define CFG_JOYSTICK_CENTER_SAMPLES "joyCenter"
 #define CFG_JOYSTICK_OVERSAMPLES "joyOver"
 #define CFG_JOYSTICK_SAMPLE_INTERVAL_MS "joySample"
@@ -1167,6 +1176,9 @@ const char indexhtml[] PROGMEM = R"rawliteral(
         title: 'Joystick',
         fields: [
           { key: 'joystickEnabled', label: 'Joystick enabled', type: 'checkbox', help: 'Enable only after the optional analog joystick is wired. Joystick axes must feed ESP32-safe 3.3V ADC inputs.' },
+          { key: 'joystickZEnabled', label: 'Z input enabled', type: 'checkbox', help: 'Enable when the joystick has a wired Z potentiometer on JZ. Disable for joysticks without this axis.' },
+          { key: 'joystickXEnabled', label: 'X input enabled', type: 'checkbox', help: 'Enable when the joystick has a wired X potentiometer on JX. Disable for joysticks without this axis.' },
+          { key: 'joystickYEnabled', label: 'Y input enabled', type: 'checkbox', help: 'Enable when the joystick has a wired Y potentiometer on JY. Disable for joysticks without this axis.' },
           { key: 'joystickCenterSamples', label: 'Center samples', unit: 'samples', min: 1, max: 1024, step: 1, help: 'Number of ADC readings averaged at startup to learn the joystick center position.' },
           { key: 'joystickOversamples', label: 'Oversamples', unit: 'samples', min: 1, max: 1024, step: 1, help: 'ADC readings averaged for each joystick update. Higher values smooth noise but add latency.' },
           { key: 'joystickSampleIntervalMs', label: 'Sample interval', unit: 'ms', min: 1, max: 1000, step: 1, help: 'Time between joystick updates. Smaller values react faster and use more CPU.' },
@@ -2326,6 +2338,7 @@ Axis y;
 struct JoystickAxisState {
   Axis* axis;
   int pin;
+  bool* enabled;
   bool* invert;
   volatile int manualDirection;
   volatile long manualSpeed;
@@ -2344,11 +2357,22 @@ enum JoystickAxisIndex {
 };
 
 JoystickAxisState joystickAxes[] = {
-  {&z, JOY_Z, &INVERT_JOYSTICK_Z, 0, 0, 0, 2048, 2048, 0, 0, 0},
-  {&x, JOY_X, &INVERT_JOYSTICK_X, 0, 0, 0, 2048, 2048, 0, 0, 0},
-  {&y, JOY_Y, &INVERT_JOYSTICK_Y, 0, 0, 0, 2048, 2048, 0, 0, 0},
+  {&z, JOY_Z, &JOYSTICK_Z_ENABLED, &INVERT_JOYSTICK_Z, 0, 0, 0, 2048, 2048, 0, 0, 0},
+  {&x, JOY_X, &JOYSTICK_X_ENABLED, &INVERT_JOYSTICK_X, 0, 0, 0, 2048, 2048, 0, 0, 0},
+  {&y, JOY_Y, &JOYSTICK_Y_ENABLED, &INVERT_JOYSTICK_Y, 0, 0, 0, 2048, 2048, 0, 0, 0},
 };
 const int JOYSTICK_AXIS_COUNT = sizeof(joystickAxes) / sizeof(joystickAxes[0]);
+
+bool joystickAxisEnabled(JoystickAxisState* joystickAxis) {
+  return joystickAxis->enabled == nullptr || *joystickAxis->enabled;
+}
+
+bool anyJoystickAxisEnabled() {
+  for (int i = 0; i < JOYSTICK_AXIS_COUNT; i++) {
+    if (joystickAxisEnabled(&joystickAxes[i])) return true;
+  }
+  return false;
+}
 
 pcnt_unit_handle_t pulseUnits[PULSE_COUNTER_COUNT] = {};
 volatile bool pulseCountersReady = false;
@@ -2578,6 +2602,9 @@ void setMachineConfigDefaults() {
   BACKLASH_DU_Y = DEFAULT_BACKLASH_DU_Y;
   PULSE_PER_REVOLUTION = DEFAULT_PULSE_PER_REVOLUTION;
   JOYSTICK_ENABLED = DEFAULT_JOYSTICK_ENABLED;
+  JOYSTICK_Z_ENABLED = DEFAULT_JOYSTICK_Z_ENABLED;
+  JOYSTICK_X_ENABLED = DEFAULT_JOYSTICK_X_ENABLED;
+  JOYSTICK_Y_ENABLED = DEFAULT_JOYSTICK_Y_ENABLED;
   JOYSTICK_CENTER_SAMPLES = DEFAULT_JOYSTICK_CENTER_SAMPLES;
   JOYSTICK_OVERSAMPLES = DEFAULT_JOYSTICK_OVERSAMPLES;
   JOYSTICK_SAMPLE_INTERVAL_MS = DEFAULT_JOYSTICK_SAMPLE_INTERVAL_MS;
@@ -2686,6 +2713,9 @@ void loadMachineConfig() {
   BACKLASH_DU_Y = cfg.getLong(CFG_BACKLASH_DU_Y, BACKLASH_DU_Y);
   PULSE_PER_REVOLUTION = cfg.getFloat(CFG_PULSE_PER_REVOLUTION, PULSE_PER_REVOLUTION);
   JOYSTICK_ENABLED = cfg.getBool(CFG_JOYSTICK_ENABLED, JOYSTICK_ENABLED);
+  JOYSTICK_Z_ENABLED = cfg.getBool(CFG_JOYSTICK_Z_ENABLED, JOYSTICK_Z_ENABLED);
+  JOYSTICK_X_ENABLED = cfg.getBool(CFG_JOYSTICK_X_ENABLED, JOYSTICK_X_ENABLED);
+  JOYSTICK_Y_ENABLED = cfg.getBool(CFG_JOYSTICK_Y_ENABLED, JOYSTICK_Y_ENABLED);
   JOYSTICK_CENTER_SAMPLES = cfg.getInt(CFG_JOYSTICK_CENTER_SAMPLES, JOYSTICK_CENTER_SAMPLES);
   JOYSTICK_OVERSAMPLES = cfg.getInt(CFG_JOYSTICK_OVERSAMPLES, JOYSTICK_OVERSAMPLES);
   JOYSTICK_SAMPLE_INTERVAL_MS = cfg.getInt(CFG_JOYSTICK_SAMPLE_INTERVAL_MS, JOYSTICK_SAMPLE_INTERVAL_MS);
@@ -2745,6 +2775,9 @@ void saveMachineConfig() {
   cfg.putLong(CFG_BACKLASH_DU_Y, BACKLASH_DU_Y);
   cfg.putFloat(CFG_PULSE_PER_REVOLUTION, PULSE_PER_REVOLUTION);
   cfg.putBool(CFG_JOYSTICK_ENABLED, JOYSTICK_ENABLED);
+  cfg.putBool(CFG_JOYSTICK_Z_ENABLED, JOYSTICK_Z_ENABLED);
+  cfg.putBool(CFG_JOYSTICK_X_ENABLED, JOYSTICK_X_ENABLED);
+  cfg.putBool(CFG_JOYSTICK_Y_ENABLED, JOYSTICK_Y_ENABLED);
   cfg.putInt(CFG_JOYSTICK_CENTER_SAMPLES, JOYSTICK_CENTER_SAMPLES);
   cfg.putInt(CFG_JOYSTICK_OVERSAMPLES, JOYSTICK_OVERSAMPLES);
   cfg.putInt(CFG_JOYSTICK_SAMPLE_INTERVAL_MS, JOYSTICK_SAMPLE_INTERVAL_MS);
@@ -2861,6 +2894,10 @@ bool validateMachineConfig(String* error) {
     *error = "joystickDeadband must be less than joystickAdcMax";
     return false;
   }
+  if (JOYSTICK_ENABLED && !anyJoystickAxisEnabled()) {
+    *error = "at least one joystick axis must be enabled when joystickEnabled is set";
+    return false;
+  }
   return true;
 }
 
@@ -2904,6 +2941,9 @@ bool readMachineConfigFromRequest(String* error) {
     readLongConfigArg("yBacklashDu", &BACKLASH_DU_Y, 0, 10000000, error) &&
     readFloatConfigArg("pulsePerRevolution", &PULSE_PER_REVOLUTION, 1.0, 100000.0, error) &&
     readBoolConfigArg("joystickEnabled", &JOYSTICK_ENABLED, error) &&
+    readBoolConfigArg("joystickZEnabled", &JOYSTICK_Z_ENABLED, error) &&
+    readBoolConfigArg("joystickXEnabled", &JOYSTICK_X_ENABLED, error) &&
+    readBoolConfigArg("joystickYEnabled", &JOYSTICK_Y_ENABLED, error) &&
     readIntConfigArg("joystickCenterSamples", &JOYSTICK_CENTER_SAMPLES, 1, 1024, error) &&
     readIntConfigArg("joystickOversamples", &JOYSTICK_OVERSAMPLES, 1, 1024, error) &&
     readIntConfigArg("joystickSampleIntervalMs", &JOYSTICK_SAMPLE_INTERVAL_MS, 1, 1000, error) &&
@@ -3135,6 +3175,9 @@ String getMachineConfigResponse() {
   appendConfigLine(&response, "yBacklashDu", BACKLASH_DU_Y);
   appendConfigLine(&response, "pulsePerRevolution", PULSE_PER_REVOLUTION);
   appendConfigLine(&response, "joystickEnabled", JOYSTICK_ENABLED);
+  appendConfigLine(&response, "joystickZEnabled", JOYSTICK_Z_ENABLED);
+  appendConfigLine(&response, "joystickXEnabled", JOYSTICK_X_ENABLED);
+  appendConfigLine(&response, "joystickYEnabled", JOYSTICK_Y_ENABLED);
   appendConfigLine(&response, "joystickCenterSamples", JOYSTICK_CENTER_SAMPLES);
   appendConfigLine(&response, "joystickOversamples", JOYSTICK_OVERSAMPLES);
   appendConfigLine(&response, "joystickSampleIntervalMs", JOYSTICK_SAMPLE_INTERVAL_MS);
@@ -5017,6 +5060,11 @@ long getJoystickSpeedFromDeflection(JoystickAxisState* joystickAxis) {
 }
 
 void readJoystickAxis(JoystickAxisState* joystickAxis) {
+  if (!joystickAxisEnabled(joystickAxis)) {
+    joystickAxis->deflection = 0;
+    joystickAxis->direction = 0;
+    return;
+  }
   joystickAxis->deflection = getJoystickDeflection(joystickAxis);
   joystickAxis->direction = joystickDirectionFromDeflection(joystickAxis->deflection);
 }
@@ -5053,13 +5101,16 @@ bool joystickStartupCenterLooksNeutral(int center) {
 void initJoystick() {
   joystickAvailable = false;
   if (!JOYSTICK_ENABLED) return;
+  if (!anyJoystickAxisEnabled()) return;
   analogReadResolution(12);
   for (int i = 0; i < JOYSTICK_AXIS_COUNT; i++) {
+    if (!joystickAxisEnabled(&joystickAxes[i])) continue;
     pinMode(joystickAxes[i].pin, INPUT_PULLDOWN);
   }
   pinMode(JOY_BUTTON, INPUT_PULLUP);
 
   for (int i = 0; i < JOYSTICK_AXIS_COUNT; i++) {
+    if (!joystickAxisEnabled(&joystickAxes[i])) continue;
     joystickAxes[i].center = calibrateJoystickCenter(joystickAxes[i].pin);
     if (!joystickStartupCenterLooksNeutral(joystickAxes[i].center)) {
       return;
@@ -5067,6 +5118,17 @@ void initJoystick() {
   }
 
   for (int i = 0; i < JOYSTICK_AXIS_COUNT; i++) {
+    if (!joystickAxisEnabled(&joystickAxes[i])) {
+      joystickAxes[i].center = JOYSTICK_ADC_MAX / 2;
+      joystickAxes[i].filtered = joystickAxes[i].center;
+      joystickAxes[i].deflection = 0;
+      joystickAxes[i].direction = 0;
+      joystickAxes[i].manualDirection = 0;
+      joystickAxes[i].manualSpeed = 0;
+      joystickAxes[i].queuedPulses = 0;
+      joystickAxes[i].pulseFraction = 0;
+      continue;
+    }
     joystickAxes[i].filtered = joystickAxes[i].center;
   }
   joystickSampleTimeUs = micros();
