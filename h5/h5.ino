@@ -59,11 +59,13 @@ long MAX_TRAVEL_MM_X = DEFAULT_MAX_TRAVEL_MM_X;
 long BACKLASH_DU_X = DEFAULT_BACKLASH_DU_X;
 const char NAME_X = 'X'; // Text shown on screen before axis position value, GCode axis name
 
-// Manual stepping with left/right/up/down buttons. Only used when step isn't default continuous (1mm or 0.1").
+// Manual stepping with left/right/up/down buttons. Used when the selected move step should not be continuous.
 const long DEFAULT_STEP_TIME_MS = 500; // Time in milliseconds it should take to make 1 manual step.
 const long DEFAULT_DELAY_BETWEEN_STEPS_MS = 80; // Time in milliseconds to wait between steps.
+const bool DEFAULT_ENABLE_CONTINUOUS_MOVE = true; // If true, move buttons use continuous motion for the default step.
 long STEP_TIME_MS = DEFAULT_STEP_TIME_MS;
 long DELAY_BETWEEN_STEPS_MS = DEFAULT_DELAY_BETWEEN_STEPS_MS;
+bool ENABLE_CONTINUOUS_MOVE = DEFAULT_ENABLE_CONTINUOUS_MOVE;
 
 // Connect to WiFi and expose web UI to control and receive GCode.
 // Credentials are stored in ESP32 Preferences and can be changed from the Web UI.
@@ -185,7 +187,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 28
+#define SOFTWARE_VERSION 29
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -408,6 +410,7 @@ const int KEYBOARD_BINDING_COUNT = sizeof(keyboardBindings) / sizeof(keyboardBin
 #define CFG_BACKLASH_DU_X "xBacklash"
 #define CFG_STEP_TIME_MS "stepMs"
 #define CFG_DELAY_BETWEEN_STEPS_MS "stepDelay"
+#define CFG_ENABLE_CONTINUOUS_MOVE "contStep"
 #define CFG_ACTIVE_Y "yActive"
 #define CFG_ROTARY_Y "yRotary"
 #define CFG_MOTOR_STEPS_Y "yMotor"
@@ -1157,6 +1160,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
         fields: [
           { key: 'stepTimeMs', label: 'Step time', unit: 'ms', min: 1, max: 10000, step: 1, help: 'Target time for one precision button step when the selected move step is not continuous.' },
           { key: 'delayBetweenStepsMs', label: 'Step delay', unit: 'ms', min: 0, max: 10000, step: 1, help: 'Pause between repeated precision steps while a manual move button is held.' },
+          { key: 'enableContinuousMove', label: 'Enable continuous moves', type: 'checkbox', help: 'Let move buttons run continuously when the selected move step is 1mm or 0.1in.' },
           { key: 'pulsePerRevolution', label: 'Handwheel PPR', unit: 'pulses/rev', min: 1, max: 100000, step: 0.01, help: 'Physical pulses per revolution of the optional manual handwheel encoder. Use the handwheel specification.' }
         ]
       },
@@ -2600,6 +2604,7 @@ void setMachineConfigDefaults() {
   BACKLASH_DU_X = DEFAULT_BACKLASH_DU_X;
   STEP_TIME_MS = DEFAULT_STEP_TIME_MS;
   DELAY_BETWEEN_STEPS_MS = DEFAULT_DELAY_BETWEEN_STEPS_MS;
+  ENABLE_CONTINUOUS_MOVE = DEFAULT_ENABLE_CONTINUOUS_MOVE;
   ACTIVE_Y = DEFAULT_ACTIVE_Y;
   ROTARY_Y = DEFAULT_ROTARY_Y;
   MOTOR_STEPS_Y = DEFAULT_MOTOR_STEPS_Y;
@@ -2712,6 +2717,7 @@ void loadMachineConfig() {
   BACKLASH_DU_X = cfg.getLong(CFG_BACKLASH_DU_X, BACKLASH_DU_X);
   STEP_TIME_MS = cfg.getLong(CFG_STEP_TIME_MS, STEP_TIME_MS);
   DELAY_BETWEEN_STEPS_MS = cfg.getLong(CFG_DELAY_BETWEEN_STEPS_MS, DELAY_BETWEEN_STEPS_MS);
+  ENABLE_CONTINUOUS_MOVE = cfg.getBool(CFG_ENABLE_CONTINUOUS_MOVE, ENABLE_CONTINUOUS_MOVE);
   ACTIVE_Y = cfg.getBool(CFG_ACTIVE_Y, ACTIVE_Y);
   ROTARY_Y = cfg.getBool(CFG_ROTARY_Y, ROTARY_Y);
   MOTOR_STEPS_Y = cfg.getLong(CFG_MOTOR_STEPS_Y, MOTOR_STEPS_Y);
@@ -2775,6 +2781,7 @@ void saveMachineConfig() {
   cfg.putLong(CFG_BACKLASH_DU_X, BACKLASH_DU_X);
   cfg.putLong(CFG_STEP_TIME_MS, STEP_TIME_MS);
   cfg.putLong(CFG_DELAY_BETWEEN_STEPS_MS, DELAY_BETWEEN_STEPS_MS);
+  cfg.putBool(CFG_ENABLE_CONTINUOUS_MOVE, ENABLE_CONTINUOUS_MOVE);
   cfg.putBool(CFG_ACTIVE_Y, ACTIVE_Y);
   cfg.putBool(CFG_ROTARY_Y, ROTARY_Y);
   cfg.putLong(CFG_MOTOR_STEPS_Y, MOTOR_STEPS_Y);
@@ -2942,6 +2949,7 @@ bool readMachineConfigFromRequest(String* error) {
     readLongConfigArg("xBacklashDu", &BACKLASH_DU_X, 0, 10000000, error) &&
     readLongConfigArg("stepTimeMs", &STEP_TIME_MS, 1, 10000, error) &&
     readLongConfigArg("delayBetweenStepsMs", &DELAY_BETWEEN_STEPS_MS, 0, 10000, error) &&
+    readBoolConfigArg("enableContinuousMove", &ENABLE_CONTINUOUS_MOVE, error) &&
     readBoolConfigArg("activeY", &ACTIVE_Y, error) &&
     readBoolConfigArg("rotaryY", &ROTARY_Y, error) &&
     readLongConfigArg("yMotorSteps", &MOTOR_STEPS_Y, 1, 1000000, error) &&
@@ -3152,7 +3160,7 @@ bool shouldConsumeKeyboardCapture(byte physicalCode, bool isPress) {
 
 String getMachineConfigResponse() {
   String response = "";
-  response.reserve(2200);
+  response.reserve(2300);
   appendConfigLine(&response, "encoderPpr", ENCODER_PPR);
   appendConfigLine(&response, "encoderBacklash", ENCODER_BACKLASH);
   appendConfigLine(&response, "zScrewDu", SCREW_Z_DU);
@@ -3177,6 +3185,7 @@ String getMachineConfigResponse() {
   appendConfigLine(&response, "xBacklashDu", BACKLASH_DU_X);
   appendConfigLine(&response, "stepTimeMs", STEP_TIME_MS);
   appendConfigLine(&response, "delayBetweenStepsMs", DELAY_BETWEEN_STEPS_MS);
+  appendConfigLine(&response, "enableContinuousMove", ENABLE_CONTINUOUS_MOVE);
   appendConfigLine(&response, "activeY", ACTIVE_Y);
   appendConfigLine(&response, "rotaryY", ROTARY_Y);
   appendConfigLine(&response, "yMotorSteps", MOTOR_STEPS_Y);
@@ -4844,6 +4853,7 @@ void prepareJoystickLatheManualMove() {
 }
 
 bool isContinuousStep() {
+  if (!ENABLE_CONTINUOUS_MOVE) return false;
   return moveStep == (measure == MEASURE_METRIC ? MOVE_STEP_1 : MOVE_STEP_IMP_1);
 }
 

@@ -346,7 +346,7 @@ Depending on the state of the controller, pressing the move button will result i
 - `off` - carriage will move by the step distance but at least 1 stepper motor step
 - `ON` - carriage will move in pitch increments (stay in the thread) but at least the step distance
 
-If step is set to `1mm` or `0.1"`, pressing and holding move buttons results in continuous movement allowing for quick tool positioning. If step is set to values other than `1mm` or `0.1"`, there's a short delay between steps when manual moves are triggered allowing to precisely position the tool.
+If step is set to `1mm` or `0.1"`, pressing and holding move buttons results in continuous movement allowing for quick tool positioning when the Web UI `Machine Config` setting `Enable continuous moves` is enabled. If it is disabled, or if step is set to values other than `1mm` or `0.1"`, there's a short delay between steps when manual moves are triggered allowing to precisely position the tool.
 
 Changing direction will result in automatic backlash compensation, for example with backlash `0.65mm` and step `0.1mm`, first move in the opposite direction will result in lead screw turning `0.75mm`. Tool should still only move `0.1mm` assuming backlash is uniform and is specified correctly.
 
