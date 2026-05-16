@@ -119,6 +119,7 @@ const bool DEFAULT_JOYSTICK_ENABLED = false;
 const bool DEFAULT_JOYSTICK_Z_ENABLED = true;
 const bool DEFAULT_JOYSTICK_X_ENABLED = true;
 const bool DEFAULT_JOYSTICK_Y_ENABLED = true;
+const bool DEFAULT_JOYSTICK_BUTTON_TOGGLES_ON_OFF = false;
 const int DEFAULT_JOYSTICK_CENTER_SAMPLES = 64;
 const int DEFAULT_JOYSTICK_OVERSAMPLES = 4;
 const int DEFAULT_JOYSTICK_SAMPLE_INTERVAL_MS = 20;
@@ -129,6 +130,8 @@ const float DEFAULT_JOYSTICK_NORMAL_REVOLUTIONS_PER_SECOND = 1.0;
 const float DEFAULT_JOYSTICK_RAPID_REVOLUTIONS_PER_SECOND = 8.0;
 const float JOYSTICK_PITCH_CHANGES_PER_SECOND = 20.0;
 const unsigned long JOYSTICK_PITCH_STATUS_HOLD_MS = 500;
+const unsigned long JOYSTICK_BUTTON_DEBOUNCE_MS = 30;
+const unsigned long JOYSTICK_BUTTON_TOGGLE_MAX_MS = 500;
 const int JOYSTICK_STARTUP_CENTER_TOLERANCE_MIN = 32; // Reject startup centers too far from ADC midpoint.
 const bool DEFAULT_INVERT_JOYSTICK_Z = false;
 const bool DEFAULT_INVERT_JOYSTICK_X = false;
@@ -138,6 +141,7 @@ bool JOYSTICK_ENABLED = DEFAULT_JOYSTICK_ENABLED;
 bool JOYSTICK_Z_ENABLED = DEFAULT_JOYSTICK_Z_ENABLED;
 bool JOYSTICK_X_ENABLED = DEFAULT_JOYSTICK_X_ENABLED;
 bool JOYSTICK_Y_ENABLED = DEFAULT_JOYSTICK_Y_ENABLED;
+bool JOYSTICK_BUTTON_TOGGLES_ON_OFF = DEFAULT_JOYSTICK_BUTTON_TOGGLES_ON_OFF;
 int JOYSTICK_CENTER_SAMPLES = DEFAULT_JOYSTICK_CENTER_SAMPLES;
 int JOYSTICK_OVERSAMPLES = DEFAULT_JOYSTICK_OVERSAMPLES;
 int JOYSTICK_SAMPLE_INTERVAL_MS = DEFAULT_JOYSTICK_SAMPLE_INTERVAL_MS;
@@ -181,7 +185,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 27
+#define SOFTWARE_VERSION 28
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -421,6 +425,7 @@ const int KEYBOARD_BINDING_COUNT = sizeof(keyboardBindings) / sizeof(keyboardBin
 #define CFG_JOYSTICK_Z_ENABLED "joyZOn"
 #define CFG_JOYSTICK_X_ENABLED "joyXOn"
 #define CFG_JOYSTICK_Y_ENABLED "joyYOn"
+#define CFG_JOYSTICK_BUTTON_TOGGLES_ON_OFF "joyBtnOn"
 #define CFG_JOYSTICK_CENTER_SAMPLES "joyCenter"
 #define CFG_JOYSTICK_OVERSAMPLES "joyOver"
 #define CFG_JOYSTICK_SAMPLE_INTERVAL_MS "joySample"
@@ -1179,6 +1184,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
           { key: 'joystickZEnabled', label: 'Z input enabled', type: 'checkbox', help: 'Enable when the joystick has a wired Z potentiometer on JZ. Disable for joysticks without this axis.' },
           { key: 'joystickXEnabled', label: 'X input enabled', type: 'checkbox', help: 'Enable when the joystick has a wired X potentiometer on JX. Disable for joysticks without this axis.' },
           { key: 'joystickYEnabled', label: 'Y input enabled', type: 'checkbox', help: 'Enable when the joystick has a wired Y potentiometer on JY. Disable for joysticks without this axis.' },
+          { key: 'joystickButtonTogglesOnOff', label: 'Button toggles ON/OFF', type: 'checkbox', help: 'In JOY mode, a short button click while Z and X are neutral toggles feed ON/OFF. Holding the button with Z or X deflected still performs rapid movement.' },
           { key: 'joystickCenterSamples', label: 'Center samples', unit: 'samples', min: 1, max: 1024, step: 1, help: 'Number of ADC readings averaged at startup to learn the joystick center position.' },
           { key: 'joystickOversamples', label: 'Oversamples', unit: 'samples', min: 1, max: 1024, step: 1, help: 'ADC readings averaged for each joystick update. Higher values smooth noise but add latency.' },
           { key: 'joystickSampleIntervalMs', label: 'Sample interval', unit: 'ms', min: 1, max: 1000, step: 1, help: 'Time between joystick updates. Smaller values react faster and use more CPU.' },
@@ -2170,9 +2176,15 @@ int joystickLatheSyncAxis = 0;
 long joystickLatheSyncPitch = 0;
 bool joystickLatheRebaseZAfterSync = false;
 bool joystickLatheRebaseXAfterSync = false;
+bool joystickButtonRawPressed = false;
+bool joystickButtonPressed = false;
+bool joystickButtonToggleBlocked = false;
+unsigned long joystickButtonRawChangeMillis = 0;
+unsigned long joystickButtonPressMillis = 0;
 
 void adjustPitch(bool plus);
 void buttonPlusMinusPress(bool plus);
+void buttonOnOffPress(bool on);
 void resetJoystickLatheFeedPosition();
 void cancelJoystickLatheSync();
 void resetJoystickLatheFeed();
@@ -2605,6 +2617,7 @@ void setMachineConfigDefaults() {
   JOYSTICK_Z_ENABLED = DEFAULT_JOYSTICK_Z_ENABLED;
   JOYSTICK_X_ENABLED = DEFAULT_JOYSTICK_X_ENABLED;
   JOYSTICK_Y_ENABLED = DEFAULT_JOYSTICK_Y_ENABLED;
+  JOYSTICK_BUTTON_TOGGLES_ON_OFF = DEFAULT_JOYSTICK_BUTTON_TOGGLES_ON_OFF;
   JOYSTICK_CENTER_SAMPLES = DEFAULT_JOYSTICK_CENTER_SAMPLES;
   JOYSTICK_OVERSAMPLES = DEFAULT_JOYSTICK_OVERSAMPLES;
   JOYSTICK_SAMPLE_INTERVAL_MS = DEFAULT_JOYSTICK_SAMPLE_INTERVAL_MS;
@@ -2716,6 +2729,7 @@ void loadMachineConfig() {
   JOYSTICK_Z_ENABLED = cfg.getBool(CFG_JOYSTICK_Z_ENABLED, JOYSTICK_Z_ENABLED);
   JOYSTICK_X_ENABLED = cfg.getBool(CFG_JOYSTICK_X_ENABLED, JOYSTICK_X_ENABLED);
   JOYSTICK_Y_ENABLED = cfg.getBool(CFG_JOYSTICK_Y_ENABLED, JOYSTICK_Y_ENABLED);
+  JOYSTICK_BUTTON_TOGGLES_ON_OFF = cfg.getBool(CFG_JOYSTICK_BUTTON_TOGGLES_ON_OFF, JOYSTICK_BUTTON_TOGGLES_ON_OFF);
   JOYSTICK_CENTER_SAMPLES = cfg.getInt(CFG_JOYSTICK_CENTER_SAMPLES, JOYSTICK_CENTER_SAMPLES);
   JOYSTICK_OVERSAMPLES = cfg.getInt(CFG_JOYSTICK_OVERSAMPLES, JOYSTICK_OVERSAMPLES);
   JOYSTICK_SAMPLE_INTERVAL_MS = cfg.getInt(CFG_JOYSTICK_SAMPLE_INTERVAL_MS, JOYSTICK_SAMPLE_INTERVAL_MS);
@@ -2778,6 +2792,7 @@ void saveMachineConfig() {
   cfg.putBool(CFG_JOYSTICK_Z_ENABLED, JOYSTICK_Z_ENABLED);
   cfg.putBool(CFG_JOYSTICK_X_ENABLED, JOYSTICK_X_ENABLED);
   cfg.putBool(CFG_JOYSTICK_Y_ENABLED, JOYSTICK_Y_ENABLED);
+  cfg.putBool(CFG_JOYSTICK_BUTTON_TOGGLES_ON_OFF, JOYSTICK_BUTTON_TOGGLES_ON_OFF);
   cfg.putInt(CFG_JOYSTICK_CENTER_SAMPLES, JOYSTICK_CENTER_SAMPLES);
   cfg.putInt(CFG_JOYSTICK_OVERSAMPLES, JOYSTICK_OVERSAMPLES);
   cfg.putInt(CFG_JOYSTICK_SAMPLE_INTERVAL_MS, JOYSTICK_SAMPLE_INTERVAL_MS);
@@ -2944,6 +2959,7 @@ bool readMachineConfigFromRequest(String* error) {
     readBoolConfigArg("joystickZEnabled", &JOYSTICK_Z_ENABLED, error) &&
     readBoolConfigArg("joystickXEnabled", &JOYSTICK_X_ENABLED, error) &&
     readBoolConfigArg("joystickYEnabled", &JOYSTICK_Y_ENABLED, error) &&
+    readBoolConfigArg("joystickButtonTogglesOnOff", &JOYSTICK_BUTTON_TOGGLES_ON_OFF, error) &&
     readIntConfigArg("joystickCenterSamples", &JOYSTICK_CENTER_SAMPLES, 1, 1024, error) &&
     readIntConfigArg("joystickOversamples", &JOYSTICK_OVERSAMPLES, 1, 1024, error) &&
     readIntConfigArg("joystickSampleIntervalMs", &JOYSTICK_SAMPLE_INTERVAL_MS, 1, 1000, error) &&
@@ -3178,6 +3194,7 @@ String getMachineConfigResponse() {
   appendConfigLine(&response, "joystickZEnabled", JOYSTICK_Z_ENABLED);
   appendConfigLine(&response, "joystickXEnabled", JOYSTICK_X_ENABLED);
   appendConfigLine(&response, "joystickYEnabled", JOYSTICK_Y_ENABLED);
+  appendConfigLine(&response, "joystickButtonTogglesOnOff", JOYSTICK_BUTTON_TOGGLES_ON_OFF);
   appendConfigLine(&response, "joystickCenterSamples", JOYSTICK_CENTER_SAMPLES);
   appendConfigLine(&response, "joystickOversamples", JOYSTICK_OVERSAMPLES);
   appendConfigLine(&response, "joystickSampleIntervalMs", JOYSTICK_SAMPLE_INTERVAL_MS);
@@ -5098,6 +5115,34 @@ bool joystickStartupCenterLooksNeutral(int center) {
   return abs(center - midpoint) <= tolerance;
 }
 
+bool updateJoystickButton(bool rawPressed, bool moveNeutral) {
+  unsigned long now = millis();
+  if (rawPressed != joystickButtonRawPressed) {
+    joystickButtonRawPressed = rawPressed;
+    joystickButtonRawChangeMillis = now;
+  }
+
+  if (rawPressed != joystickButtonPressed && now - joystickButtonRawChangeMillis >= JOYSTICK_BUTTON_DEBOUNCE_MS) {
+    joystickButtonPressed = rawPressed;
+    if (joystickButtonPressed) {
+      joystickButtonPressMillis = now;
+      joystickButtonToggleBlocked = mode != MODE_JOYSTICK || !moveNeutral;
+    } else {
+      bool shortClick = now - joystickButtonPressMillis <= JOYSTICK_BUTTON_TOGGLE_MAX_MS;
+      if (JOYSTICK_BUTTON_TOGGLES_ON_OFF && mode == MODE_JOYSTICK && moveNeutral && shortClick && !joystickButtonToggleBlocked) {
+        buttonOnOffPress(!isOn);
+      }
+      joystickButtonToggleBlocked = false;
+    }
+  }
+
+  if (joystickButtonPressed && (mode != MODE_JOYSTICK || !moveNeutral || now - joystickButtonPressMillis > JOYSTICK_BUTTON_TOGGLE_MAX_MS)) {
+    joystickButtonToggleBlocked = true;
+  }
+
+  return joystickButtonPressed;
+}
+
 void initJoystick() {
   joystickAvailable = false;
   if (!JOYSTICK_ENABLED) return;
@@ -5140,8 +5185,7 @@ void taskJoystick(void *param) {
   JoystickAxisState* joystickX = &joystickAxes[JOYSTICK_AXIS_X];
   JoystickAxisState* joystickY = &joystickAxes[JOYSTICK_AXIS_Y];
   while (emergencyStop == ESTOP_NONE && joystickUsable()) {
-    bool buttonPressed = digitalRead(JOY_BUTTON) == (INVERT_JOYSTICK_BUTTON ? HIGH : LOW);
-    joystickRapidPressed = buttonPressed;
+    bool rawButtonPressed = digitalRead(JOY_BUTTON) == (INVERT_JOYSTICK_BUTTON ? HIGH : LOW);
     unsigned long now = micros();
     unsigned long elapsedUs = now - joystickSampleTimeUs;
     joystickSampleTimeUs = now;
@@ -5149,6 +5193,10 @@ void taskJoystick(void *param) {
     readJoystickAxis(joystickZ);
     readJoystickAxis(joystickX);
     readJoystickAxis(joystickY);
+
+    bool moveNeutral = joystickZ->direction == 0 && joystickX->direction == 0;
+    bool buttonPressed = updateJoystickButton(rawButtonPressed, moveNeutral);
+    joystickRapidPressed = buttonPressed;
 
     bool yAdjustsPitch = !buttonPressed && joystickPitchAdjustmentAllowed();
     int pitchDirection = yAdjustsPitch ? joystickY->direction : 0;
@@ -5167,7 +5215,6 @@ void taskJoystick(void *param) {
     }
 
     if (mode == MODE_JOYSTICK) {
-      bool moveNeutral = joystickZ->direction == 0 && joystickX->direction == 0;
       bool manualJoystickMove = buttonPressed || !isOn;
       joystickLatheDirectionZ = joystickZ->direction;
       joystickLatheDirectionX = joystickX->direction;

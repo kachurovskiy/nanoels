@@ -119,7 +119,7 @@ Joystick support is experimental, optional, and disabled by default in `h5.ino`.
 - Connect the joystick button between `JBUTTON` and `GND`
 - Leave enabled joystick axes centered while powering on. If joystick support is enabled while the joystick is unplugged or any enabled axis is not centered at startup, H5 ignores joystick input until the next restart
 - Disabled joystick axes are treated as neutral. Z and X inputs behave like proportional handwheel input for their matching machine axes. Y input adjusts pitch in modes that allow joystick pitch changes; when it is not used for pitch, Y moves the optional machine Y axis if `ACTIVE_Y` is enabled. Holding the button enables rapid motion for manual joystick moves
-- In `JOY` mode, use `ON`/`OFF` as the feed clutch. With feed off, Z/X deflection jogs the carriage or cross-slide normally. With feed on, Z/X deflection commands spindle-synchronized feed using the configured pitch magnitude. Pressing the joystick button while Z or X is deflected performs rapid movement; pressing it in neutral does not toggle `ON`/`OFF`. After the first feed engagement, `JOY` preserves the thread phase and waits for the correct spindle angle before later feed engagements.
+- In `JOY` mode, use `ON`/`OFF` as the feed clutch. With feed off, Z/X deflection jogs the carriage or cross-slide normally. With feed on, Z/X deflection commands spindle-synchronized feed using the configured pitch magnitude. Pressing the joystick button while Z or X is deflected performs rapid movement. If `Button toggles ON/OFF` is enabled, a short button click while Z and X are neutral toggles the feed clutch. After the first feed engagement, `JOY` preserves the thread phase and waits for the correct spindle angle before later feed engagements.
 
 Scale terminals aren't used in the code yet.
 
@@ -390,7 +390,7 @@ Set the desired pitch magnitude first and use `ON` / `OFF` as the feed clutch. W
 
 Move the enabled joystick Y axis to permanently change the configured pitch like holding `+` or `-`. This also works outside `JOY` while the controller is `OFF`, and while compatible modes are `ON` such as `GEAR`, `XGEAR`, `TURN`, `FACE`, `CUT`, `CONE`, `ASYNC`, and `Y`. Joystick Y does not adjust pitch in `GCODE` or while `THREAD` or `ELLIPSE` operations are running. Larger Y deflection changes pitch faster.
 
-When `JOY` is off, moving the enabled Z or X joystick input jogs the carriage or cross-slide normally. Press and hold the joystick button while Z or X is deflected to rapid-traverse in that direction. The joystick button is rapid-only; it does not toggle `ON` / `OFF`.
+When `JOY` is off, moving the enabled Z or X joystick input jogs the carriage or cross-slide normally. Press and hold the joystick button while Z or X is deflected to rapid-traverse in that direction. If `Button toggles ON/OFF` is enabled, a short button click while Z and X are neutral toggles `ON` / `OFF`; longer presses or clicks made while Z/X are deflected do not toggle.
 
 For manual multi-pass threading, the first feed engagement establishes the thread phase. Later passes stay in that thread: after you retract, return the carriage, and engage feed again, the controller shows `Sync` and waits for the matching spindle phase before moving the carriage. The operator does not need to track spindle angle.
 
