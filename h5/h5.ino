@@ -6,8 +6,10 @@
 // can override them in ESP32 Preferences and apply them after restart.
 const int DEFAULT_ENCODER_PPR = 1200; // 1200 step spindle optical rotary encoder. Fractional values not supported.
 const int DEFAULT_ENCODER_BACKLASH = 3; // Number of impulses encoder can issue without movement of the spindle
+const int DEFAULT_AXIS_ENCODER_BACKLASH = 0; // Number of handwheel encoder impulses ignored after direction reverses
 int ENCODER_PPR = DEFAULT_ENCODER_PPR;
 int ENCODER_BACKLASH = DEFAULT_ENCODER_BACKLASH;
+int AXIS_ENCODER_BACKLASH = DEFAULT_AXIS_ENCODER_BACKLASH;
 
 // Spindle rotary encoder pins. Swap values if the rotation direction is wrong.
 #define ENC_A 13
@@ -187,7 +189,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 29
+#define SOFTWARE_VERSION 30
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -388,6 +390,7 @@ const int KEYBOARD_BINDING_COUNT = sizeof(keyboardBindings) / sizeof(keyboardBin
 #define CFG_VERSION "v"
 #define CFG_ENCODER_PPR "encPpr"
 #define CFG_ENCODER_BACKLASH "encBacklash"
+#define CFG_AXIS_ENCODER_BACKLASH "axisEncBacklash"
 #define CFG_SCREW_Z_DU "zScrew"
 #define CFG_MOTOR_STEPS_Z "zMotor"
 #define CFG_SPEED_START_Z "zStart"
@@ -1161,7 +1164,8 @@ const char indexhtml[] PROGMEM = R"rawliteral(
           { key: 'stepTimeMs', label: 'Step time', unit: 'ms', min: 1, max: 10000, step: 1, help: 'Target time for one precision button step when the selected move step is not continuous.' },
           { key: 'delayBetweenStepsMs', label: 'Step delay', unit: 'ms', min: 0, max: 10000, step: 1, help: 'Pause between repeated precision steps while a manual move button is held.' },
           { key: 'enableContinuousMove', label: 'Enable continuous moves', type: 'checkbox', help: 'Let move buttons run continuously when the selected move step is 1mm or 0.1in.' },
-          { key: 'pulsePerRevolution', label: 'Handwheel PPR', unit: 'pulses/rev', min: 1, max: 100000, step: 0.01, help: 'Physical pulses per revolution of the optional manual handwheel encoder. Use the handwheel specification.' }
+          { key: 'pulsePerRevolution', label: 'Handwheel PPR', unit: 'pulses/rev', min: 1, max: 100000, step: 0.01, help: 'Physical pulses per revolution of the optional manual handwheel encoder. Use the handwheel specification.' },
+          { key: 'axisEncoderBacklash', label: 'Handwheel backlash', unit: 'pulses', min: 0, max: 30000, step: 1, help: 'Handwheel encoder pulses ignored after direction reverses on Z/X/Y pulse inputs. Set to 0 for direct encoders without mechanical play.' }
         ]
       },
       {
@@ -2277,6 +2281,8 @@ struct Axis {
   int pulseA;
   int pulseB;
   int pulseCount;
+  long pulsePos;
+  long pulsePosAvg;
   PulseCounter pulseCounter;
 };
 
@@ -2345,6 +2351,8 @@ void initAxis(Axis* a, char name, bool active, bool rotational, float motorSteps
   a->pulseB = pulseB;
   a->pulseCounter = pulseCounter;
   a->pulseCount = 0;
+  a->pulsePos = 0;
+  a->pulsePosAvg = 0;
 }
 
 Axis z;
@@ -2582,6 +2590,7 @@ float clampFloatValue(float value, float minValue, float maxValue) {
 void setMachineConfigDefaults() {
   ENCODER_PPR = DEFAULT_ENCODER_PPR;
   ENCODER_BACKLASH = DEFAULT_ENCODER_BACKLASH;
+  AXIS_ENCODER_BACKLASH = DEFAULT_AXIS_ENCODER_BACKLASH;
   SCREW_Z_DU = DEFAULT_SCREW_Z_DU;
   MOTOR_STEPS_Z = DEFAULT_MOTOR_STEPS_Z;
   SPEED_START_Z = DEFAULT_SPEED_START_Z;
@@ -2647,6 +2656,7 @@ void applyDerivedMachineConfig() {
 void normalizeMachineConfig() {
   ENCODER_PPR = clampIntValue(ENCODER_PPR, 1, 15000);
   ENCODER_BACKLASH = clampIntValue(ENCODER_BACKLASH, 0, 30000);
+  AXIS_ENCODER_BACKLASH = clampIntValue(AXIS_ENCODER_BACKLASH, 0, 30000);
   SCREW_Z_DU = clampLongValue(SCREW_Z_DU, 1, 10000000);
   MOTOR_STEPS_Z = clampLongValue(MOTOR_STEPS_Z, 1, 1000000);
   SPEED_START_Z = clampLongValue(SPEED_START_Z, 1, 1000000);
@@ -2695,6 +2705,7 @@ void loadMachineConfig() {
   }
   ENCODER_PPR = cfg.getInt(CFG_ENCODER_PPR, ENCODER_PPR);
   ENCODER_BACKLASH = cfg.getInt(CFG_ENCODER_BACKLASH, ENCODER_BACKLASH);
+  AXIS_ENCODER_BACKLASH = cfg.getInt(CFG_AXIS_ENCODER_BACKLASH, AXIS_ENCODER_BACKLASH);
   SCREW_Z_DU = cfg.getLong(CFG_SCREW_Z_DU, SCREW_Z_DU);
   MOTOR_STEPS_Z = cfg.getLong(CFG_MOTOR_STEPS_Z, MOTOR_STEPS_Z);
   SPEED_START_Z = cfg.getLong(CFG_SPEED_START_Z, SPEED_START_Z);
@@ -2759,6 +2770,7 @@ void saveMachineConfig() {
   cfg.putInt(CFG_VERSION, CONFIG_VERSION);
   cfg.putInt(CFG_ENCODER_PPR, ENCODER_PPR);
   cfg.putInt(CFG_ENCODER_BACKLASH, ENCODER_BACKLASH);
+  cfg.putInt(CFG_AXIS_ENCODER_BACKLASH, AXIS_ENCODER_BACKLASH);
   cfg.putLong(CFG_SCREW_Z_DU, SCREW_Z_DU);
   cfg.putLong(CFG_MOTOR_STEPS_Z, MOTOR_STEPS_Z);
   cfg.putLong(CFG_SPEED_START_Z, SPEED_START_Z);
@@ -2927,6 +2939,7 @@ bool readMachineConfigFromRequest(String* error) {
   return
     readIntConfigArg("encoderPpr", &ENCODER_PPR, 1, 15000, error) &&
     readIntConfigArg("encoderBacklash", &ENCODER_BACKLASH, 0, 30000, error) &&
+    readIntConfigArg("axisEncoderBacklash", &AXIS_ENCODER_BACKLASH, 0, 30000, error) &&
     readLongConfigArg("zScrewDu", &SCREW_Z_DU, 1, 10000000, error) &&
     readLongConfigArg("zMotorSteps", &MOTOR_STEPS_Z, 1, 1000000, error) &&
     readLongConfigArg("zSpeedStart", &SPEED_START_Z, 1, 1000000, error) &&
@@ -3160,9 +3173,10 @@ bool shouldConsumeKeyboardCapture(byte physicalCode, bool isPress) {
 
 String getMachineConfigResponse() {
   String response = "";
-  response.reserve(2300);
+  response.reserve(2350);
   appendConfigLine(&response, "encoderPpr", ENCODER_PPR);
   appendConfigLine(&response, "encoderBacklash", ENCODER_BACKLASH);
+  appendConfigLine(&response, "axisEncoderBacklash", AXIS_ENCODER_BACKLASH);
   appendConfigLine(&response, "zScrewDu", SCREW_Z_DU);
   appendConfigLine(&response, "zMotorSteps", MOTOR_STEPS_Z);
   appendConfigLine(&response, "zSpeedStart", SPEED_START_Z);
@@ -4997,6 +5011,19 @@ int getAndResetJoystickPulses(Axis* a) {
   return delta;
 }
 
+int applyAxisEncoderBacklash(Axis* a, int delta) {
+  if (delta == 0) return 0;
+
+  long previousPulsePosAvg = a->pulsePosAvg;
+  a->pulsePos += delta;
+  if (a->pulsePos > a->pulsePosAvg) {
+    a->pulsePosAvg = a->pulsePos;
+  } else if (a->pulsePos < a->pulsePosAvg - AXIS_ENCODER_BACKLASH) {
+    a->pulsePosAvg = a->pulsePos + AXIS_ENCODER_BACKLASH;
+  }
+  return int(a->pulsePosAvg - previousPulsePosAvg);
+}
+
 int getAndResetPulses(Axis* a) {
   int joystickDelta = getAndResetJoystickPulses(a);
   pcnt_unit_handle_t unit = pulseUnits[a->pulseCounter];
@@ -5007,6 +5034,7 @@ int getAndResetPulses(Axis* a) {
   pcnt_unit_get_count(unit, &count);
   int delta = count - a->pulseCount;
   if (isOn && manualMovesIgnoredWhenOn()) {
+    applyAxisEncoderBacklash(a, delta);
     pcnt_unit_clear_count(unit);
     a->pulseCount = 0;
     return 0;
@@ -5017,7 +5045,8 @@ int getAndResetPulses(Axis* a) {
   } else {
     a->pulseCount = count;
   }
-  return delta + joystickDelta;
+  int pulseDelta = applyAxisEncoderBacklash(a, delta);
+  return pulseDelta + joystickDelta;
 }
 
 int readJoystickPin(int pin) {
