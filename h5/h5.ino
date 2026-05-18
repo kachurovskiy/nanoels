@@ -166,9 +166,10 @@ const int PCNT_CLEAR = 30000; // Limit where we reset hardware pulse counter val
 const long DUPR_MAX = 254000; // No more than 1 inch pitch
 const int32_t STARTS_MAX = 124; // No more than 124-start thread
 const long PASSES_MAX = 999; // No more turn or face passes than this
-const long SAFE_DISTANCE_DU = 5000; // Step back 0.5mm from the material when moving between cuts in automated modes
+const long DEFAULT_SAFE_DISTANCE_DU = 5000; // Step back 0.5mm from the material when moving between cuts in automated modes
+long SAFE_DISTANCE_DU = DEFAULT_SAFE_DISTANCE_DU;
 const long SAVE_DELAY_US = 5000000; // Wait 5s after last save and last change of saveable data before saving again
-const long DIRECTION_SETUP_DELAY_US = 5; // Stepper driver needs some time to adjust to direction change
+const long DIRECTION_SETUP_DELAY_US = 10; // Stepper driver needs some time to adjust to direction change
 const long STEPPED_ENABLE_DELAY_MS = 100; // Delay after stepper is enabled and before issuing steps
 
 // Version of the pref storage format, should be changed when non-backward-compatible
@@ -189,7 +190,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 30
+#define SOFTWARE_VERSION 31
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -414,6 +415,7 @@ const int KEYBOARD_BINDING_COUNT = sizeof(keyboardBindings) / sizeof(keyboardBin
 #define CFG_STEP_TIME_MS "stepMs"
 #define CFG_DELAY_BETWEEN_STEPS_MS "stepDelay"
 #define CFG_ENABLE_CONTINUOUS_MOVE "contStep"
+#define CFG_SAFE_DISTANCE_DU "safeDistDu"
 #define CFG_ACTIVE_Y "yActive"
 #define CFG_ROTARY_Y "yRotary"
 #define CFG_MOTOR_STEPS_Y "yMotor"
@@ -1166,6 +1168,12 @@ const char indexhtml[] PROGMEM = R"rawliteral(
           { key: 'enableContinuousMove', label: 'Enable continuous moves', type: 'checkbox', help: 'Let move buttons run continuously when the selected move step is 1mm or 0.1in.' },
           { key: 'pulsePerRevolution', label: 'Handwheel PPR', unit: 'pulses/rev', min: 1, max: 100000, step: 0.01, help: 'Physical pulses per revolution of the optional manual handwheel encoder. Use the handwheel specification.' },
           { key: 'axisEncoderBacklash', label: 'Handwheel backlash', unit: 'pulses', min: 0, max: 30000, step: 1, help: 'Handwheel encoder pulses ignored after direction reverses on Z/X/Y pulse inputs. Set to 0 for direct encoders without mechanical play.' }
+        ]
+      },
+      {
+        title: 'Automated modes',
+        fields: [
+          { key: 'safeDistanceDu', label: 'Safe retract distance', unit: 'mm', min: 0, max: 1000, step: 0.0001, firmwareScale: 10000, help: 'Distance the auxiliary axis backs away from the material between automated passes. Set to 0 to disable the extra retract.' }
         ]
       },
       {
@@ -2614,6 +2622,7 @@ void setMachineConfigDefaults() {
   STEP_TIME_MS = DEFAULT_STEP_TIME_MS;
   DELAY_BETWEEN_STEPS_MS = DEFAULT_DELAY_BETWEEN_STEPS_MS;
   ENABLE_CONTINUOUS_MOVE = DEFAULT_ENABLE_CONTINUOUS_MOVE;
+  SAFE_DISTANCE_DU = DEFAULT_SAFE_DISTANCE_DU;
   ACTIVE_Y = DEFAULT_ACTIVE_Y;
   ROTARY_Y = DEFAULT_ROTARY_Y;
   MOTOR_STEPS_Y = DEFAULT_MOTOR_STEPS_Y;
@@ -2673,6 +2682,7 @@ void normalizeMachineConfig() {
   BACKLASH_DU_X = clampLongValue(BACKLASH_DU_X, 0, 10000000);
   STEP_TIME_MS = clampLongValue(STEP_TIME_MS, 1, 10000);
   DELAY_BETWEEN_STEPS_MS = clampLongValue(DELAY_BETWEEN_STEPS_MS, 0, 10000);
+  SAFE_DISTANCE_DU = clampLongValue(SAFE_DISTANCE_DU, 0, 10000000);
   MOTOR_STEPS_Y = clampLongValue(MOTOR_STEPS_Y, 1, 1000000);
   SCREW_Y_DU = clampLongValue(SCREW_Y_DU, 1, 10000000);
   SPEED_START_Y = clampLongValue(SPEED_START_Y, 1, 1000000);
@@ -2729,6 +2739,7 @@ void loadMachineConfig() {
   STEP_TIME_MS = cfg.getLong(CFG_STEP_TIME_MS, STEP_TIME_MS);
   DELAY_BETWEEN_STEPS_MS = cfg.getLong(CFG_DELAY_BETWEEN_STEPS_MS, DELAY_BETWEEN_STEPS_MS);
   ENABLE_CONTINUOUS_MOVE = cfg.getBool(CFG_ENABLE_CONTINUOUS_MOVE, ENABLE_CONTINUOUS_MOVE);
+  SAFE_DISTANCE_DU = cfg.getLong(CFG_SAFE_DISTANCE_DU, SAFE_DISTANCE_DU);
   ACTIVE_Y = cfg.getBool(CFG_ACTIVE_Y, ACTIVE_Y);
   ROTARY_Y = cfg.getBool(CFG_ROTARY_Y, ROTARY_Y);
   MOTOR_STEPS_Y = cfg.getLong(CFG_MOTOR_STEPS_Y, MOTOR_STEPS_Y);
@@ -2794,6 +2805,7 @@ void saveMachineConfig() {
   cfg.putLong(CFG_STEP_TIME_MS, STEP_TIME_MS);
   cfg.putLong(CFG_DELAY_BETWEEN_STEPS_MS, DELAY_BETWEEN_STEPS_MS);
   cfg.putBool(CFG_ENABLE_CONTINUOUS_MOVE, ENABLE_CONTINUOUS_MOVE);
+  cfg.putLong(CFG_SAFE_DISTANCE_DU, SAFE_DISTANCE_DU);
   cfg.putBool(CFG_ACTIVE_Y, ACTIVE_Y);
   cfg.putBool(CFG_ROTARY_Y, ROTARY_Y);
   cfg.putLong(CFG_MOTOR_STEPS_Y, MOTOR_STEPS_Y);
@@ -2963,6 +2975,7 @@ bool readMachineConfigFromRequest(String* error) {
     readLongConfigArg("stepTimeMs", &STEP_TIME_MS, 1, 10000, error) &&
     readLongConfigArg("delayBetweenStepsMs", &DELAY_BETWEEN_STEPS_MS, 0, 10000, error) &&
     readBoolConfigArg("enableContinuousMove", &ENABLE_CONTINUOUS_MOVE, error) &&
+    readLongConfigArg("safeDistanceDu", &SAFE_DISTANCE_DU, 0, 10000000, error) &&
     readBoolConfigArg("activeY", &ACTIVE_Y, error) &&
     readBoolConfigArg("rotaryY", &ROTARY_Y, error) &&
     readLongConfigArg("yMotorSteps", &MOTOR_STEPS_Y, 1, 1000000, error) &&
@@ -3200,6 +3213,7 @@ String getMachineConfigResponse() {
   appendConfigLine(&response, "stepTimeMs", STEP_TIME_MS);
   appendConfigLine(&response, "delayBetweenStepsMs", DELAY_BETWEEN_STEPS_MS);
   appendConfigLine(&response, "enableContinuousMove", ENABLE_CONTINUOUS_MOVE);
+  appendConfigLine(&response, "safeDistanceDu", SAFE_DISTANCE_DU);
   appendConfigLine(&response, "activeY", ACTIVE_Y);
   appendConfigLine(&response, "rotaryY", ROTARY_Y);
   appendConfigLine(&response, "yMotorSteps", MOTOR_STEPS_Y);
