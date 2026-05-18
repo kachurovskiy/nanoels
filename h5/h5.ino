@@ -114,8 +114,12 @@ long BACKLASH_DU_Y = DEFAULT_BACKLASH_DU_Y;
 const char NAME_Y = 'Y'; // Text shown on screen before axis position value, GCode axis name
 
 // Manual handwheels. Ignore if you don't have them installed.
-const float DEFAULT_PULSE_PER_REVOLUTION = 600; // PPR of handwheels.
-float PULSE_PER_REVOLUTION = DEFAULT_PULSE_PER_REVOLUTION;
+const float DEFAULT_PULSE_PER_REVOLUTION_Z = 600; // PPR of Z handwheel.
+const float DEFAULT_PULSE_PER_REVOLUTION_X = 600; // PPR of X handwheel.
+const float DEFAULT_PULSE_PER_REVOLUTION_Y = 600; // PPR of Y handwheel.
+float PULSE_PER_REVOLUTION_Z = DEFAULT_PULSE_PER_REVOLUTION_Z;
+float PULSE_PER_REVOLUTION_X = DEFAULT_PULSE_PER_REVOLUTION_X;
+float PULSE_PER_REVOLUTION_Y = DEFAULT_PULSE_PER_REVOLUTION_Y;
 
 // Up to 3-axis analog joystick. Leave disabled unless the joystick is wired and its
 // potentiometers are powered from 3.3V, not 5V.
@@ -190,7 +194,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 31
+#define SOFTWARE_VERSION 32
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -429,6 +433,9 @@ const int KEYBOARD_BINDING_COUNT = sizeof(keyboardBindings) / sizeof(keyboardBin
 #define CFG_MAX_TRAVEL_MM_Y "yTravel"
 #define CFG_BACKLASH_DU_Y "yBacklash"
 #define CFG_PULSE_PER_REVOLUTION "pulseRev"
+#define CFG_PULSE_PER_REVOLUTION_Z "zPulseRev"
+#define CFG_PULSE_PER_REVOLUTION_X "xPulseRev"
+#define CFG_PULSE_PER_REVOLUTION_Y "yPulseRev"
 #define CFG_JOYSTICK_ENABLED "joyOn"
 #define CFG_JOYSTICK_Z_ENABLED "joyZOn"
 #define CFG_JOYSTICK_X_ENABLED "joyXOn"
@@ -1135,6 +1142,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
         fields: [
           { key: 'zScrewDu', label: 'Lead screw pitch', unit: 'mm/rev', min: 0.0001, max: 1000, step: 0.0001, firmwareScale: 10000, help: 'Distance Z moves for one lead screw revolution. Metric screw: use the marked pitch. Inch screw: 25.4 / TPI, so 8 TPI = 3.175.' },
           { key: 'zMotorSteps', label: 'Motor steps per rev', unit: 'steps/rev', min: 1, max: 1000000, step: 1, help: 'Full motor steps * driver microsteps * motor-to-screw ratio. Example: 200-step motor at 4x microstepping = 800.' },
+          { key: 'zPulsePerRevolution', label: 'Handwheel PPR', unit: 'pulses/rev', min: 1, max: 100000, step: 0.01, help: 'Physical pulses per revolution of the optional Z handwheel encoder. Use the handwheel specification.' },
           { key: 'zSpeedStart', label: 'Start speed', unit: 'steps/s', min: 1, max: 1000000, step: 1, help: 'Initial step pulse rate when motion starts. Use a value the motor can start from reliably without missing steps.' },
           { key: 'zAcceleration', label: 'Acceleration', unit: 'steps/s^2', min: 1, max: 100000000, step: 1, help: 'Ramp rate for speeding up and slowing down. Higher feels snappier but can skip steps if the motor or load cannot keep up.' },
           { key: 'zSpeedManualMove', label: 'Manual speed', unit: 'steps/s', min: 1, max: 1000000, step: 1, help: 'Top speed for jogs, rapid returns, and GCode moves on Z. Axis speed depends on both this value and steps per mm.' },
@@ -1150,6 +1158,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
         fields: [
           { key: 'xScrewDu', label: 'Lead screw pitch', unit: 'mm/rev', min: 0.0001, max: 1000, step: 0.0001, firmwareScale: 10000, help: 'Distance X moves for one lead screw revolution. Metric screw: use the marked pitch. Inch screw: 25.4 / TPI, so 10 TPI = 2.54.' },
           { key: 'xMotorSteps', label: 'Motor steps per rev', unit: 'steps/rev', min: 1, max: 1000000, step: 1, help: 'Full motor steps * driver microsteps * motor-to-screw ratio. Example: 200-step motor at 4x microstepping = 800.' },
+          { key: 'xPulsePerRevolution', label: 'Handwheel PPR', unit: 'pulses/rev', min: 1, max: 100000, step: 0.01, help: 'Physical pulses per revolution of the optional X handwheel encoder. Use the handwheel specification.' },
           { key: 'xSpeedStart', label: 'Start speed', unit: 'steps/s', min: 1, max: 1000000, step: 1, help: 'Initial step pulse rate when motion starts. Use a value the motor can start from reliably without missing steps.' },
           { key: 'xAcceleration', label: 'Acceleration', unit: 'steps/s^2', min: 1, max: 100000000, step: 1, help: 'Ramp rate for speeding up and slowing down. Higher feels snappier but can skip steps if the motor or slide cannot keep up.' },
           { key: 'xSpeedManualMove', label: 'Manual speed', unit: 'steps/s', min: 1, max: 1000000, step: 1, help: 'Top speed for jogs, rapid returns, and GCode moves on X. Axis speed depends on both this value and steps per mm.' },
@@ -1166,7 +1175,6 @@ const char indexhtml[] PROGMEM = R"rawliteral(
           { key: 'stepTimeMs', label: 'Step time', unit: 'ms', min: 1, max: 10000, step: 1, help: 'Target time for one precision button step when the selected move step is not continuous.' },
           { key: 'delayBetweenStepsMs', label: 'Step delay', unit: 'ms', min: 0, max: 10000, step: 1, help: 'Pause between repeated precision steps while a manual move button is held.' },
           { key: 'enableContinuousMove', label: 'Enable continuous moves', type: 'checkbox', help: 'Let move buttons run continuously when the selected move step is 1mm or 0.1in.' },
-          { key: 'pulsePerRevolution', label: 'Handwheel PPR', unit: 'pulses/rev', min: 1, max: 100000, step: 0.01, help: 'Physical pulses per revolution of the optional manual handwheel encoder. Use the handwheel specification.' },
           { key: 'axisEncoderBacklash', label: 'Handwheel backlash', unit: 'pulses', min: 0, max: 30000, step: 1, help: 'Handwheel encoder pulses ignored after direction reverses on Z/X/Y pulse inputs. Set to 0 for direct encoders without mechanical play.' }
         ]
       },
@@ -1182,6 +1190,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
           { key: 'activeY', label: 'Y axis connected', type: 'checkbox', help: 'Enable only when the optional Y or dividing-head axis is wired and configured.' },
           { key: 'rotaryY', label: 'Rotary axis', type: 'checkbox', help: 'On means Y values are degrees. Off means Y values are linear distance.' },
           { key: 'yMotorSteps', label: 'Motor steps per rev', unit: 'steps/rev', min: 1, max: 1000000, step: 1, help: 'Full motor steps * driver microsteps * motor-to-axis ratio.' },
+          { key: 'yPulsePerRevolution', label: 'Handwheel PPR', unit: 'pulses/rev', min: 1, max: 100000, step: 0.01, help: 'Physical pulses per revolution of the optional Y handwheel encoder. Use the handwheel specification.' },
           { key: 'yScrewDu', label: 'Travel per screw rev', unit: 'mm or deg/rev', min: 0.0001, max: 1000, step: 0.0001, firmwareScale: 10000, help: 'For rotary Y, degrees moved per worm screw revolution. For linear Y, mm moved per lead screw revolution.' },
           { key: 'ySpeedStart', label: 'Start speed', unit: 'steps/s', min: 1, max: 1000000, step: 1, help: 'Initial step pulse rate when Y motion starts. Use a value the motor can start from reliably.' },
           { key: 'yAcceleration', label: 'Acceleration', unit: 'steps/s^2', min: 1, max: 100000000, step: 1, help: 'Ramp rate for speeding up and slowing down Y motion.' },
@@ -2237,6 +2246,7 @@ struct Axis {
   bool rotational;
   float motorSteps; // motor steps per revolution of the axis
   float screwPitch; // lead screw pitch in deci-microns (10^-7 of a meter)
+  float pulsePerRevolution; // pulses per revolution of this axis handwheel
 
   long pos; // relative position of the tool in stepper motor steps
   long savedPos; // value saved in Preferences
@@ -2294,7 +2304,7 @@ struct Axis {
   PulseCounter pulseCounter;
 };
 
-void initAxis(Axis* a, char name, bool active, bool rotational, float motorSteps, float screwPitch, long speedStart, long speedManualMove,
+void initAxis(Axis* a, char name, bool active, bool rotational, float motorSteps, float screwPitch, float pulsePerRevolution, long speedStart, long speedManualMove,
     long acceleration, bool invertStepper, bool invertEnable, bool needsRest, long maxTravelMm, long backlashDu, int ena, int dir, int step, int pulseA, int pulseB, PulseCounter pulseCounter) {
   a->mutex = xSemaphoreCreateMutex();
 
@@ -2303,6 +2313,7 @@ void initAxis(Axis* a, char name, bool active, bool rotational, float motorSteps
   a->rotational = rotational;
   a->motorSteps = motorSteps;
   a->screwPitch = screwPitch;
+  a->pulsePerRevolution = pulsePerRevolution;
 
   a->pos = 0;
   a->savedPos = 0;
@@ -2635,7 +2646,9 @@ void setMachineConfigDefaults() {
   NEEDS_REST_Y = DEFAULT_NEEDS_REST_Y;
   MAX_TRAVEL_MM_Y = DEFAULT_MAX_TRAVEL_MM_Y;
   BACKLASH_DU_Y = DEFAULT_BACKLASH_DU_Y;
-  PULSE_PER_REVOLUTION = DEFAULT_PULSE_PER_REVOLUTION;
+  PULSE_PER_REVOLUTION_Z = DEFAULT_PULSE_PER_REVOLUTION_Z;
+  PULSE_PER_REVOLUTION_X = DEFAULT_PULSE_PER_REVOLUTION_X;
+  PULSE_PER_REVOLUTION_Y = DEFAULT_PULSE_PER_REVOLUTION_Y;
   JOYSTICK_ENABLED = DEFAULT_JOYSTICK_ENABLED;
   JOYSTICK_Z_ENABLED = DEFAULT_JOYSTICK_Z_ENABLED;
   JOYSTICK_X_ENABLED = DEFAULT_JOYSTICK_X_ENABLED;
@@ -2690,7 +2703,9 @@ void normalizeMachineConfig() {
   SPEED_MANUAL_MOVE_Y = clampLongValue(SPEED_MANUAL_MOVE_Y, 1, 1000000);
   MAX_TRAVEL_MM_Y = clampLongValue(MAX_TRAVEL_MM_Y, 1, 10000);
   BACKLASH_DU_Y = clampLongValue(BACKLASH_DU_Y, 0, 10000000);
-  PULSE_PER_REVOLUTION = clampFloatValue(PULSE_PER_REVOLUTION, 1.0, 100000.0);
+  PULSE_PER_REVOLUTION_Z = clampFloatValue(PULSE_PER_REVOLUTION_Z, 1.0, 100000.0);
+  PULSE_PER_REVOLUTION_X = clampFloatValue(PULSE_PER_REVOLUTION_X, 1.0, 100000.0);
+  PULSE_PER_REVOLUTION_Y = clampFloatValue(PULSE_PER_REVOLUTION_Y, 1.0, 100000.0);
   JOYSTICK_CENTER_SAMPLES = clampIntValue(JOYSTICK_CENTER_SAMPLES, 1, 1024);
   JOYSTICK_OVERSAMPLES = clampIntValue(JOYSTICK_OVERSAMPLES, 1, 1024);
   JOYSTICK_SAMPLE_INTERVAL_MS = clampIntValue(JOYSTICK_SAMPLE_INTERVAL_MS, 1, 1000);
@@ -2752,7 +2767,10 @@ void loadMachineConfig() {
   NEEDS_REST_Y = cfg.getBool(CFG_NEEDS_REST_Y, NEEDS_REST_Y);
   MAX_TRAVEL_MM_Y = cfg.getLong(CFG_MAX_TRAVEL_MM_Y, MAX_TRAVEL_MM_Y);
   BACKLASH_DU_Y = cfg.getLong(CFG_BACKLASH_DU_Y, BACKLASH_DU_Y);
-  PULSE_PER_REVOLUTION = cfg.getFloat(CFG_PULSE_PER_REVOLUTION, PULSE_PER_REVOLUTION);
+  float legacyPulsePerRevolution = cfg.getFloat(CFG_PULSE_PER_REVOLUTION, -1.0);
+  PULSE_PER_REVOLUTION_Z = cfg.getFloat(CFG_PULSE_PER_REVOLUTION_Z, legacyPulsePerRevolution >= 1.0 ? legacyPulsePerRevolution : PULSE_PER_REVOLUTION_Z);
+  PULSE_PER_REVOLUTION_X = cfg.getFloat(CFG_PULSE_PER_REVOLUTION_X, legacyPulsePerRevolution >= 1.0 ? legacyPulsePerRevolution : PULSE_PER_REVOLUTION_X);
+  PULSE_PER_REVOLUTION_Y = cfg.getFloat(CFG_PULSE_PER_REVOLUTION_Y, legacyPulsePerRevolution >= 1.0 ? legacyPulsePerRevolution : PULSE_PER_REVOLUTION_Y);
   JOYSTICK_ENABLED = cfg.getBool(CFG_JOYSTICK_ENABLED, JOYSTICK_ENABLED);
   JOYSTICK_Z_ENABLED = cfg.getBool(CFG_JOYSTICK_Z_ENABLED, JOYSTICK_Z_ENABLED);
   JOYSTICK_X_ENABLED = cfg.getBool(CFG_JOYSTICK_X_ENABLED, JOYSTICK_X_ENABLED);
@@ -2818,7 +2836,9 @@ void saveMachineConfig() {
   cfg.putBool(CFG_NEEDS_REST_Y, NEEDS_REST_Y);
   cfg.putLong(CFG_MAX_TRAVEL_MM_Y, MAX_TRAVEL_MM_Y);
   cfg.putLong(CFG_BACKLASH_DU_Y, BACKLASH_DU_Y);
-  cfg.putFloat(CFG_PULSE_PER_REVOLUTION, PULSE_PER_REVOLUTION);
+  cfg.putFloat(CFG_PULSE_PER_REVOLUTION_Z, PULSE_PER_REVOLUTION_Z);
+  cfg.putFloat(CFG_PULSE_PER_REVOLUTION_X, PULSE_PER_REVOLUTION_X);
+  cfg.putFloat(CFG_PULSE_PER_REVOLUTION_Y, PULSE_PER_REVOLUTION_Y);
   cfg.putBool(CFG_JOYSTICK_ENABLED, JOYSTICK_ENABLED);
   cfg.putBool(CFG_JOYSTICK_Z_ENABLED, JOYSTICK_Z_ENABLED);
   cfg.putBool(CFG_JOYSTICK_X_ENABLED, JOYSTICK_X_ENABLED);
@@ -2923,6 +2943,22 @@ bool readBoolConfigArg(const char* name, bool* target, String* error) {
   return true;
 }
 
+bool readPulsePerRevolutionConfigArgs(String* error) {
+  if (server.hasArg("zPulsePerRevolution") || server.hasArg("xPulsePerRevolution") || server.hasArg("yPulsePerRevolution")) {
+    return
+      readFloatConfigArg("zPulsePerRevolution", &PULSE_PER_REVOLUTION_Z, 1.0, 100000.0, error) &&
+      readFloatConfigArg("xPulsePerRevolution", &PULSE_PER_REVOLUTION_X, 1.0, 100000.0, error) &&
+      readFloatConfigArg("yPulsePerRevolution", &PULSE_PER_REVOLUTION_Y, 1.0, 100000.0, error);
+  }
+
+  float pulsePerRevolution;
+  if (!readFloatConfigArg("pulsePerRevolution", &pulsePerRevolution, 1.0, 100000.0, error)) return false;
+  PULSE_PER_REVOLUTION_Z = pulsePerRevolution;
+  PULSE_PER_REVOLUTION_X = pulsePerRevolution;
+  PULSE_PER_REVOLUTION_Y = pulsePerRevolution;
+  return true;
+}
+
 bool validateMachineConfig(String* error) {
   if (SPEED_START_Z > SPEED_MANUAL_MOVE_Z) {
     *error = "zSpeedStart must be less than or equal to zSpeedManualMove";
@@ -2988,7 +3024,7 @@ bool readMachineConfigFromRequest(String* error) {
     readBoolConfigArg("yNeedsRest", &NEEDS_REST_Y, error) &&
     readLongConfigArg("yMaxTravelMm", &MAX_TRAVEL_MM_Y, 1, 10000, error) &&
     readLongConfigArg("yBacklashDu", &BACKLASH_DU_Y, 0, 10000000, error) &&
-    readFloatConfigArg("pulsePerRevolution", &PULSE_PER_REVOLUTION, 1.0, 100000.0, error) &&
+    readPulsePerRevolutionConfigArgs(error) &&
     readBoolConfigArg("joystickEnabled", &JOYSTICK_ENABLED, error) &&
     readBoolConfigArg("joystickZEnabled", &JOYSTICK_Z_ENABLED, error) &&
     readBoolConfigArg("joystickXEnabled", &JOYSTICK_X_ENABLED, error) &&
@@ -3186,12 +3222,13 @@ bool shouldConsumeKeyboardCapture(byte physicalCode, bool isPress) {
 
 String getMachineConfigResponse() {
   String response = "";
-  response.reserve(2350);
+  response.reserve(2550);
   appendConfigLine(&response, "encoderPpr", ENCODER_PPR);
   appendConfigLine(&response, "encoderBacklash", ENCODER_BACKLASH);
   appendConfigLine(&response, "axisEncoderBacklash", AXIS_ENCODER_BACKLASH);
   appendConfigLine(&response, "zScrewDu", SCREW_Z_DU);
   appendConfigLine(&response, "zMotorSteps", MOTOR_STEPS_Z);
+  appendConfigLine(&response, "zPulsePerRevolution", PULSE_PER_REVOLUTION_Z);
   appendConfigLine(&response, "zSpeedStart", SPEED_START_Z);
   appendConfigLine(&response, "zAcceleration", ACCELERATION_Z);
   appendConfigLine(&response, "zSpeedManualMove", SPEED_MANUAL_MOVE_Z);
@@ -3202,6 +3239,7 @@ String getMachineConfigResponse() {
   appendConfigLine(&response, "zBacklashDu", BACKLASH_DU_Z);
   appendConfigLine(&response, "xScrewDu", SCREW_X_DU);
   appendConfigLine(&response, "xMotorSteps", MOTOR_STEPS_X);
+  appendConfigLine(&response, "xPulsePerRevolution", PULSE_PER_REVOLUTION_X);
   appendConfigLine(&response, "xSpeedStart", SPEED_START_X);
   appendConfigLine(&response, "xAcceleration", ACCELERATION_X);
   appendConfigLine(&response, "xSpeedManualMove", SPEED_MANUAL_MOVE_X);
@@ -3217,6 +3255,7 @@ String getMachineConfigResponse() {
   appendConfigLine(&response, "activeY", ACTIVE_Y);
   appendConfigLine(&response, "rotaryY", ROTARY_Y);
   appendConfigLine(&response, "yMotorSteps", MOTOR_STEPS_Y);
+  appendConfigLine(&response, "yPulsePerRevolution", PULSE_PER_REVOLUTION_Y);
   appendConfigLine(&response, "yScrewDu", SCREW_Y_DU);
   appendConfigLine(&response, "ySpeedStart", SPEED_START_Y);
   appendConfigLine(&response, "yAcceleration", ACCELERATION_Y);
@@ -3226,7 +3265,7 @@ String getMachineConfigResponse() {
   appendConfigLine(&response, "yNeedsRest", NEEDS_REST_Y);
   appendConfigLine(&response, "yMaxTravelMm", MAX_TRAVEL_MM_Y);
   appendConfigLine(&response, "yBacklashDu", BACKLASH_DU_Y);
-  appendConfigLine(&response, "pulsePerRevolution", PULSE_PER_REVOLUTION);
+  appendConfigLine(&response, "pulsePerRevolution", PULSE_PER_REVOLUTION_Z);
   appendConfigLine(&response, "joystickEnabled", JOYSTICK_ENABLED);
   appendConfigLine(&response, "joystickZEnabled", JOYSTICK_Z_ENABLED);
   appendConfigLine(&response, "joystickXEnabled", JOYSTICK_X_ENABLED);
@@ -3382,7 +3421,7 @@ void handleClientRequests() {
   server.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   server.sendHeader("Pragma", "no-cache");
   server.sendHeader("Expires", "0");
-  server.send(200, "text/html", indexhtml);
+  server.send_P(200, PSTR("text/html"), indexhtml);
 }
 
 int getGcodeProgramCount() {
@@ -5115,7 +5154,7 @@ float getJoystickDeflection(JoystickAxisState* joystickAxis) {
 
 int getJoystickPulseDelta(JoystickAxisState* joystickAxis, unsigned long elapsedUs) {
   float revolutionsPerSecond = joystickRapidPressed ? JOYSTICK_RAPID_REVOLUTIONS_PER_SECOND : JOYSTICK_NORMAL_REVOLUTIONS_PER_SECOND;
-  joystickAxis->pulseFraction += joystickAxis->deflection * PULSE_PER_REVOLUTION * revolutionsPerSecond * elapsedUs / 1000000.0;
+  joystickAxis->pulseFraction += joystickAxis->deflection * joystickAxis->axis->pulsePerRevolution * revolutionsPerSecond * elapsedUs / 1000000.0;
   int delta = int(joystickAxis->pulseFraction);
   joystickAxis->pulseFraction -= delta;
   return delta;
@@ -5382,7 +5421,7 @@ bool gearboxMoveButtonPressed(Axis* a, int sign) {
 bool moveGearboxAxisManually(Axis* a, int pulseDelta, int sign) {
   // Move by moveStep in the desired direction but stay in the thread by
   // possibly traveling a little more.
-  float fraction = pulseDelta == 0 ? 1.0 : abs(pulseDelta) / PULSE_PER_REVOLUTION;
+  float fraction = pulseDelta == 0 ? 1.0 : abs(pulseDelta) / a->pulsePerRevolution;
   float turns = moveStep * fraction / abs(dupr * starts);
   int fullTurns = ceil(turns);
   int diff = fullTurns * ENCODER_STEPS_FLOAT * sign * (dupr > 0 ? 1 : -1);
@@ -5461,7 +5500,7 @@ void taskMoveZ(void *param) {
       int delta = 0;
       do {
         bool pulseMove = pulseDelta != 0;
-        float fractionalDelta = (pulseMove ? pulseDelta / PULSE_PER_REVOLUTION : moveStep * sign / z.screwPitch) * z.motorSteps + z.fractionalPos;
+        float fractionalDelta = (pulseMove ? pulseDelta / z.pulsePerRevolution : moveStep * sign / z.screwPitch) * z.motorSteps + z.fractionalPos;
         delta = round(fractionalDelta);
         // Don't lose fractional steps when moving by 0.01" or 0.001".
         z.fractionalPos = fractionalDelta - delta;
@@ -5535,7 +5574,7 @@ void taskMoveX(void *param) {
     } else {
       do {
         bool pulseMove = pulseDelta != 0;
-        float fractionalDelta = (pulseMove ? pulseDelta / PULSE_PER_REVOLUTION : moveStep * sign / x.screwPitch) * x.motorSteps + x.fractionalPos;
+        float fractionalDelta = (pulseMove ? pulseDelta / x.pulsePerRevolution : moveStep * sign / x.screwPitch) * x.motorSteps + x.fractionalPos;
         delta = round(fractionalDelta);
         // Don't lose fractional steps when moving by 0.01" or 0.001".
         x.fractionalPos = fractionalDelta - delta;
@@ -5590,7 +5629,7 @@ void taskMoveY(void *param) {
     int sign = plus ? 1 : -1;
     do {
       bool pulseMove = pulseDelta != 0;
-      float fractionalDelta = (pulseMove ? pulseDelta / PULSE_PER_REVOLUTION : getMoveStepForAxis(&y) * sign / y.screwPitch) * y.motorSteps + y.fractionalPos;
+      float fractionalDelta = (pulseMove ? pulseDelta / y.pulsePerRevolution : getMoveStepForAxis(&y) * sign / y.screwPitch) * y.motorSteps + y.fractionalPos;
       delta = round(fractionalDelta);
       y.fractionalPos = fractionalDelta - delta;
       if (delta == 0) delta = sign;
@@ -7678,9 +7717,9 @@ void setup() {
     pref.putInt(PREF_VERSION, PREFERENCES_VERSION);
   }
 
-  initAxis(&z, NAME_Z, true, false, MOTOR_STEPS_Z, SCREW_Z_DU, SPEED_START_Z, SPEED_MANUAL_MOVE_Z, ACCELERATION_Z, INVERT_Z, INVERT_Z_ENABLE, NEEDS_REST_Z, MAX_TRAVEL_MM_Z, BACKLASH_DU_Z, Z_ENA, Z_DIR, Z_STEP, Z_PULSE_A, Z_PULSE_B, PULSE_COUNTER_Z);
-  initAxis(&x, NAME_X, true, false, MOTOR_STEPS_X, SCREW_X_DU, SPEED_START_X, SPEED_MANUAL_MOVE_X, ACCELERATION_X, INVERT_X, INVERT_X_ENABLE, NEEDS_REST_X, MAX_TRAVEL_MM_X, BACKLASH_DU_X, X_ENA, X_DIR, X_STEP, X_PULSE_A, X_PULSE_B, PULSE_COUNTER_X);
-  initAxis(&y, NAME_Y, ACTIVE_Y, ROTARY_Y, MOTOR_STEPS_Y, SCREW_Y_DU, SPEED_START_Y, SPEED_MANUAL_MOVE_Y, ACCELERATION_Y, INVERT_Y, INVERT_Y_ENABLE, NEEDS_REST_Y, MAX_TRAVEL_MM_Y, BACKLASH_DU_Y, Y_ENA, Y_DIR, Y_STEP, Y_PULSE_A, Y_PULSE_B, PULSE_COUNTER_Y);
+  initAxis(&z, NAME_Z, true, false, MOTOR_STEPS_Z, SCREW_Z_DU, PULSE_PER_REVOLUTION_Z, SPEED_START_Z, SPEED_MANUAL_MOVE_Z, ACCELERATION_Z, INVERT_Z, INVERT_Z_ENABLE, NEEDS_REST_Z, MAX_TRAVEL_MM_Z, BACKLASH_DU_Z, Z_ENA, Z_DIR, Z_STEP, Z_PULSE_A, Z_PULSE_B, PULSE_COUNTER_Z);
+  initAxis(&x, NAME_X, true, false, MOTOR_STEPS_X, SCREW_X_DU, PULSE_PER_REVOLUTION_X, SPEED_START_X, SPEED_MANUAL_MOVE_X, ACCELERATION_X, INVERT_X, INVERT_X_ENABLE, NEEDS_REST_X, MAX_TRAVEL_MM_X, BACKLASH_DU_X, X_ENA, X_DIR, X_STEP, X_PULSE_A, X_PULSE_B, PULSE_COUNTER_X);
+  initAxis(&y, NAME_Y, ACTIVE_Y, ROTARY_Y, MOTOR_STEPS_Y, SCREW_Y_DU, PULSE_PER_REVOLUTION_Y, SPEED_START_Y, SPEED_MANUAL_MOVE_Y, ACCELERATION_Y, INVERT_Y, INVERT_Y_ENABLE, NEEDS_REST_Y, MAX_TRAVEL_MM_Y, BACKLASH_DU_Y, Y_ENA, Y_DIR, Y_STEP, Y_PULSE_A, Y_PULSE_B, PULSE_COUNTER_Y);
 
   isOn = false;
   savedDupr = dupr = pref.getLong(PREF_DUPR);
