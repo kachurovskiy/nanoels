@@ -121,6 +121,8 @@ Joystick support is experimental, optional, and disabled by default in `h5.ino`.
 - Disabled joystick axes are treated as neutral. Z and X inputs behave like proportional handwheel input for their matching machine axes. Y input adjusts pitch in modes that allow joystick pitch changes; when it is not used for pitch, Y moves the optional machine Y axis if `ACTIVE_Y` is enabled. Holding the button enables rapid motion for manual joystick moves
 - In `JOY` mode, use `ON`/`OFF` as the feed clutch. With feed off, Z/X deflection jogs the carriage or cross-slide normally. With feed on, Z/X deflection commands spindle-synchronized feed using the configured pitch magnitude. Pressing the joystick button while Z or X is deflected performs rapid movement. If `Button toggles ON/OFF` is enabled, a short button click while Z and X are neutral toggles the feed clutch. After the first feed engagement, `JOY` preserves the thread phase and waits for the correct spindle angle before later feed engagements.
 
+**WARNING:** disconnecting joystick when controller is powered on can lead to random movements due to floating analog inputs.
+
 Scale terminals aren't used in the code yet.
 
 ## Mounting options

@@ -120,6 +120,7 @@ const float DEFAULT_PULSE_PER_REVOLUTION_Y = 600; // PPR of Y handwheel.
 float PULSE_PER_REVOLUTION_Z = DEFAULT_PULSE_PER_REVOLUTION_Z;
 float PULSE_PER_REVOLUTION_X = DEFAULT_PULSE_PER_REVOLUTION_X;
 float PULSE_PER_REVOLUTION_Y = DEFAULT_PULSE_PER_REVOLUTION_Y;
+const unsigned long HANDWHEEL_PULSE_WAIT_MS = 20; // Keep fast handwheel pulses in one continuous move.
 
 // Up to 3-axis analog joystick. Leave disabled unless the joystick is wired and its
 // potentiometers are powered from 3.3V, not 5V.
@@ -194,7 +195,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 32
+#define SOFTWARE_VERSION 33
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -2206,6 +2207,7 @@ bool joystickButtonPressed = false;
 bool joystickButtonToggleBlocked = false;
 unsigned long joystickButtonRawChangeMillis = 0;
 unsigned long joystickButtonPressMillis = 0;
+String joystickStartupWarning = "";
 
 void adjustPitch(bool plus);
 void buttonPlusMinusPress(bool plus);
@@ -4743,7 +4745,7 @@ void updateDisplay() {
     } else if (mode == MODE_JOYSTICK && !inNumpad) {
       String directionText = joystickLatheDirectionText(joystickLatheDirectionZ, joystickLatheDirectionX);
       if (!JOYSTICK_ENABLED) result = "Joystick disabled";
-      else if (!joystickAvailable) result = "Joystick not connected";
+      else if (!joystickAvailable) result = joystickStartupWarning.length() > 0 ? joystickStartupWarning : "Joystick not connected";
       else if (joystickLatheRapid && directionText != "") {
         result = "Rapid ";
         result += directionText;
@@ -4988,6 +4990,26 @@ int waitForNextJoystickPulseDelta(Axis* a, int sign) {
   return 0;
 }
 
+int waitForNextHandwheelPulseDelta(Axis* a) {
+  unsigned long start = millis();
+  while (emergencyStop == ESTOP_NONE && millis() - start < HANDWHEEL_PULSE_WAIT_MS) {
+    int pulseDelta = getAndResetPulses(a);
+    if (pulseDelta == 0) {
+      DELAY(1);
+      continue;
+    }
+    return pulseDelta;
+  }
+  return 0;
+}
+
+int waitForNextPulseMoveDelta(Axis* a, int sign) {
+  if (joystickManualMoveActive(a, sign)) {
+    return waitForNextJoystickPulseDelta(a, sign);
+  }
+  return waitForNextHandwheelPulseDelta(a);
+}
+
 // For rotational axis the moveStep of 0.1" means 0.1°.
 long getMoveStepForAxis(Axis* a) {
   return (a->rotational && measure != MEASURE_METRIC) ? (moveStep / 25.4) : moveStep;
@@ -4997,6 +5019,10 @@ long getStepMaxSpeed(Axis* a) {
   long joystickSpeed = getJoystickManualSpeed(a);
   if (isJoystickManualMove(a) && joystickSpeed > 0) return joystickSpeed;
   return (isContinuousStep() || isRapidManualMove()) ? a->speedManualMove : min(long(a->speedManualMove), abs(getMoveStepForAxis(a)) * 1000 / STEP_TIME_MS);
+}
+
+long getManualMoveSpeedMax(Axis* a, bool pulseMove) {
+  return pulseMove && !isJoystickManualMove(a) ? a->speedManualMove : getStepMaxSpeed(a);
 }
 
 void waitForStep(Axis* a) {
@@ -5009,6 +5035,11 @@ void waitForStep(Axis* a) {
     waitForPendingPos0(a);
     DELAY(DELAY_BETWEEN_STEPS_MS);
   }
+}
+
+void waitForManualMoveStep(Axis* a, bool pulseMove) {
+  if (pulseMove) waitForPendingPosNear0(a);
+  else waitForStep(a);
 }
 
 volatile int* getJoystickPulseQueue(Axis* a) {
@@ -5237,6 +5268,7 @@ bool updateJoystickButton(bool rawPressed, bool moveNeutral) {
 
 void initJoystick() {
   joystickAvailable = false;
+  joystickStartupWarning = "";
   if (!JOYSTICK_ENABLED) return;
   if (!anyJoystickAxisEnabled()) return;
   analogReadResolution(12);
@@ -5250,6 +5282,13 @@ void initJoystick() {
     if (!joystickAxisEnabled(&joystickAxes[i])) continue;
     joystickAxes[i].center = calibrateJoystickCenter(joystickAxes[i].pin);
     if (!joystickStartupCenterLooksNeutral(joystickAxes[i].center)) {
+      int offset = joystickAxes[i].center - JOYSTICK_ADC_MAX / 2;
+      char axisName = i == JOYSTICK_AXIS_Z ? NAME_Z : (i == JOYSTICK_AXIS_X ? NAME_X : NAME_Y);
+      joystickStartupWarning = "Joy ";
+      joystickStartupWarning += axisName;
+      joystickStartupWarning += (offset >= 0 ? " +" : " -");
+      joystickStartupWarning += String(max(0, abs(offset) - JOYSTICK_DEADBAND));
+      joystickStartupWarning += " past deadband";
       return;
     }
   }
@@ -5517,10 +5556,15 @@ void taskMoveZ(void *param) {
         } else if (posCopy + delta < z.rightStop) {
           delta = z.rightStop - posCopy;
         }
-        z.speedMax = getStepMaxSpeed(&z);
+        z.speedMax = getManualMoveSpeedMax(&z, pulseMove);
         stepToContinuous(&z, posCopy + delta);
-        waitForStep(&z);
-        pulseDelta = pulseMove && joystickManualMoveActive(&z, sign) ? waitForNextJoystickPulseDelta(&z, sign) : 0;
+        waitForManualMoveStep(&z, pulseMove);
+        if (pulseMove && delta != 0) {
+          sign = deltaSign;
+          pulseDelta = waitForNextPulseMoveDelta(&z, sign);
+        } else {
+          pulseDelta = 0;
+        }
       } while (delta != 0 && (pulseDelta != 0 || (left ? buttonLeftPressed : buttonRightPressed)));
       z.continuous = false;
       waitForPendingPos0(&z);
@@ -5590,10 +5634,17 @@ void taskMoveX(void *param) {
         } else if (posCopy + delta < x.rightStop) {
           delta = x.rightStop - posCopy;
         }
-        x.speedMax = getStepMaxSpeed(&x);
+        x.speedMax = getManualMoveSpeedMax(&x, pulseMove);
         stepToContinuous(&x, posCopy + delta);
-        waitForStep(&x);
-        pulseDelta = pulseMove && joystickManualMoveActive(&x, sign) ? waitForNextJoystickPulseDelta(&x, sign) : getAndResetPulses(&x);
+        waitForManualMoveStep(&x, pulseMove);
+        if (pulseMove && delta != 0) {
+          sign = deltaSign;
+          pulseDelta = waitForNextPulseMoveDelta(&x, sign);
+        } else if (pulseMove) {
+          pulseDelta = 0;
+        } else {
+          pulseDelta = getAndResetPulses(&x);
+        }
       } while (delta != 0 && (pulseDelta != 0 || (positiveMove ? buttonUpPressed : buttonDownPressed)));
       x.continuous = false;
       waitForPendingPos0(&x);
@@ -5641,10 +5692,17 @@ void taskMoveY(void *param) {
       } else if (posCopy + delta < y.rightStop) {
         delta = y.rightStop - posCopy;
       }
-      y.speedMax = getStepMaxSpeed(&y);
+      y.speedMax = getManualMoveSpeedMax(&y, pulseMove);
       stepToContinuous(&y, posCopy + delta);
-      waitForStep(&y);
-      pulseDelta = pulseMove && joystickManualMoveActive(&y, sign) ? waitForNextJoystickPulseDelta(&y, sign) : getAndResetPulses(&y);
+      waitForManualMoveStep(&y, pulseMove);
+      if (pulseMove && delta != 0) {
+        sign = deltaSign;
+        pulseDelta = waitForNextPulseMoveDelta(&y, sign);
+      } else if (pulseMove) {
+        pulseDelta = 0;
+      } else {
+        pulseDelta = getAndResetPulses(&y);
+      }
     } while (delta != 0 && (pulseDelta != 0 || (plus ? buttonForwardPressed : buttonBackPressed)));
     y.continuous = false;
     waitForPendingPos0(&y);
