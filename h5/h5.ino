@@ -902,6 +902,100 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     #tft-status, #firmware-status {
       min-height: 1.2em;
     }
+    .control-status-grid {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      margin-bottom: 10px;
+    }
+    .control-status-item {
+      background: #f8fafb;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      min-height: 62px;
+      padding: 10px;
+    }
+    .control-status-label {
+      color: var(--muted);
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+    .control-status-value {
+      display: block;
+      font-size: 1.15rem;
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+    .control-grid {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    }
+    .control-panel {
+      align-content: start;
+      display: grid;
+      gap: 10px;
+    }
+    .control-button-grid, .control-numpad {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .control-jog-grid {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .control-button {
+      min-height: 54px;
+      padding: 8px;
+      touch-action: manipulation;
+      user-select: none;
+      width: 100%;
+    }
+    .control-button.hold {
+      touch-action: none;
+    }
+    .control-button.active {
+      background-color: #0f5f87;
+    }
+    .control-button.active:hover {
+      background-color: #0f5f87;
+    }
+    .control-button.neutral {
+      background-color: var(--secondary);
+    }
+    .control-button.neutral:hover {
+      background-color: var(--secondary-dark);
+    }
+    .control-button.warning {
+      background-color: #a05a00;
+    }
+    .control-button.warning:hover {
+      background-color: #7c4400;
+    }
+    .control-button.danger {
+      background-color: #b3261e;
+    }
+    .control-button.danger:hover {
+      background-color: #8f1f18;
+    }
+    .control-button.mode {
+      background-color: #0f5f87;
+    }
+    .control-button.mode:hover {
+      background-color: #0b4968;
+    }
+    .control-wide {
+      grid-column: span 2;
+    }
+    #control-action-status {
+      margin: 0;
+      min-height: 1.2em;
+    }
     @media (max-width: 640px) {
       .page-shell {
         padding: 10px;
@@ -947,13 +1041,17 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       #log {
         height: 220px;
       }
+      .control-status-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
     }
   </style>
 </head>
 <body>
   <div class="page-shell">
     <nav class="section-tabs" aria-label="Main sections">
-      <a href="#gcode" data-section-link="gcode" class="active">GCode</a>
+      <a href="#control" data-section-link="control" class="active">Control</a>
+      <a href="#gcode" data-section-link="gcode">GCode</a>
       <a href="#updates" data-section-link="updates">Updates</a>
       <a href="#wifi" data-section-link="wifi">WiFi</a>
       <a href="#settings" data-section-link="settings">Settings</a>
@@ -962,7 +1060,119 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     </nav>
 
     <main>
-      <section id="section-gcode" class="app-section active" data-section="gcode">
+      <section id="section-control" class="app-section active" data-section="control">
+        <div class="section-stack">
+          <section class="panel">
+            <h3>Controller</h3>
+            <div class="control-status-grid">
+              <div class="control-status-item">
+                <span class="control-status-label">State</span>
+                <span id="control-state" class="control-status-value">--</span>
+              </div>
+              <div class="control-status-item">
+                <span class="control-status-label">X</span>
+                <span id="control-x" class="control-status-value">--</span>
+              </div>
+              <div class="control-status-item">
+                <span class="control-status-label">Z</span>
+                <span id="control-z" class="control-status-value">--</span>
+              </div>
+              <div class="control-status-item">
+                <span class="control-status-label">RPM</span>
+                <span id="control-rpm" class="control-status-value">--</span>
+              </div>
+            </div>
+            <p id="control-action-status" class="action-status" role="status" aria-live="polite"></p>
+          </section>
+
+          <div class="control-grid">
+            <section class="panel control-panel">
+              <h3>Jog</h3>
+              <div class="control-jog-grid">
+                <button type="button" class="control-button hold" data-control-action="21" data-control-hold="1">Z Left</button>
+                <button type="button" class="control-button hold" data-control-action="22" data-control-hold="1">Z Right</button>
+                <button type="button" class="control-button hold" data-control-action="23" data-control-hold="1">X Forward</button>
+                <button type="button" class="control-button hold" data-control-action="24" data-control-hold="1">X Back</button>
+                <button type="button" class="control-button hold control-y" data-control-action="85" data-control-hold="1">Y Forward</button>
+                <button type="button" class="control-button hold control-y" data-control-action="74" data-control-hold="1">Y Back</button>
+              </div>
+            </section>
+
+            <section class="panel control-panel">
+              <h3>Operation</h3>
+              <div class="control-button-grid">
+                <button type="button" class="control-button" data-control-action="30">ON</button>
+                <button type="button" class="control-button danger" data-control-action="27">OFF</button>
+                <button type="button" class="control-button neutral" data-control-action="64">Step</button>
+                <button type="button" class="control-button" data-control-action="95">Plus</button>
+                <button type="button" class="control-button" data-control-action="60">Minus</button>
+                <button type="button" class="control-button neutral" data-control-action="82">Reverse</button>
+                <button type="button" class="control-button neutral" data-control-action="77">Units</button>
+                <button type="button" class="control-button neutral" data-control-action="12">Display</button>
+                <button type="button" class="control-button neutral" data-control-action="84">Starts</button>
+              </div>
+            </section>
+
+            <section class="panel control-panel">
+              <h3>Numpad</h3>
+              <div class="control-numpad">
+                <button type="button" class="control-button neutral" data-control-action="49">1</button>
+                <button type="button" class="control-button neutral" data-control-action="50">2</button>
+                <button type="button" class="control-button neutral" data-control-action="51">3</button>
+                <button type="button" class="control-button neutral" data-control-action="52">4</button>
+                <button type="button" class="control-button neutral" data-control-action="53">5</button>
+                <button type="button" class="control-button neutral" data-control-action="54">6</button>
+                <button type="button" class="control-button neutral" data-control-action="55">7</button>
+                <button type="button" class="control-button neutral" data-control-action="56">8</button>
+                <button type="button" class="control-button neutral" data-control-action="57">9</button>
+                <button type="button" class="control-button neutral" data-control-action="48">0</button>
+                <button type="button" class="control-button neutral control-wide" data-control-action="28">Backspace</button>
+              </div>
+            </section>
+
+            <section class="panel control-panel">
+              <h3>Stops and Axes</h3>
+              <div class="control-button-grid">
+                <button type="button" class="control-button warning" data-control-action="65">Z Left Stop</button>
+                <button type="button" class="control-button warning" data-control-action="68">Z Right Stop</button>
+                <button type="button" class="control-button neutral" data-control-action="90">Zero Z</button>
+                <button type="button" class="control-button warning" data-control-action="87">X Forward Stop</button>
+                <button type="button" class="control-button warning" data-control-action="83">X Rear Stop</button>
+                <button type="button" class="control-button neutral" data-control-action="88">Zero X</button>
+                <button type="button" class="control-button warning control-y" data-control-action="73">Y Forward Stop</button>
+                <button type="button" class="control-button warning control-y" data-control-action="75">Y Back Stop</button>
+                <button type="button" class="control-button neutral control-y" data-control-action="72">Zero Y</button>
+                <button type="button" class="control-button neutral" data-control-action="81">Enable Z</button>
+                <button type="button" class="control-button neutral" data-control-action="67">Enable X</button>
+                <button type="button" class="control-button neutral control-y" data-control-action="89">Enable Y</button>
+                <button type="button" class="control-button neutral" data-control-action="79">Diameter</button>
+              </div>
+            </section>
+
+            <section class="panel control-panel">
+              <h3>Modes</h3>
+              <div class="control-button-grid">
+                <button type="button" class="control-button mode" data-control-action="97">Gear</button>
+                <button type="button" class="control-button mode" data-control-action="109">XGear</button>
+                <button type="button" class="control-button mode" data-control-action="108">Joy</button>
+                <button type="button" class="control-button mode" data-control-action="98">Turn</button>
+                <button type="button" class="control-button mode" data-control-action="99">Face</button>
+                <button type="button" class="control-button mode" data-control-action="100">Cone</button>
+                <button type="button" class="control-button mode" data-control-action="101">Cut</button>
+                <button type="button" class="control-button mode" data-control-action="110">Slot</button>
+                <button type="button" class="control-button mode" data-control-action="102">Thread</button>
+                <button type="button" class="control-button mode" data-control-action="104">Ellip</button>
+                <button type="button" class="control-button mode" data-control-action="105">GCode</button>
+                <button type="button" class="control-button mode" data-control-action="103">Async</button>
+                <button type="button" class="control-button mode control-y" data-control-action="106">Y</button>
+                <button type="button" class="control-button mode" data-control-action="107">Next Mode</button>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <section id="section-gcode" class="app-section" data-section="gcode">
         <div class="section-stack">
           <section class="panel">
             <h3>Stored GCode</h3>
@@ -1094,9 +1304,16 @@ const char indexhtml[] PROGMEM = R"rawliteral(
   </div>
 
   <script>
-    const defaultSection = 'gcode';
+    const defaultSection = 'control';
     const sectionLinks = Array.from(document.querySelectorAll('[data-section-link]'));
     const appSections = Array.from(document.querySelectorAll('[data-section]'));
+    const controlButtons = Array.from(document.querySelectorAll('[data-control-action]'));
+    const controlYElements = Array.from(document.querySelectorAll('.control-y'));
+    const controlState = document.getElementById('control-state');
+    const controlX = document.getElementById('control-x');
+    const controlZ = document.getElementById('control-z');
+    const controlRpm = document.getElementById('control-rpm');
+    const controlActionStatus = document.getElementById('control-action-status');
     const log = document.getElementById('log');
     const commandInput = document.getElementById('command');
     const sendButton = document.getElementById('send');
@@ -1141,6 +1358,10 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     let firmwareStatusPollBusy = false;
     let keyboardLearnTarget = '';
     let keyboardLearnTimer = 0;
+    let controlStatusTimer = 0;
+    let controlStatusWaiting = false;
+    let controlStatusRequestAt = 0;
+    const activeControlActions = new Set();
     const tftFirstUploadStorageKey = 'nanoels-h5.tft-first-upload';
     const machineConfigSections = [
       {
@@ -1339,6 +1560,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       sectionLinks.forEach(link => {
         link.classList.toggle('active', link.dataset.sectionLink === activeSection);
       });
+      setControlStatusPolling(activeSection === 'control');
     };
 
     const handleSectionChange = (scrollToTop) => {
@@ -1352,6 +1574,9 @@ const char indexhtml[] PROGMEM = R"rawliteral(
 
     ws.onopen = () => {
       logMessage('Connected to server');
+      controlActionStatus.textContent = 'Connected';
+      updateButtonStates();
+      requestControllerStatus();
     };
 
     ws.onmessage = (event) => {
@@ -1360,6 +1585,9 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     };
 
     ws.onclose = () => {
+      releaseAllControlActions(false);
+      controlActionStatus.textContent = 'Disconnected';
+      updateButtonStates();
       logMessage('Disconnected from server');
     };
 
@@ -1376,6 +1604,11 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       tftFirstUploadCheckbox.disabled = uploadInProgress;
       tftFileInput.disabled = uploadInProgress;
       firmwareFileInput.disabled = uploadInProgress;
+      const controlDisabled = uploadInProgress || ws.readyState !== WebSocket.OPEN;
+      controlButtons.forEach(button => {
+        button.disabled = controlDisabled;
+        button.classList.toggle('disabled', controlDisabled);
+      });
       sendButton.classList.toggle('disabled', sendButton.disabled);
       addGcodeButton.classList.toggle('disabled', addGcodeButton.disabled);
       saveConfigButton.classList.toggle('disabled', saveConfigButton.disabled);
@@ -1390,6 +1623,145 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       });
       tftBrowseButton.classList.toggle('disabled', uploadInProgress);
       firmwareBrowseButton.classList.toggle('disabled', uploadInProgress);
+    }
+
+    function websocketReady() {
+      return ws.readyState === WebSocket.OPEN;
+    }
+
+    function setControlButtonsActive(actionCode, active) {
+      document.querySelectorAll(`[data-control-action="${actionCode}"]`).forEach(button => {
+        button.classList.toggle('active', active);
+      });
+    }
+
+    function sendWebControlAction(actionCode, isPress) {
+      if (!websocketReady()) {
+        controlActionStatus.textContent = 'Disconnected';
+        updateButtonStates();
+        return false;
+      }
+      ws.send(`@${actionCode}:${isPress ? 1 : 0}\n`);
+      return true;
+    }
+
+    function pressControlButton(button) {
+      if (button.disabled) return;
+      const actionCode = button.dataset.controlAction;
+      if (!actionCode || activeControlActions.has(actionCode)) return;
+      if (sendWebControlAction(actionCode, true)) {
+        activeControlActions.add(actionCode);
+        setControlButtonsActive(actionCode, true);
+        controlActionStatus.textContent = `${button.textContent.trim()} pressed`;
+      }
+    }
+
+    function releaseControlAction(actionCode, sendRelease) {
+      if (!activeControlActions.has(actionCode)) return;
+      activeControlActions.delete(actionCode);
+      setControlButtonsActive(actionCode, false);
+      if (sendRelease) sendWebControlAction(actionCode, false);
+    }
+
+    function releaseControlButton(button, sendRelease) {
+      const actionCode = button.dataset.controlAction;
+      if (actionCode) releaseControlAction(actionCode, sendRelease);
+    }
+
+    function releaseAllControlActions(sendRelease = true) {
+      Array.from(activeControlActions).forEach(actionCode => releaseControlAction(actionCode, sendRelease));
+    }
+
+    function pulseControlButton(button) {
+      if (button.disabled) return;
+      const actionCode = button.dataset.controlAction;
+      if (!actionCode || !sendWebControlAction(actionCode, true)) return;
+      button.classList.add('active');
+      controlActionStatus.textContent = `${button.textContent.trim()} sent`;
+      setTimeout(() => {
+        sendWebControlAction(actionCode, false);
+        button.classList.remove('active');
+      }, 70);
+    }
+
+    function setupControlButtons() {
+      controlButtons.forEach(button => {
+        if (button.dataset.controlHold === '1') {
+          button.addEventListener('pointerdown', event => {
+            if (event.button !== undefined && event.button !== 0) return;
+            event.preventDefault();
+            if (button.setPointerCapture) button.setPointerCapture(event.pointerId);
+            pressControlButton(button);
+          });
+          button.addEventListener('pointerup', event => {
+            event.preventDefault();
+            releaseControlButton(button, true);
+          });
+          button.addEventListener('pointercancel', () => releaseControlButton(button, true));
+          button.addEventListener('lostpointercapture', () => releaseControlButton(button, true));
+          button.addEventListener('pointerleave', event => {
+            if (event.pointerType === 'mouse') releaseControlButton(button, true);
+          });
+        } else {
+          button.addEventListener('click', event => {
+            event.preventDefault();
+            pulseControlButton(button);
+          });
+        }
+      });
+      window.addEventListener('blur', () => releaseAllControlActions(true));
+      window.addEventListener('beforeunload', () => releaseAllControlActions(true));
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) releaseAllControlActions(true);
+      });
+    }
+
+    function requestControllerStatus() {
+      if (sectionFromHash() !== 'control' || !websocketReady()) return;
+      const now = Date.now();
+      if (controlStatusWaiting && now - controlStatusRequestAt < 1500) return;
+      controlStatusWaiting = true;
+      controlStatusRequestAt = now;
+      ws.send('?\n');
+    }
+
+    function setControlStatusPolling(enabled) {
+      if (enabled) {
+        if (!controlStatusTimer) {
+          controlStatusTimer = setInterval(requestControllerStatus, 1000);
+        }
+        requestControllerStatus();
+      } else {
+        clearInterval(controlStatusTimer);
+        controlStatusTimer = 0;
+        controlStatusWaiting = false;
+      }
+    }
+
+    function updateControlStatusFromText(line) {
+      if (!line.startsWith('<') || !line.endsWith('>')) return false;
+      const parts = line.substring(1, line.length - 1).split('|');
+      controlState.textContent = parts[0] || '--';
+      const wpos = parts.find(part => part.startsWith('WPos:'));
+      if (wpos) {
+        const values = wpos.substring('WPos:'.length).split(',');
+        controlX.textContent = values[0] || '--';
+        controlZ.textContent = values[2] || '--';
+      }
+      const fs = parts.find(part => part.startsWith('FS:'));
+      if (fs) {
+        const values = fs.substring('FS:'.length).split(',');
+        controlRpm.textContent = values[1] || '--';
+      }
+      controlStatusWaiting = false;
+      return true;
+    }
+
+    function applyControlConfigValues(values) {
+      const showY = values.activeY === '1';
+      controlYElements.forEach(element => {
+        element.hidden = !showY;
+      });
     }
 
     function parseStatusValue(data, key) {
@@ -1554,7 +1926,9 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       fetch('/config', { cache: 'no-store' })
         .then(response => response.text())
         .then(data => {
-          applyConfigValues(parseKeyValueText(data));
+          const values = parseKeyValueText(data);
+          applyConfigValues(values);
+          applyControlConfigValues(values);
           configStatus.textContent = '';
         })
         .catch(() => {
@@ -1850,7 +2224,12 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     function handleRealtimeMessage(message) {
       let handled = false;
       message.split('\n').map(line => line.trim()).filter(line => !!line).forEach(line => {
-        if (line.startsWith('KEY.press=')) {
+        if (updateControlStatusFromText(line)) {
+          handled = true;
+        } else if (line.startsWith('WEBUI.error=')) {
+          controlActionStatus.textContent = line.substring('WEBUI.error='.length);
+          handled = true;
+        } else if (line.startsWith('KEY.press=')) {
           const code = Number(line.substring('KEY.press='.length));
           if (!Number.isNaN(code)) handleKeyboardPressCode(code);
           handled = true;
@@ -1906,6 +2285,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     firmwareFileInput.addEventListener('change', uploadFirmwareFile);
 
     document.addEventListener('DOMContentLoaded', () => {
+      setupControlButtons();
       handleSectionChange(false);
       loadTftFirstUploadPreference();
       renderConfigFields();
