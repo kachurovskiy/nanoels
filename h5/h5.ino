@@ -300,6 +300,11 @@ struct KeyboardBinding {
   byte code;
 };
 
+struct WebUiEvent {
+  byte actionCode;
+  bool isPress;
+};
+
 #define KEY_BINDING(id, label, code) { id, label, code, code, code }
 
 KeyboardBinding keyboardBindings[] = {
@@ -1073,6 +1078,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
           <summary>Supported websocket commands</summary>
           <ul>
             <li><code>?</code> requests controller status</li>
+            <li><code>@21:1</code> presses direct action code 21; <code>@21:0</code> releases it without keyboard remapping</li>
             <li><code>=20</code> sends key code 20 as if it is pressed on the keyboard</li>
             <li><code>!</code> turns the controller off</li>
             <li><code>~</code> turns the controller on</li>
@@ -2507,6 +2513,8 @@ bool timerAttached = false;
 CircleBuffer inBuffer;
 CircleBuffer outBuffer;
 volatile bool webBuffersReady = false;
+QueueHandle_t webUiEventQueue = NULL;
+const int WEB_UI_EVENT_QUEUE_LENGTH = 32;
 
 bool bufferAvailable(CircleBuffer* b) {
   return b->head != b->tail;
@@ -3196,6 +3204,117 @@ void queueWebSocketText(const String& text) {
   writeBuffer(&outBuffer, text);
 }
 
+bool isWebUiActionCode(byte actionCode) {
+  for (int i = 0; i < KEYBOARD_BINDING_COUNT; i++) {
+    if (keyboardBindings[i].actionCode == actionCode) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool parseWebUiStateToken(const String& token, bool* isPress) {
+  if (token == "1" || token == "p" || token == "press" || token == "down") {
+    *isPress = true;
+    return true;
+  }
+  if (token == "0" || token == "r" || token == "release" || token == "up") {
+    *isPress = false;
+    return true;
+  }
+  return false;
+}
+
+bool parseWebUiEventCommand(uint8_t* payload, size_t length, WebUiEvent* event, String* error) {
+  size_t start = 0;
+  while (start < length && payload[start] <= 32) start++;
+  size_t end = length;
+  while (end > start && payload[end - 1] <= 32) end--;
+  if (start >= end || payload[start] != '@') return false;
+
+  size_t i = start + 1;
+  long actionCode = 0;
+  bool hasActionCode = false;
+  while (i < end && payload[i] >= '0' && payload[i] <= '9') {
+    hasActionCode = true;
+    actionCode = actionCode * 10 + (payload[i] - '0');
+    if (actionCode > 255) {
+      *error = "web action code must be 1..255";
+      return true;
+    }
+    i++;
+  }
+
+  if (!hasActionCode) {
+    *error = "missing web action code";
+    return true;
+  }
+  if (actionCode < 1 || !isWebUiActionCode(byte(actionCode))) {
+    *error = String("unknown web action code ") + String(actionCode);
+    return true;
+  }
+
+  if (i >= end) {
+    *error = "missing web action state";
+    return true;
+  }
+
+  char separator = char(payload[i]);
+  if (separator != ':' && separator != '=' && separator != ',') {
+    *error = "expected @action:state";
+    return true;
+  }
+  i++;
+  if (i >= end) {
+    *error = "missing web action state";
+    return true;
+  }
+
+  bool isPress = true;
+  String state = "";
+  while (i < end) {
+    state += char(payload[i]);
+    i++;
+  }
+  state.trim();
+  state.toLowerCase();
+  if (!parseWebUiStateToken(state, &isPress)) {
+    *error = String("unknown web action state ") + state;
+    return true;
+  }
+
+  event->actionCode = byte(actionCode);
+  event->isPress = isPress;
+  return true;
+}
+
+bool queueWebUiEvent(byte actionCode, bool isPress) {
+  if (webUiEventQueue == NULL) return false;
+  WebUiEvent event = { actionCode, isPress };
+  return xQueueSend(webUiEventQueue, &event, 0) == pdTRUE;
+}
+
+bool readWebUiEvent(WebUiEvent* event) {
+  if (webUiEventQueue == NULL) return false;
+  return xQueueReceive(webUiEventQueue, event, 0) == pdTRUE;
+}
+
+bool handleWebUiEventCommand(uint8_t* payload, size_t length) {
+  WebUiEvent event = {};
+  String error = "";
+  if (!parseWebUiEventCommand(payload, length, &event, &error)) {
+    return false;
+  }
+  if (error.length() > 0) {
+    queueWebSocketText(String("WEBUI.error=") + error + "\n");
+    return true;
+  }
+  if (!queueWebUiEvent(event.actionCode, event.isPress)) {
+    queueWebSocketText("WEBUI.error=event queue full\n");
+  }
+  return true;
+}
+
 void publishKeyboardEvent(byte physicalCode, byte actionCode, bool isPress) {
   String line = String("KEY.") + (isPress ? "press=" : "release=") + String(physicalCode) + "\n";
   line += "KEY.action=";
@@ -3427,6 +3546,9 @@ void firmwareUploadLog(const String& message) {
 
 void handleWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
   if (type == WStype_TEXT) {
+    if (handleWebUiEventCommand(payload, length)) {
+      return;
+    }
     for (size_t i = 0; i < length; i++) {
       writeBuffer(&inBuffer, payload[i]);
     }
@@ -6948,7 +7070,11 @@ void processKeypadEvent() {
   bool eventFromNextion = false;
   bool eventUsesKeyboardMap = false;
   lastNextionPageId = 255;
-  if (wsKeycode != 0) {
+  WebUiEvent webUiEvent = {};
+  if (readWebUiEvent(&webUiEvent)) {
+    event = webUiEvent.actionCode;
+    if (!webUiEvent.isPress) event |= PS2_BREAK;
+  } else if (wsKeycode != 0) {
     event = wsKeycode;
     wsKeycode = 0;
     eventUsesKeyboardMap = true;
@@ -7928,6 +8054,7 @@ void setup() {
 
   // Debug.
   Serial.begin(115200);
+  webUiEventQueue = xQueueCreate(WEB_UI_EVENT_QUEUE_LENGTH, sizeof(WebUiEvent));
 
   // Nextion.
   Serial1.begin(NEXTION_NORMAL_BAUD, SERIAL_8N1, 44, 43);
