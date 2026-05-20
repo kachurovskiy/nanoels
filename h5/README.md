@@ -145,6 +145,21 @@ The Web UI also has a `Machine Config` section for encoder, Z/X/Y axis, handwhee
 
 The `Keyboard` section lets you change PS/2 keyboard key-code mapping, learn key codes from the connected keyboard, and toggle showing key presses on the Nextion screen. Keyboard mapping is stored in ESP32 Preferences and takes effect without recompiling firmware. GPIO pin mapping still requires editing `h5.ino`.
 
+### Experimental Web Control UI
+
+The Web UI includes an experimental `Control` tab for phones and tablets. It can be used as an optional control surface when you prefer not to use a PS/2 keyboard or when you do not have a suitable touch Nextion screen. The controller still runs all motion logic locally on the ESP32; the browser only sends button actions and shows status.
+
+Use it with the same caution as any other machine-control input:
+
+- Treat the Web Control UI as experimental. Test every button, axis direction, stop, and mode with motors clear of the work before cutting.
+- Keep a physical power switch, emergency stop, or stepper-driver enable cutoff within reach. Do not rely on WiFi, a browser tab, or a touchscreen as the only way to stop motion.
+- Use it only on a trusted local network. Anyone who can reach the Web UI can control the machine.
+- Keep the controller stopped before changing WiFi, firmware, screen, machine config, or keyboard settings.
+- Avoid using Web Control for unattended operation. Phone sleep, browser reloads, weak WiFi, or moving out of range can interrupt the UI even though the controller has failsafes for held jog buttons.
+- Check the on-machine screen/controller state when anything looks wrong or delayed. If in doubt, stop the controller physically before continuing.
+
+UI options such as Accessibility are in the Web UI `UI` tab. They are browser-local, stored in `localStorage`, and do not use the firmware Save/Reset flow. Voice feedback uses the browser Web Speech API.
+
 To generate GCode for your parts, upload STL model of your part to https://kachurovskiy.com/lathecode/ and specify parameters like stock diameter and tool used.
 
 Handwheels and limits have no effect when GCODE is running.

@@ -197,7 +197,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 34
+#define SOFTWARE_VERSION 35
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -569,6 +569,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       background-color: var(--bg);
       color: var(--text);
       font-family: Roboto, Arial, sans-serif;
+      font-size: 17px;
       margin: 0;
     }
     a {
@@ -590,7 +591,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       font-size: 1.35rem;
     }
     h3 {
-      font-size: 1rem;
+      font-size: 1.08rem;
       margin: 0 0 10px;
     }
     p {
@@ -604,6 +605,12 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       margin-top: 18px;
       text-align: center;
     }
+    body.control-section-active .app-footer {
+      display: none;
+    }
+    body.control-section-active.control-fullscreen-active .section-tabs {
+      display: none;
+    }
     .app-footer p {
       margin: 0;
     }
@@ -616,6 +623,9 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       border-radius: 4px;
       margin: 0;
       padding: 10px 12px;
+    }
+    [hidden] {
+      display: none !important;
     }
     .section-tabs {
       background: var(--bg);
@@ -634,6 +644,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       border-radius: 4px;
       color: var(--text);
       flex: 0 0 auto;
+      font-size: 1.02rem;
       font-weight: 600;
       padding: 10px 12px;
       text-decoration: none;
@@ -664,7 +675,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       border-radius: 4px;
       padding: 12px;
     }
-    input[type=text], input[type=file], input[type=number], input[type=password], textarea {
+    input[type=text], input[type=file], input[type=number], input[type=password], textarea, select {
       border: 1px solid var(--border);
       border-radius: 4px;
       color: var(--text);
@@ -850,6 +861,9 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     .settings-group .config-grid, .keyboard-group .keyboard-grid {
       padding: 12px;
     }
+    .accessibility-settings .config-actions {
+      padding: 0 12px 12px;
+    }
     .config-field > .config-help {
       color: var(--muted);
       display: block;
@@ -902,11 +916,13 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     #tft-status, #firmware-status {
       min-height: 1.2em;
     }
+    .control-status-panel {
+      padding: 12px;
+    }
     .control-status-grid {
       display: grid;
       gap: 10px;
       grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-      margin-bottom: 10px;
     }
     .control-status-item {
       background: #f8fafb;
@@ -915,19 +931,74 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       min-height: 62px;
       padding: 10px;
     }
+    .control-status-button {
+      cursor: pointer;
+      user-select: none;
+    }
+    .control-status-button:hover {
+      background: #edf3f7;
+    }
+    .control-status-button.active {
+      background: #d8ecf6;
+      border-color: var(--primary);
+    }
+    .control-status-button.disabled {
+      cursor: not-allowed;
+      opacity: 0.58;
+    }
     .control-status-label {
       color: var(--muted);
       display: block;
-      font-size: 0.78rem;
+      font-size: 0.86rem;
       font-weight: 700;
       margin-bottom: 6px;
       text-transform: uppercase;
     }
     .control-status-value {
       display: block;
-      font-size: 1.15rem;
+      font-size: 1.28rem;
       font-weight: 700;
       overflow-wrap: anywhere;
+    }
+    .control-axis-stops {
+      color: var(--muted);
+      display: block;
+      font-size: 0.9rem;
+      font-weight: 700;
+      margin-top: 3px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .control-mode-pitch {
+      display: none;
+    }
+    .control-extra-toggle {
+      cursor: pointer;
+    }
+    .control-mobile-tabs, .control-bottom-bar {
+      display: none;
+    }
+    .control-message {
+      grid-column: 1 / -1;
+    }
+    .control-message-heading {
+      align-items: baseline;
+      display: flex;
+      gap: 8px;
+      justify-content: space-between;
+      min-width: 0;
+    }
+    .control-action-status {
+      color: var(--muted);
+      flex: 1;
+      font-size: 0.9rem;
+      font-weight: 700;
+      min-width: 0;
+      overflow: hidden;
+      text-align: right;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .control-grid {
       display: grid;
@@ -947,9 +1018,60 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     .control-jog-grid {
       display: grid;
       gap: 8px;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .control-jog-arrow {
+      align-items: center;
+      display: grid;
+      gap: 2px;
+      justify-items: center;
+      min-height: 72px;
+    }
+    .control-jog-symbol {
+      font-size: 1.9rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .control-jog-axis {
+      font-size: 0.82rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .control-jog-up {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    .control-jog-left {
+      grid-column: 1;
+      grid-row: 2;
+    }
+    .control-jog-center {
+      align-self: stretch;
+      background: #e7ecef;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      grid-column: 2;
+      grid-row: 2;
+      min-height: 72px;
+    }
+    .control-jog-right {
+      grid-column: 3;
+      grid-row: 2;
+    }
+    .control-jog-down {
+      grid-column: 2;
+      grid-row: 3;
+    }
+    .control-jog-y-forward {
+      grid-column: 1 / 3;
+      grid-row: 4;
+    }
+    .control-jog-y-back {
+      grid-column: 3;
+      grid-row: 4;
     }
     .control-button {
+      font-size: 1.05rem;
       min-height: 54px;
       padding: 8px;
       touch-action: manipulation;
@@ -992,10 +1114,6 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     .control-wide {
       grid-column: span 2;
     }
-    #control-action-status {
-      margin: 0;
-      min-height: 1.2em;
-    }
     @media (max-width: 640px) {
       .page-shell {
         padding: 10px;
@@ -1009,6 +1127,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
         padding: 8px 10px;
       }
       .section-tabs a {
+        font-size: 1.08rem;
         padding: 10px;
       }
       .config-grid, .keyboard-grid {
@@ -1041,8 +1160,150 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       #log {
         height: 220px;
       }
+      #section-control.active {
+        padding-bottom: 82px;
+      }
+      .control-stack {
+        gap: 10px;
+      }
+      .control-status-panel {
+        background: rgba(255, 255, 255, 0.96);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+        padding: 8px;
+      }
       .control-status-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .control-status-item {
+        min-height: 54px;
+        min-width: 0;
+        padding: 8px;
+      }
+      .control-status-panel.control-y-active .control-status-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+      .control-status-extra {
+        display: none;
+      }
+      .control-status-panel.control-extra-visible .control-status-extra {
+        display: block;
+      }
+      .control-status-panel.control-extra-visible .control-message {
+        border-color: var(--primary);
+      }
+      .control-status-label {
+        font-size: 0.82rem;
+        margin-bottom: 4px;
+      }
+      .control-status-value {
+        font-size: 1.18rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .control-axis-stops {
+        font-size: 0.86rem;
+      }
+      .control-mode-pitch {
+        color: var(--muted);
+        display: block;
+        font-size: 0.86rem;
+        font-weight: 700;
+        margin-top: 3px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .control-status-panel.control-extra-visible .control-mode-pitch {
+        display: none;
+      }
+      .control-mobile-tabs {
+        display: grid;
+        gap: 6px;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+      }
+      .control-mobile-tab {
+        background: #e7ecef;
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-size: 0.98rem;
+        font-weight: 700;
+        min-height: 44px;
+        padding: 8px 4px;
+      }
+      .control-mobile-tab.active {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: #fff;
+      }
+      .control-grid {
+        display: block;
+      }
+      .control-panel {
+        display: none;
+      }
+      .control-panel.active {
+        display: grid;
+      }
+      .control-button {
+        font-size: 1.14rem;
+        min-height: 62px;
+        padding: 8px 6px;
+      }
+      .control-jog-arrow, .control-jog-center {
+        min-height: 68px;
+      }
+      .control-jog-symbol {
+        font-size: 2rem;
+      }
+      .control-bottom-bar {
+        align-items: center;
+        background: rgba(255, 255, 255, 0.97);
+        border-top: 1px solid var(--border);
+        bottom: 0;
+        box-shadow: 0 -4px 14px rgba(0, 0, 0, 0.14);
+        gap: 8px;
+        grid-template-columns: 60px minmax(0, 1fr) 68px 78px 78px;
+        left: 0;
+        padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+        position: fixed;
+        right: 0;
+        z-index: 30;
+      }
+      #section-control.active .control-bottom-bar {
+        display: grid;
+      }
+      .control-bottom-state {
+        min-width: 0;
+      }
+      .control-bottom-state .control-status-label, .control-bottom-rpm .control-status-label {
+        font-size: 0.78rem;
+        margin-bottom: 2px;
+      }
+      .control-bottom-state .control-status-value, .control-bottom-rpm .control-status-value {
+        font-size: 1.18rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .control-bottom-rpm {
+        min-width: 0;
+      }
+      .control-bottom-button {
+        min-height: 52px;
+      }
+      .control-fullscreen-button {
+        background: #e7ecef;
+        border: 1px solid var(--border);
+        color: var(--text);
+        min-height: 52px;
+        padding: 8px 4px;
+      }
+      .control-fullscreen-button:hover {
+        background: #d9e1e6;
       }
     }
   </style>
@@ -1050,55 +1311,119 @@ const char indexhtml[] PROGMEM = R"rawliteral(
 <body>
   <div class="page-shell">
     <nav class="section-tabs" aria-label="Main sections">
-      <a href="#control" data-section-link="control" class="active">Control</a>
+      <a href="#control" data-section-link="control">Control</a>
       <a href="#gcode" data-section-link="gcode">GCode</a>
       <a href="#updates" data-section-link="updates">Updates</a>
       <a href="#wifi" data-section-link="wifi">WiFi</a>
+      <a href="#ui" data-section-link="ui">UI</a>
       <a href="#settings" data-section-link="settings">Settings</a>
       <a href="#keyboard" data-section-link="keyboard">Keyboard</a>
       <a href="#logs" data-section-link="logs">Logs</a>
     </nav>
 
     <main>
-      <section id="section-control" class="app-section active" data-section="control">
-        <div class="section-stack">
-          <section class="panel">
-            <h3>Controller</h3>
+      <section id="section-control" class="app-section" data-section="control">
+        <div class="section-stack control-stack">
+          <section id="control-status" class="panel control-status-panel" aria-label="Controller status">
             <div class="control-status-grid">
-              <div class="control-status-item">
+              <div class="control-status-item control-status-button" data-control-shortcut-panel="modes" role="button" tabindex="0" aria-label="Open Modes">
+                <span class="control-status-label">Mode</span>
+                <span id="control-mode" class="control-status-value">--</span>
+                <span id="control-mode-pitch" class="control-mode-pitch">--</span>
+              </div>
+              <div class="control-status-item control-status-button" data-control-shortcut-action="88" data-control-shortcut-label="Zero X" role="button" tabindex="0" aria-label="Zero X">
+                <span class="control-status-label">X</span>
+                <span id="control-x" class="control-status-value">--</span>
+                <span id="control-x-inline-stops" class="control-axis-stops">--</span>
+              </div>
+              <div class="control-status-item control-status-button" data-control-shortcut-action="90" data-control-shortcut-label="Zero Z" role="button" tabindex="0" aria-label="Zero Z">
+                <span class="control-status-label">Z</span>
+                <span id="control-z" class="control-status-value">--</span>
+                <span id="control-z-inline-stops" class="control-axis-stops">--</span>
+              </div>
+              <div class="control-status-item control-status-button control-y" data-control-shortcut-action="72" data-control-shortcut-label="Zero Y" role="button" tabindex="0" aria-label="Zero Y" hidden>
+                <span class="control-status-label">Y</span>
+                <span id="control-y" class="control-status-value">--</span>
+                <span id="control-y-inline-stops" class="control-axis-stops">--</span>
+              </div>
+              <div class="control-status-item control-status-button control-status-extra" data-control-shortcut-action="27" data-control-shortcut-label="OFF" role="button" tabindex="0" aria-label="Stop controller">
                 <span class="control-status-label">State</span>
                 <span id="control-state" class="control-status-value">--</span>
               </div>
-              <div class="control-status-item">
-                <span class="control-status-label">X</span>
-                <span id="control-x" class="control-status-value">--</span>
+              <div class="control-status-item control-status-button control-status-extra" data-control-shortcut-action="82" data-control-shortcut-label="Reverse" role="button" tabindex="0" aria-label="Reverse pitch">
+                <span class="control-status-label">Pitch</span>
+                <span id="control-pitch" class="control-status-value">--</span>
               </div>
-              <div class="control-status-item">
-                <span class="control-status-label">Z</span>
-                <span id="control-z" class="control-status-value">--</span>
+              <div class="control-status-item control-status-button control-status-extra" data-control-shortcut-action="77" data-control-shortcut-label="Units" role="button" tabindex="0" aria-label="Change units">
+                <span class="control-status-label">Units</span>
+                <span id="control-measure" class="control-status-value">--</span>
               </div>
-              <div class="control-status-item">
+              <div class="control-status-item control-status-button control-status-extra" data-control-shortcut-action="64" data-control-shortcut-label="Step" role="button" tabindex="0" aria-label="Change step">
+                <span class="control-status-label">Step</span>
+                <span id="control-step" class="control-status-value">--</span>
+              </div>
+              <div class="control-status-item control-status-button control-status-extra" data-control-shortcut-action="27" data-control-shortcut-label="Stop" role="button" tabindex="0" aria-label="Zero turns and angle">
+                <span class="control-status-label">Turns</span>
+                <span id="control-turns" class="control-status-value">--</span>
+              </div>
+              <div class="control-status-item control-status-button control-status-extra" data-control-shortcut-action="27" data-control-shortcut-label="Stop" role="button" tabindex="0" aria-label="Zero turns and angle">
+                <span class="control-status-label">Angle</span>
+                <span id="control-angle" class="control-status-value">--</span>
+              </div>
+              <div class="control-status-item control-status-extra">
                 <span class="control-status-label">RPM</span>
                 <span id="control-rpm" class="control-status-value">--</span>
               </div>
+              <div class="control-status-item control-message control-extra-toggle" data-control-extra-toggle role="button" tabindex="0" aria-label="Show or hide controller details" aria-expanded="false">
+                <div class="control-message-heading">
+                  <span class="control-status-label">Message</span>
+                  <span class="control-action-status" data-control-action-status role="status" aria-live="polite"></span>
+                </div>
+                <span id="control-message" class="control-status-value">--</span>
+              </div>
             </div>
-            <p id="control-action-status" class="action-status" role="status" aria-live="polite"></p>
           </section>
 
+          <div class="control-mobile-tabs" role="tablist" aria-label="Control groups">
+            <button type="button" class="control-mobile-tab active" data-control-panel-tab="jog">Jog</button>
+            <button type="button" class="control-mobile-tab" data-control-panel-tab="run">Run</button>
+            <button type="button" class="control-mobile-tab" data-control-panel-tab="numpad">Numpad</button>
+            <button type="button" class="control-mobile-tab" data-control-panel-tab="stops">Stops</button>
+            <button type="button" class="control-mobile-tab" data-control-panel-tab="modes">Modes</button>
+          </div>
           <div class="control-grid">
-            <section class="panel control-panel">
+            <section class="panel control-panel active" data-control-panel="jog">
               <h3>Jog</h3>
               <div class="control-jog-grid">
-                <button type="button" class="control-button hold" data-control-action="21" data-control-hold="1">Z Left</button>
-                <button type="button" class="control-button hold" data-control-action="22" data-control-hold="1">Z Right</button>
-                <button type="button" class="control-button hold" data-control-action="23" data-control-hold="1">X Forward</button>
-                <button type="button" class="control-button hold" data-control-action="24" data-control-hold="1">X Back</button>
-                <button type="button" class="control-button hold control-y" data-control-action="85" data-control-hold="1">Y Forward</button>
-                <button type="button" class="control-button hold control-y" data-control-action="74" data-control-hold="1">Y Back</button>
+                <button type="button" class="control-button hold control-jog-arrow control-jog-up" data-control-action="23" data-control-hold="1" data-control-label="X Forward" aria-label="Jog X forward" title="X Forward">
+                  <span class="control-jog-symbol">↑</span>
+                  <span class="control-jog-axis">X</span>
+                </button>
+                <button type="button" class="control-button hold control-jog-arrow control-jog-left" data-control-action="21" data-control-hold="1" data-control-label="Z Left" aria-label="Jog Z left" title="Z Left">
+                  <span class="control-jog-symbol">←</span>
+                  <span class="control-jog-axis">Z</span>
+                </button>
+                <div class="control-jog-center" aria-hidden="true"></div>
+                <button type="button" class="control-button hold control-jog-arrow control-jog-right" data-control-action="22" data-control-hold="1" data-control-label="Z Right" aria-label="Jog Z right" title="Z Right">
+                  <span class="control-jog-symbol">→</span>
+                  <span class="control-jog-axis">Z</span>
+                </button>
+                <button type="button" class="control-button hold control-jog-arrow control-jog-down" data-control-action="24" data-control-hold="1" data-control-label="X Back" aria-label="Jog X back" title="X Back">
+                  <span class="control-jog-symbol">↓</span>
+                  <span class="control-jog-axis">X</span>
+                </button>
+                <button type="button" class="control-button hold control-jog-arrow control-jog-y-forward control-y" data-control-action="85" data-control-hold="1" data-control-label="Y Forward" aria-label="Jog Y forward" title="Y Forward" hidden>
+                  <span class="control-jog-symbol">↑</span>
+                  <span class="control-jog-axis">Y</span>
+                </button>
+                <button type="button" class="control-button hold control-jog-arrow control-jog-y-back control-y" data-control-action="74" data-control-hold="1" data-control-label="Y Back" aria-label="Jog Y back" title="Y Back" hidden>
+                  <span class="control-jog-symbol">↓</span>
+                  <span class="control-jog-axis">Y</span>
+                </button>
               </div>
             </section>
 
-            <section class="panel control-panel">
+            <section class="panel control-panel" data-control-panel="run">
               <h3>Operation</h3>
               <div class="control-button-grid">
                 <button type="button" class="control-button" data-control-action="30">ON</button>
@@ -1113,7 +1438,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
               </div>
             </section>
 
-            <section class="panel control-panel">
+            <section class="panel control-panel" data-control-panel="numpad">
               <h3>Numpad</h3>
               <div class="control-numpad">
                 <button type="button" class="control-button neutral" data-control-action="49">1</button>
@@ -1130,7 +1455,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
               </div>
             </section>
 
-            <section class="panel control-panel">
+            <section class="panel control-panel" data-control-panel="stops">
               <h3>Stops and Axes</h3>
               <div class="control-button-grid">
                 <button type="button" class="control-button warning" data-control-action="65">Z Left Stop</button>
@@ -1139,17 +1464,17 @@ const char indexhtml[] PROGMEM = R"rawliteral(
                 <button type="button" class="control-button warning" data-control-action="87">X Forward Stop</button>
                 <button type="button" class="control-button warning" data-control-action="83">X Rear Stop</button>
                 <button type="button" class="control-button neutral" data-control-action="88">Zero X</button>
-                <button type="button" class="control-button warning control-y" data-control-action="73">Y Forward Stop</button>
-                <button type="button" class="control-button warning control-y" data-control-action="75">Y Back Stop</button>
-                <button type="button" class="control-button neutral control-y" data-control-action="72">Zero Y</button>
+                <button type="button" class="control-button warning control-y" data-control-action="73" hidden>Y Forward Stop</button>
+                <button type="button" class="control-button warning control-y" data-control-action="75" hidden>Y Back Stop</button>
+                <button type="button" class="control-button neutral control-y" data-control-action="72" hidden>Zero Y</button>
                 <button type="button" class="control-button neutral" data-control-action="81">Enable Z</button>
                 <button type="button" class="control-button neutral" data-control-action="67">Enable X</button>
-                <button type="button" class="control-button neutral control-y" data-control-action="89">Enable Y</button>
+                <button type="button" class="control-button neutral control-y" data-control-action="89" hidden>Enable Y</button>
                 <button type="button" class="control-button neutral" data-control-action="79">Diameter</button>
               </div>
             </section>
 
-            <section class="panel control-panel">
+            <section class="panel control-panel" data-control-panel="modes">
               <h3>Modes</h3>
               <div class="control-button-grid">
                 <button type="button" class="control-button mode" data-control-action="97">Gear</button>
@@ -1164,10 +1489,22 @@ const char indexhtml[] PROGMEM = R"rawliteral(
                 <button type="button" class="control-button mode" data-control-action="104">Ellip</button>
                 <button type="button" class="control-button mode" data-control-action="105">GCode</button>
                 <button type="button" class="control-button mode" data-control-action="103">Async</button>
-                <button type="button" class="control-button mode control-y" data-control-action="106">Y</button>
-                <button type="button" class="control-button mode" data-control-action="107">Next Mode</button>
+                <button type="button" class="control-button mode control-y" data-control-action="106" hidden>Y</button>
               </div>
             </section>
+          </div>
+          <div class="control-bottom-bar">
+            <button type="button" id="control-fullscreen" class="control-button control-fullscreen-button" aria-label="Fullscreen">Full</button>
+            <div class="control-bottom-state control-status-button" data-control-shortcut-action="27" data-control-shortcut-label="OFF" role="button" tabindex="0" aria-label="Stop controller">
+              <span class="control-status-label">State</span>
+              <span id="control-bottom-state" class="control-status-value">--</span>
+            </div>
+            <div class="control-bottom-rpm">
+              <span class="control-status-label">RPM</span>
+              <span id="control-bottom-rpm" class="control-status-value">--</span>
+            </div>
+            <button type="button" class="control-button control-bottom-button" data-control-action="30">ON</button>
+            <button type="button" class="control-button control-bottom-button danger" data-control-action="27">OFF</button>
           </div>
         </div>
       </section>
@@ -1249,6 +1586,53 @@ const char indexhtml[] PROGMEM = R"rawliteral(
         </form>
       </section>
 
+      <section id="section-ui" class="app-section" data-section="ui">
+        <div class="section-stack">
+          <details class="config-section settings-group accessibility-settings" open>
+            <summary>Accessibility (7)</summary>
+            <div class="config-grid">
+              <label class="config-checkbox" for="accessibility-voice-feedback">
+                <input type="checkbox" id="accessibility-voice-feedback">
+                <span>Voice feedback</span>
+              </label>
+              <label class="config-checkbox" for="accessibility-announce-buttons">
+                <input type="checkbox" id="accessibility-announce-buttons">
+                <span>Announce button presses</span>
+              </label>
+              <label class="config-checkbox" for="accessibility-announce-status">
+                <input type="checkbox" id="accessibility-announce-status">
+                <span>Announce controller status changes</span>
+              </label>
+              <label class="config-checkbox" for="accessibility-announce-warnings">
+                <input type="checkbox" id="accessibility-announce-warnings">
+                <span>Announce warnings and errors</span>
+              </label>
+              <label class="config-checkbox" for="accessibility-announce-axis">
+                <input type="checkbox" id="accessibility-announce-axis">
+                <span>Announce axis position changes</span>
+              </label>
+              <label class="config-checkbox" for="accessibility-quiet-hold">
+                <input type="checkbox" id="accessibility-quiet-hold">
+                <span>Quiet while holding jog buttons</span>
+              </label>
+              <label class="config-field" for="accessibility-speech-rate">
+                <span class="config-label">Speech speed</span>
+                <select id="accessibility-speech-rate">
+                  <option value="1">1x</option>
+                  <option value="1.5">1.5x</option>
+                  <option value="2">2x</option>
+                  <option value="3">3x</option>
+                </select>
+              </label>
+            </div>
+            <div class="config-actions">
+              <button id="accessibility-test-voice" type="button" class="secondary">Test voice</button>
+              <span id="accessibility-status" class="action-status" role="status" aria-live="polite"></span>
+            </div>
+          </details>
+        </div>
+      </section>
+
       <section id="section-settings" class="app-section" data-section="settings">
         <form id="config-form">
           <div id="config-fields"></div>
@@ -1309,11 +1693,43 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     const appSections = Array.from(document.querySelectorAll('[data-section]'));
     const controlButtons = Array.from(document.querySelectorAll('[data-control-action]'));
     const controlYElements = Array.from(document.querySelectorAll('.control-y'));
+    const controlStatusPanel = document.getElementById('control-status');
+    const controlExtraToggle = document.querySelector('[data-control-extra-toggle]');
+    const controlMobileTabs = Array.from(document.querySelectorAll('[data-control-panel-tab]'));
+    const controlPanelElements = Array.from(document.querySelectorAll('[data-control-panel]'));
+    const controlShortcutElements = Array.from(document.querySelectorAll('[data-control-shortcut-action], [data-control-shortcut-panel]'));
+    const controlMobileMedia = window.matchMedia ? window.matchMedia('(max-width: 640px)') : { matches: false };
     const controlState = document.getElementById('control-state');
+    const controlBottomState = document.getElementById('control-bottom-state');
+    const controlMode = document.getElementById('control-mode');
+    const controlModePitch = document.getElementById('control-mode-pitch');
+    const controlPitch = document.getElementById('control-pitch');
+    const controlMeasure = document.getElementById('control-measure');
+    const controlStep = document.getElementById('control-step');
+    const controlTurns = document.getElementById('control-turns');
+    const controlAngle = document.getElementById('control-angle');
     const controlX = document.getElementById('control-x');
+    const controlXInlineStops = document.getElementById('control-x-inline-stops');
+    const controlXStops = controlXInlineStops;
+    const controlY = document.getElementById('control-y');
+    const controlYInlineStops = document.getElementById('control-y-inline-stops');
+    const controlYStops = controlYInlineStops;
     const controlZ = document.getElementById('control-z');
+    const controlZInlineStops = document.getElementById('control-z-inline-stops');
+    const controlZStops = controlZInlineStops;
     const controlRpm = document.getElementById('control-rpm');
-    const controlActionStatus = document.getElementById('control-action-status');
+    const controlBottomRpm = document.getElementById('control-bottom-rpm');
+    const controlFullscreenButton = document.getElementById('control-fullscreen');
+    const controlMessage = document.getElementById('control-message');
+    const controlActionStatusElements = Array.from(document.querySelectorAll('[data-control-action-status]'));
+    const controlActionStatus = {
+      set textContent(value) {
+        controlActionStatusElements.forEach(element => { element.textContent = value || ''; });
+      },
+      get textContent() {
+        return controlActionStatusElements.length > 0 ? controlActionStatusElements[0].textContent : '';
+      }
+    };
     const log = document.getElementById('log');
     const commandInput = document.getElementById('command');
     const sendButton = document.getElementById('send');
@@ -1327,6 +1743,15 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     const configStatus = document.getElementById('config-status');
     const saveConfigButton = document.getElementById('save-config');
     const resetConfigButton = document.getElementById('reset-config');
+    const accessibilityVoiceFeedbackInput = document.getElementById('accessibility-voice-feedback');
+    const accessibilityAnnounceButtonsInput = document.getElementById('accessibility-announce-buttons');
+    const accessibilityAnnounceStatusInput = document.getElementById('accessibility-announce-status');
+    const accessibilityAnnounceWarningsInput = document.getElementById('accessibility-announce-warnings');
+    const accessibilityAnnounceAxisInput = document.getElementById('accessibility-announce-axis');
+    const accessibilityQuietHoldInput = document.getElementById('accessibility-quiet-hold');
+    const accessibilitySpeechRateInput = document.getElementById('accessibility-speech-rate');
+    const accessibilityTestVoiceButton = document.getElementById('accessibility-test-voice');
+    const accessibilityStatus = document.getElementById('accessibility-status');
     const tftFirstUploadCheckbox = document.getElementById('tft-first-upload');
     const tftBrowseButton = document.getElementById('tft-browse');
     const tftFileInput = document.getElementById('tft-file');
@@ -1358,11 +1783,36 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     let firmwareStatusPollBusy = false;
     let keyboardLearnTarget = '';
     let keyboardLearnTimer = 0;
-    let controlStatusTimer = 0;
-    let controlStatusWaiting = false;
-    let controlStatusRequestAt = 0;
+    let controlHoldHeartbeatTimer = 0;
+    let controlWakeLock = null;
+    let controlWakeLockBusy = false;
+    let controlNoSleepVideo = null;
+    let controlNoSleepDrawTimer = 0;
+    let accessibilityAxisTimer = 0;
+    let accessibilityMessageTimer = 0;
+    let accessibilityHoldAnnouncementTimer = 0;
+    let accessibilityLastSpeechPhrase = '';
+    let accessibilityLastSpeechMillis = 0;
+    let accessibilityLastSpeechKind = '';
+    let accessibilityLastStatusText = '';
+    let accessibilityLastMessageText = '';
+    let webUiNumpadEntryActive = false;
+    let webUiNumpadDigits = '';
+    const accessibilityPendingAxisValues = {};
+    const accessibilityLastAxisValues = { x: '', y: '', z: '' };
     const activeControlActions = new Set();
     const tftFirstUploadStorageKey = 'nanoels-h5.tft-first-upload';
+    const accessibilityStorageKey = 'nanoels-h5.accessibility';
+    const accessibilityDefaults = {
+      voiceFeedback: false,
+      announceButtons: true,
+      announceStatus: true,
+      announceWarnings: true,
+      announceAxis: false,
+      quietHold: true,
+      speechRate: '1'
+    };
+    let accessibilitySettings = Object.assign({}, accessibilityDefaults);
     const machineConfigSections = [
       {
         title: 'Spindle encoder',
@@ -1560,7 +2010,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       sectionLinks.forEach(link => {
         link.classList.toggle('active', link.dataset.sectionLink === activeSection);
       });
-      setControlStatusPolling(activeSection === 'control');
+      document.body.classList.toggle('control-section-active', activeSection === 'control');
     };
 
     const handleSectionChange = (scrollToTop) => {
@@ -1568,15 +2018,607 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       if (scrollToTop) window.scrollTo(0, 0);
     };
 
+    function speechSupported() {
+      return 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
+    }
+
+    function normalizeSpeechPhrase(value) {
+      return String(value || '')
+        .replace(/\b([XYZ])-(?=\d)/gi, '$1 Minus ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function speechRate() {
+      const rate = Number(accessibilitySettings.speechRate);
+      return Number.isFinite(rate) ? Math.min(3, Math.max(0.5, rate)) : 1;
+    }
+
+    function cancelAxisAnnouncement() {
+      clearTimeout(accessibilityAxisTimer);
+      accessibilityAxisTimer = 0;
+      Object.keys(accessibilityPendingAxisValues).forEach(key => { delete accessibilityPendingAxisValues[key]; });
+      if (accessibilityLastSpeechKind === 'axis' && speechSupported()) {
+        window.speechSynthesis.cancel();
+        accessibilityLastSpeechKind = '';
+      }
+    }
+
+    function cancelMessageAnnouncement() {
+      clearTimeout(accessibilityMessageTimer);
+      accessibilityMessageTimer = 0;
+      if (accessibilityLastSpeechKind === 'message' && speechSupported()) {
+        window.speechSynthesis.cancel();
+        accessibilityLastSpeechKind = '';
+      }
+    }
+
+    function speakAccessibility(phrase, options = {}) {
+      const text = normalizeSpeechPhrase(phrase);
+      if (!text || !speechSupported()) return false;
+      if (!options.force && !accessibilitySettings.voiceFeedback) return false;
+      if (!options.force) {
+        const now = Date.now();
+        const cooldown = options.cooldownMs === undefined ? 1500 : options.cooldownMs;
+        if (text === accessibilityLastSpeechPhrase && now - accessibilityLastSpeechMillis < cooldown) return false;
+      }
+      if (options.kind !== 'axis' && (options.cancelPrevious || options.kind === 'button' || options.kind === 'panel' || options.kind === 'warning')) {
+        cancelAxisAnnouncement();
+      }
+      if (options.kind !== 'message' && (options.cancelPrevious || options.kind === 'button' || options.kind === 'panel' || options.kind === 'warning' || options.kind === 'status')) {
+        cancelMessageAnnouncement();
+      }
+      if (options.cancelPrevious) window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = speechRate();
+      utterance.onend = () => {
+        if (accessibilityLastSpeechKind === options.kind) accessibilityLastSpeechKind = '';
+      };
+      utterance.onerror = utterance.onend;
+      window.speechSynthesis.speak(utterance);
+      accessibilityLastSpeechPhrase = text;
+      accessibilityLastSpeechMillis = Date.now();
+      accessibilityLastSpeechKind = options.kind || '';
+      return true;
+    }
+
+    function announceButtonAction(label, state = '') {
+      if (!accessibilitySettings.announceButtons) return;
+      const phrase = normalizeSpeechPhrase(`${label}${state ? ' ' + state : ''}`);
+      speakAccessibility(phrase, { kind: 'button' });
+    }
+
+    function axisStatusValue(axisName) {
+      const elements = { x: controlX, y: controlY, z: controlZ };
+      const element = elements[axisName.toLowerCase()];
+      return normalizeSpeechPhrase(element ? element.textContent : '');
+    }
+
+    function axisLooksEnabled(axisName) {
+      const value = axisStatusValue(axisName);
+      return !!value && value !== '--';
+    }
+
+    function stopDatasetForAxis(axisName) {
+      const elements = { x: controlXStops, y: controlYStops, z: controlZStops };
+      return elements[axisName.toLowerCase()] || null;
+    }
+
+    function enteredNumpadValueText() {
+      const message = normalizeSpeechPhrase(controlMessage ? controlMessage.textContent : '');
+      const match = message.match(/^Use\s+(.+)\?$/i);
+      if (match) return match[1];
+      return '';
+    }
+
+    function stopActionAnnouncement(actionCode) {
+      const stopActions = {
+        '65': { axis: 'Z', side: 'left', label: 'left' },
+        '68': { axis: 'Z', side: 'right', label: 'right' },
+        '87': { axis: 'X', side: 'left', label: 'forward' },
+        '83': { axis: 'X', side: 'right', label: 'rear' },
+        '73': { axis: 'Y', side: 'left', label: 'forward' },
+        '75': { axis: 'Y', side: 'right', label: 'back' }
+      };
+      const action = stopActions[String(actionCode)];
+      if (!action) return '';
+      if (webUiNumpadEntryActive) {
+        const valueText = enteredNumpadValueText();
+        return `${action.axis} ${action.label} stop set${valueText ? ' to ' + valueText : ' to entered value'}`;
+      }
+      const stops = stopDatasetForAxis(action.axis);
+      const current = stops ? (stops.dataset[action.side] || '') : '';
+      return `${action.axis} ${action.label} stop ${current ? 'removed' : 'added'}`;
+    }
+
+    function enableActionAnnouncement(actionCode) {
+      const enableActions = { '81': 'Z', '67': 'X', '89': 'Y' };
+      const axis = enableActions[String(actionCode)];
+      if (!axis) return '';
+      return `${axis} axis ${axisLooksEnabled(axis) ? 'disabled' : 'enabled'}`;
+    }
+
+    function actionAnnouncementForSpeech(actionCode, label) {
+      return stopActionAnnouncement(actionCode) || enableActionAnnouncement(actionCode) || actionLabelForSpeech(actionCode, label);
+    }
+
+    function updateWebUiNumpadTracking(actionCode) {
+      const code = String(actionCode);
+      const codeNumber = Number(code);
+      if (codeNumber >= 48 && codeNumber <= 57) {
+        if (!webUiNumpadEntryActive) webUiNumpadDigits = '';
+        webUiNumpadEntryActive = true;
+        if (webUiNumpadDigits.length < 8) webUiNumpadDigits += String.fromCharCode(codeNumber);
+        return;
+      }
+      if (code === '28') {
+        webUiNumpadEntryActive = true;
+        webUiNumpadDigits = webUiNumpadDigits.substring(0, Math.max(0, webUiNumpadDigits.length - 1));
+        return;
+      }
+      if (webUiNumpadEntryActive && (code === '95' || code === '60')) return;
+      webUiNumpadEntryActive = false;
+      webUiNumpadDigits = '';
+    }
+
+    function announcePanelChange(panelName) {
+      if (!accessibilitySettings.announceButtons) return;
+      const labels = { jog: 'Jog', run: 'Run', numpad: 'Numpad', stops: 'Stops', modes: 'Modes' };
+      speakAccessibility(labels[panelName] || panelName, { kind: 'panel' });
+    }
+
+    function announceWarning(text) {
+      if (!accessibilitySettings.announceWarnings) return;
+      speakAccessibility(text, { kind: 'warning', cancelPrevious: true });
+    }
+
+    function statusPhrase(value) {
+      const status = normalizeSpeechPhrase(value).toUpperCase();
+      if (status === 'ON') return 'Controller on';
+      if (status === 'OFF') return 'Controller off';
+      if (status === 'SYN') return 'Controller synchronized';
+      if (status === 'CONNECTED') return 'Connected';
+      if (status === 'DISCONNECTED') return 'Disconnected';
+      return normalizeSpeechPhrase(value);
+    }
+
+    function announceStatusChange(value) {
+      const phrase = statusPhrase(value);
+      if (!phrase || phrase === accessibilityLastStatusText) return;
+      accessibilityLastStatusText = phrase;
+      if (!accessibilitySettings.announceStatus) return;
+      speakAccessibility(phrase, { kind: 'status' });
+    }
+
+    function announceControlMessage(value) {
+      const phrase = normalizeSpeechPhrase(value);
+      if (!phrase || phrase === '--' || phrase === accessibilityLastMessageText) return;
+      accessibilityLastMessageText = phrase;
+      if (!accessibilitySettings.announceStatus) return;
+      cancelMessageAnnouncement();
+      accessibilityMessageTimer = setTimeout(() => {
+        accessibilityMessageTimer = 0;
+        speakAccessibility(phrase, { kind: 'message', cancelPrevious: true, cooldownMs: 500 });
+      }, 650);
+    }
+
+    function announceAxisPosition(axisName, value) {
+      if (!accessibilitySettings.announceAxis) return;
+      const axisKey = axisName.toLowerCase();
+      const cleanValue = normalizeSpeechPhrase(value);
+      if (!cleanValue || cleanValue === '--' || accessibilityLastAxisValues[axisKey] === cleanValue) return;
+      accessibilityLastAxisValues[axisKey] = cleanValue;
+      clearTimeout(accessibilityAxisTimer);
+      accessibilityAxisTimer = 0;
+      if (accessibilityLastSpeechKind === 'axis' && speechSupported()) {
+        window.speechSynthesis.cancel();
+        accessibilityLastSpeechKind = '';
+      }
+      accessibilityPendingAxisValues[axisName] = cleanValue;
+      accessibilityAxisTimer = setTimeout(() => {
+        const phrase = Object.keys(accessibilityPendingAxisValues).map(axis => `${axis} ${accessibilityPendingAxisValues[axis]}`).join(', ');
+        Object.keys(accessibilityPendingAxisValues).forEach(key => { delete accessibilityPendingAxisValues[key]; });
+        accessibilityAxisTimer = 0;
+        speakAccessibility(phrase, { kind: 'axis', cancelPrevious: true, cooldownMs: 250 });
+      }, 450);
+    }
+
+    function actionLabelForSpeech(actionCode, label) {
+      const text = normalizeSpeechPhrase(label);
+      const actionLabels = {
+        '21': 'Jog Z left',
+        '22': 'Jog Z right',
+        '23': 'Jog X forward',
+        '24': 'Jog X back',
+        '85': 'Jog Y forward',
+        '74': 'Jog Y back',
+        '27': 'OFF',
+        '30': 'ON',
+        '64': 'Step',
+        '82': 'Reverse',
+        '77': 'Units',
+        '88': 'Zero X',
+        '90': 'Zero Z',
+        '72': 'Zero Y',
+        '97': 'Gear mode',
+        '98': 'Turn mode',
+        '99': 'Face mode',
+        '100': 'Cone mode',
+        '101': 'Cut mode',
+        '102': 'Thread mode',
+        '103': 'Async mode',
+        '104': 'Ellipse mode',
+        '105': 'G code mode',
+        '106': 'Y mode',
+        '108': 'Joystick mode',
+        '109': 'X gear mode',
+        '110': 'Slot mode'
+      };
+      return actionLabels[String(actionCode)] || text;
+    }
+
+    function announceActiveHolds() {
+      if (accessibilitySettings.quietHold || !accessibilitySettings.announceButtons || activeControlActions.size === 0) return;
+      activeControlActions.forEach(actionCode => {
+        const button = document.querySelector(`[data-control-action="${actionCode}"]`);
+        const label = actionAnnouncementForSpeech(actionCode, controlButtonLabel(button));
+        speakAccessibility(`${label} held`, { kind: 'button', cooldownMs: 2200 });
+      });
+    }
+
+    function updateHoldAnnouncementTimer() {
+      clearInterval(accessibilityHoldAnnouncementTimer);
+      accessibilityHoldAnnouncementTimer = 0;
+      if (!accessibilitySettings.quietHold && activeControlActions.size > 0) {
+        accessibilityHoldAnnouncementTimer = setInterval(announceActiveHolds, 2500);
+      }
+    }
+
+    function loadAccessibilitySettings() {
+      try {
+        const stored = localStorage.getItem(accessibilityStorageKey);
+        if (stored) accessibilitySettings = Object.assign({}, accessibilityDefaults, JSON.parse(stored));
+      } catch (error) {
+        accessibilitySettings = Object.assign({}, accessibilityDefaults);
+      }
+      accessibilityVoiceFeedbackInput.checked = !!accessibilitySettings.voiceFeedback;
+      accessibilityAnnounceButtonsInput.checked = !!accessibilitySettings.announceButtons;
+      accessibilityAnnounceStatusInput.checked = !!accessibilitySettings.announceStatus;
+      accessibilityAnnounceWarningsInput.checked = !!accessibilitySettings.announceWarnings;
+      accessibilityAnnounceAxisInput.checked = !!accessibilitySettings.announceAxis;
+      accessibilityQuietHoldInput.checked = !!accessibilitySettings.quietHold;
+      if (!['1', '1.5', '2', '3'].includes(String(accessibilitySettings.speechRate))) {
+        accessibilitySettings.speechRate = accessibilityDefaults.speechRate;
+      }
+      accessibilitySpeechRateInput.value = accessibilitySettings.speechRate || accessibilityDefaults.speechRate;
+      if (!speechSupported()) {
+        accessibilityStatus.textContent = 'Voice feedback is not supported by this browser';
+        accessibilityVoiceFeedbackInput.disabled = true;
+        accessibilityTestVoiceButton.disabled = true;
+        accessibilityTestVoiceButton.classList.add('disabled');
+      }
+    }
+
+    function saveAccessibilitySettings() {
+      accessibilitySettings = {
+        voiceFeedback: accessibilityVoiceFeedbackInput.checked,
+        announceButtons: accessibilityAnnounceButtonsInput.checked,
+        announceStatus: accessibilityAnnounceStatusInput.checked,
+        announceWarnings: accessibilityAnnounceWarningsInput.checked,
+        announceAxis: accessibilityAnnounceAxisInput.checked,
+        quietHold: accessibilityQuietHoldInput.checked,
+        speechRate: accessibilitySpeechRateInput.value
+      };
+      if (!accessibilitySettings.announceAxis) cancelAxisAnnouncement();
+      if (!accessibilitySettings.announceStatus) cancelMessageAnnouncement();
+      if (!accessibilitySettings.voiceFeedback && speechSupported()) {
+        cancelAxisAnnouncement();
+        cancelMessageAnnouncement();
+        window.speechSynthesis.cancel();
+      }
+      updateHoldAnnouncementTimer();
+      try {
+        localStorage.setItem(accessibilityStorageKey, JSON.stringify(accessibilitySettings));
+      } catch (error) {
+      }
+      accessibilityStatus.textContent = speechSupported() ? 'Accessibility settings saved on this browser' : 'Voice feedback is not supported by this browser';
+    }
+
+    function setupAccessibilitySettings() {
+      loadAccessibilitySettings();
+      [
+        accessibilityVoiceFeedbackInput,
+        accessibilityAnnounceButtonsInput,
+        accessibilityAnnounceStatusInput,
+        accessibilityAnnounceWarningsInput,
+        accessibilityAnnounceAxisInput,
+        accessibilityQuietHoldInput,
+        accessibilitySpeechRateInput
+      ].forEach(input => input.addEventListener('change', () => {
+        const wasVoiceEnabled = accessibilitySettings.voiceFeedback;
+        saveAccessibilitySettings();
+        if (!wasVoiceEnabled && accessibilitySettings.voiceFeedback) {
+          speakAccessibility('Voice feedback enabled', { force: true, kind: 'test', cancelPrevious: true });
+        }
+      }));
+      accessibilityTestVoiceButton.addEventListener('click', () => {
+        speakAccessibility('Voice feedback test', { force: true, kind: 'test', cancelPrevious: true });
+        accessibilityStatus.textContent = speechSupported() ? 'Test voice sent' : 'Voice feedback is not supported by this browser';
+      });
+    }
+
+    function setControlText(element, value) {
+      if (element) element.textContent = value || '--';
+    }
+
+    function setControlStateText(value) {
+      announceStatusChange(value);
+      setControlText(controlState, value);
+      setControlText(controlBottomState, value);
+    }
+
+    function setControlModeText(value) {
+      setControlText(controlMode, value);
+    }
+
+    function setControlPitchText(value) {
+      setControlText(controlPitch, value);
+      if (controlModePitch) controlModePitch.textContent = value ? `Pitch ${value}` : '--';
+    }
+
+    function setControlRpmText(value) {
+      setControlText(controlRpm, value);
+      setControlText(controlBottomRpm, value);
+    }
+
+    function setControlMessageText(value) {
+      announceControlMessage(value);
+      setControlText(controlMessage, value);
+    }
+
+    function setControlAxisText(axisElement, value, axisName = '') {
+      setControlText(axisElement, value);
+      if (axisName) announceAxisPosition(axisName, value);
+    }
+
+    function setControlExtraVisible(visible) {
+      if (!controlStatusPanel) return;
+      controlStatusPanel.classList.toggle('control-extra-visible', visible);
+      if (controlExtraToggle) controlExtraToggle.setAttribute('aria-expanded', visible ? 'true' : 'false');
+    }
+
+    function toggleControlExtraInfo() {
+      if (!controlMobileMedia.matches || !controlStatusPanel) return;
+      setControlExtraVisible(!controlStatusPanel.classList.contains('control-extra-visible'));
+    }
+
+    function setupControlExtraToggle() {
+      if (!controlExtraToggle) return;
+      controlExtraToggle.addEventListener('click', event => {
+        event.preventDefault();
+        toggleControlExtraInfo();
+      });
+      controlExtraToggle.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        toggleControlExtraInfo();
+      });
+      if (controlMobileMedia.addEventListener) {
+        controlMobileMedia.addEventListener('change', () => setControlExtraVisible(false));
+      } else if (controlMobileMedia.addListener) {
+        controlMobileMedia.addListener(() => setControlExtraVisible(false));
+      }
+    }
+
+    function setActiveControlPanel(panelName, scrollToPanel = false, announce = false) {
+      const activePanel = controlPanelElements.some(panel => panel.dataset.controlPanel === panelName) ? panelName : 'jog';
+      controlPanelElements.forEach(panel => {
+        panel.classList.toggle('active', panel.dataset.controlPanel === activePanel);
+      });
+      controlMobileTabs.forEach(tab => {
+        const active = tab.dataset.controlPanelTab === activePanel;
+        tab.classList.toggle('active', active);
+        tab.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      if (scrollToPanel) {
+        const panel = controlPanelElements.find(element => element.dataset.controlPanel === activePanel);
+        if (panel && panel.scrollIntoView) panel.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      }
+      if (announce) announcePanelChange(activePanel);
+    }
+
+    function setupControlPanelTabs() {
+      controlMobileTabs.forEach(tab => {
+        tab.setAttribute('role', 'tab');
+        tab.addEventListener('click', event => {
+          event.preventDefault();
+          setActiveControlPanel(tab.dataset.controlPanelTab, false, true);
+        });
+      });
+      setActiveControlPanel('jog');
+    }
+
+    function activateControlShortcut(element) {
+      if (element.classList.contains('disabled')) return;
+      const panelName = element.dataset.controlShortcutPanel;
+      if (panelName) {
+        setActiveControlPanel(panelName, true, true);
+        controlActionStatus.textContent = `${panelName === 'stops' ? 'Stops' : 'Modes'} opened`;
+        return;
+      }
+      const actionCode = element.dataset.controlShortcutAction;
+      if (actionCode) {
+        pulseControlAction(actionCode, element.dataset.controlShortcutLabel || element.textContent.trim(), element);
+      }
+    }
+
+    function setupControlStatusShortcuts() {
+      controlShortcutElements.forEach(element => {
+        element.addEventListener('click', event => {
+          event.preventDefault();
+          activateControlShortcut(element);
+        });
+        element.addEventListener('keydown', event => {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          event.preventDefault();
+          activateControlShortcut(element);
+        });
+      });
+    }
+
+    function fullscreenElement() {
+      return document.fullscreenElement || document.webkitFullscreenElement || null;
+    }
+
+    function fullscreenSupported() {
+      return !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
+    }
+
+    function wakeLockSupported() {
+      return !!(navigator.wakeLock && navigator.wakeLock.request);
+    }
+
+    function stopControlNoSleepFallback() {
+      clearInterval(controlNoSleepDrawTimer);
+      controlNoSleepDrawTimer = 0;
+      if (!controlNoSleepVideo) return;
+      controlNoSleepVideo.pause();
+      if (controlNoSleepVideo.srcObject) {
+        controlNoSleepVideo.srcObject.getTracks().forEach(track => track.stop());
+      }
+      controlNoSleepVideo.remove();
+      controlNoSleepVideo = null;
+    }
+
+    function startControlNoSleepFallback() {
+      if (controlNoSleepVideo) return;
+      const canvas = document.createElement('canvas');
+      if (!canvas.captureStream) return;
+      canvas.width = 2;
+      canvas.height = 2;
+      const context = canvas.getContext('2d');
+      if (!context) return;
+      const drawFrame = () => {
+        const dark = Math.floor(Date.now() / 1000) % 2 === 0;
+        context.fillStyle = dark ? '#000' : '#111';
+        context.fillRect(0, 0, 2, 2);
+      };
+      drawFrame();
+      const video = document.createElement('video');
+      video.muted = true;
+      video.playsInline = true;
+      video.setAttribute('playsinline', '');
+      video.setAttribute('aria-hidden', 'true');
+      video.style.cssText = 'position:fixed;left:0;bottom:0;width:1px;height:1px;opacity:0.01;pointer-events:none;';
+      video.srcObject = canvas.captureStream(1);
+      document.body.appendChild(video);
+      controlNoSleepVideo = video;
+      controlNoSleepDrawTimer = setInterval(drawFrame, 15000);
+      const playResult = video.play();
+      if (playResult && playResult.catch) playResult.catch(stopControlNoSleepFallback);
+    }
+
+    function releaseControlWakeLock() {
+      stopControlNoSleepFallback();
+      if (!controlWakeLock) return;
+      const lock = controlWakeLock;
+      controlWakeLock = null;
+      if (lock.release) lock.release().catch(() => {});
+    }
+
+    function requestControlWakeLock() {
+      if (!fullscreenElement() || document.hidden || controlWakeLock || controlWakeLockBusy) return;
+      if (!wakeLockSupported()) {
+        startControlNoSleepFallback();
+        return;
+      }
+      controlWakeLockBusy = true;
+      navigator.wakeLock.request('screen')
+        .then(lock => {
+          controlWakeLock = lock;
+          stopControlNoSleepFallback();
+          lock.addEventListener('release', () => {
+            if (controlWakeLock === lock) controlWakeLock = null;
+          });
+        })
+        .catch(() => {
+          if (fullscreenElement() && !document.hidden) startControlNoSleepFallback();
+        })
+        .then(() => {
+          controlWakeLockBusy = false;
+        });
+    }
+
+    function syncControlWakeLock() {
+      if (fullscreenElement() && !document.hidden) requestControlWakeLock();
+      else releaseControlWakeLock();
+    }
+
+    function updateFullscreenButton() {
+      if (!controlFullscreenButton) return;
+      const supported = fullscreenSupported();
+      const active = !!fullscreenElement();
+      document.body.classList.toggle('control-fullscreen-active', active);
+      controlFullscreenButton.disabled = !supported;
+      controlFullscreenButton.classList.toggle('disabled', !supported);
+      controlFullscreenButton.textContent = active ? 'Exit' : 'Full';
+      controlFullscreenButton.setAttribute('aria-label', active ? 'Exit fullscreen' : 'Fullscreen');
+    }
+
+    function afterFullscreenChange() {
+      updateFullscreenButton();
+      syncControlWakeLock();
+    }
+
+    function toggleFullscreen() {
+      if (!fullscreenSupported()) return;
+      let result;
+      const enteringFullscreen = !fullscreenElement();
+      if (!enteringFullscreen) {
+        if (document.exitFullscreen) result = document.exitFullscreen();
+        else if (document.webkitExitFullscreen) result = document.webkitExitFullscreen();
+      } else if (document.documentElement.requestFullscreen) {
+        result = document.documentElement.requestFullscreen();
+      } else if (document.documentElement.webkitRequestFullscreen) {
+        result = document.documentElement.webkitRequestFullscreen();
+      }
+      if (enteringFullscreen) startControlNoSleepFallback();
+      updateFullscreenButton();
+      if (enteringFullscreen) setTimeout(syncControlWakeLock, 1000);
+      if (result && result.then) {
+        result.then(afterFullscreenChange).catch(() => {
+          updateFullscreenButton();
+          syncControlWakeLock();
+        });
+      }
+    }
+
+    if (controlFullscreenButton) {
+      controlFullscreenButton.addEventListener('click', event => {
+        event.preventDefault();
+        toggleFullscreen();
+      });
+      document.addEventListener('fullscreenchange', afterFullscreenChange);
+      document.addEventListener('webkitfullscreenchange', afterFullscreenChange);
+      document.addEventListener('visibilitychange', syncControlWakeLock);
+      updateFullscreenButton();
+    }
+
+    setupAccessibilitySettings();
+    setupControlExtraToggle();
+    setupControlPanelTabs();
+    setupControlStatusShortcuts();
+    showSection(sectionFromHash());
     window.addEventListener('hashchange', () => handleSectionChange(true));
 
     const ws = new WebSocket(`ws://${window.location.host.split(':')[0]}:81`);
 
     ws.onopen = () => {
       logMessage('Connected to server');
+      setControlStateText('Connected');
+      setControlMessageText('Connected');
       controlActionStatus.textContent = 'Connected';
       updateButtonStates();
-      requestControllerStatus();
     };
 
     ws.onmessage = (event) => {
@@ -1586,6 +2628,8 @@ const char indexhtml[] PROGMEM = R"rawliteral(
 
     ws.onclose = () => {
       releaseAllControlActions(false);
+      setControlStateText('Disconnected');
+      setControlMessageText('Disconnected');
       controlActionStatus.textContent = 'Disconnected';
       updateButtonStates();
       logMessage('Disconnected from server');
@@ -1608,6 +2652,11 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       controlButtons.forEach(button => {
         button.disabled = controlDisabled;
         button.classList.toggle('disabled', controlDisabled);
+      });
+      controlShortcutElements.forEach(element => {
+        const disabled = !!element.dataset.controlShortcutAction && controlDisabled;
+        element.classList.toggle('disabled', disabled);
+        element.setAttribute('aria-disabled', disabled ? 'true' : 'false');
       });
       sendButton.classList.toggle('disabled', sendButton.disabled);
       addGcodeButton.classList.toggle('disabled', addGcodeButton.disabled);
@@ -1638,11 +2687,36 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     function sendWebControlAction(actionCode, isPress) {
       if (!websocketReady()) {
         controlActionStatus.textContent = 'Disconnected';
+        announceWarning('Disconnected from server');
         updateButtonStates();
         return false;
       }
       ws.send(`@${actionCode}:${isPress ? 1 : 0}\n`);
       return true;
+    }
+
+    function controlButtonLabel(button) {
+      if (!button) return '';
+      return button.dataset.controlLabel || button.getAttribute('aria-label') || button.textContent.trim();
+    }
+
+    function startControlHoldHeartbeat() {
+      if (controlHoldHeartbeatTimer) return;
+      controlHoldHeartbeatTimer = setInterval(() => {
+        if (!websocketReady()) {
+          releaseAllControlActions(false);
+          return;
+        }
+        activeControlActions.forEach(actionCode => {
+          sendWebControlAction(actionCode, true);
+        });
+      }, 200);
+    }
+
+    function stopControlHoldHeartbeatIfIdle() {
+      if (activeControlActions.size > 0) return;
+      clearInterval(controlHoldHeartbeatTimer);
+      controlHoldHeartbeatTimer = 0;
     }
 
     function pressControlButton(button) {
@@ -1652,7 +2726,12 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       if (sendWebControlAction(actionCode, true)) {
         activeControlActions.add(actionCode);
         setControlButtonsActive(actionCode, true);
-        controlActionStatus.textContent = `${button.textContent.trim()} pressed`;
+        startControlHoldHeartbeat();
+        const label = controlButtonLabel(button);
+        controlActionStatus.textContent = `${label} pressed`;
+        announceButtonAction(actionAnnouncementForSpeech(actionCode, label), 'pressed');
+        updateWebUiNumpadTracking(actionCode);
+        updateHoldAnnouncementTimer();
       }
     }
 
@@ -1661,6 +2740,12 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       activeControlActions.delete(actionCode);
       setControlButtonsActive(actionCode, false);
       if (sendRelease) sendWebControlAction(actionCode, false);
+      stopControlHoldHeartbeatIfIdle();
+      updateHoldAnnouncementTimer();
+      if (sendRelease) {
+        const button = document.querySelector(`[data-control-action="${actionCode}"]`);
+        announceButtonAction(actionAnnouncementForSpeech(actionCode, controlButtonLabel(button)), 'released');
+      }
     }
 
     function releaseControlButton(button, sendRelease) {
@@ -1672,16 +2757,23 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       Array.from(activeControlActions).forEach(actionCode => releaseControlAction(actionCode, sendRelease));
     }
 
+    function pulseControlAction(actionCode, label, activeElement) {
+      if (!actionCode || !sendWebControlAction(actionCode, true)) return false;
+      if (activeElement) activeElement.classList.add('active');
+      controlActionStatus.textContent = `${label} sent`;
+      announceButtonAction(actionAnnouncementForSpeech(actionCode, label));
+      updateWebUiNumpadTracking(actionCode);
+      setTimeout(() => {
+        sendWebControlAction(actionCode, false);
+        if (activeElement) activeElement.classList.remove('active');
+      }, 70);
+      return true;
+    }
+
     function pulseControlButton(button) {
       if (button.disabled) return;
       const actionCode = button.dataset.controlAction;
-      if (!actionCode || !sendWebControlAction(actionCode, true)) return;
-      button.classList.add('active');
-      controlActionStatus.textContent = `${button.textContent.trim()} sent`;
-      setTimeout(() => {
-        sendWebControlAction(actionCode, false);
-        button.classList.remove('active');
-      }, 70);
+      pulseControlAction(actionCode, controlButtonLabel(button), button);
     }
 
     function setupControlButtons() {
@@ -1716,45 +2808,70 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       });
     }
 
-    function requestControllerStatus() {
-      if (sectionFromHash() !== 'control' || !websocketReady()) return;
-      const now = Date.now();
-      if (controlStatusWaiting && now - controlStatusRequestAt < 1500) return;
-      controlStatusWaiting = true;
-      controlStatusRequestAt = now;
-      ws.send('?\n');
-    }
-
-    function setControlStatusPolling(enabled) {
-      if (enabled) {
-        if (!controlStatusTimer) {
-          controlStatusTimer = setInterval(requestControllerStatus, 1000);
-        }
-        requestControllerStatus();
-      } else {
-        clearInterval(controlStatusTimer);
-        controlStatusTimer = 0;
-        controlStatusWaiting = false;
-      }
-    }
-
     function updateControlStatusFromText(line) {
       if (!line.startsWith('<') || !line.endsWith('>')) return false;
       const parts = line.substring(1, line.length - 1).split('|');
-      controlState.textContent = parts[0] || '--';
+      setControlStateText(parts[0]);
       const wpos = parts.find(part => part.startsWith('WPos:'));
       if (wpos) {
         const values = wpos.substring('WPos:'.length).split(',');
-        controlX.textContent = values[0] || '--';
-        controlZ.textContent = values[2] || '--';
+        setControlAxisText(controlX, values[0], 'X');
+        setControlAxisText(controlZ, values[2], 'Z');
       }
       const fs = parts.find(part => part.startsWith('FS:'));
       if (fs) {
         const values = fs.substring('FS:'.length).split(',');
-        controlRpm.textContent = values[1] || '--';
+        setControlRpmText(values[1]);
       }
-      controlStatusWaiting = false;
       return true;
+    }
+
+    function updateControlStatusLine(line) {
+      const index = line.indexOf('=');
+      if (index <= 3 || !line.startsWith('UI.')) return false;
+      const key = line.substring(3, index);
+      const value = line.substring(index + 1);
+      if (key === 'status') setControlStateText(value);
+      else if (key === 'mode') setControlModeText(value);
+      else if (key === 'pitch') setControlPitchText(value);
+      else if (key === 'measure') setControlText(controlMeasure, value);
+      else if (key === 'step') setControlText(controlStep, value);
+      else if (key === 'turns') setControlText(controlTurns, value);
+      else if (key === 'angle') setControlText(controlAngle, value);
+      else if (key === 'x') setControlAxisText(controlX, value, 'X');
+      else if (key === 'xLeft') controlXStops.dataset.left = value;
+      else if (key === 'xRight') controlXStops.dataset.right = value;
+      else if (key === 'y') setControlAxisText(controlY, value, 'Y');
+      else if (key === 'yLeft') controlYStops.dataset.left = value;
+      else if (key === 'yRight') controlYStops.dataset.right = value;
+      else if (key === 'z') setControlAxisText(controlZ, value, 'Z');
+      else if (key === 'zLeft') controlZStops.dataset.left = value;
+      else if (key === 'zRight') controlZStops.dataset.right = value;
+      else if (key === 'rpm') setControlRpmText(value);
+      else if (key === 'message') setControlMessageText(value);
+      updateAxisStopDisplays(controlXStops, controlXInlineStops);
+      updateAxisStopDisplays(controlYStops, controlYInlineStops);
+      updateAxisStopDisplays(controlZStops, controlZInlineStops);
+      return true;
+    }
+
+    function updateStopDisplay(element) {
+      if (!element) return;
+      const left = element.dataset.left || '';
+      const right = element.dataset.right || '';
+      element.textContent = left || right ? `${left || '-'} / ${right || '-'}` : '--';
+    }
+
+    function updateInlineStopDisplay(element, left, right) {
+      setControlText(element, left || right ? `${left || '-'} / ${right || '-'}` : '');
+    }
+
+    function updateAxisStopDisplays(statusElement, inlineElement) {
+      if (!statusElement) return;
+      const left = statusElement.dataset.left || '';
+      const right = statusElement.dataset.right || '';
+      updateStopDisplay(statusElement);
+      updateInlineStopDisplay(inlineElement, left, right);
     }
 
     function applyControlConfigValues(values) {
@@ -1762,6 +2879,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       controlYElements.forEach(element => {
         element.hidden = !showY;
       });
+      if (controlStatusPanel) controlStatusPanel.classList.toggle('control-y-active', showY);
     }
 
     function parseStatusValue(data, key) {
@@ -1855,7 +2973,6 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       machineConfigSections.forEach((section, index) => {
         const sectionElement = document.createElement('details');
         sectionElement.className = 'config-section settings-group';
-        sectionElement.open = index === 0;
         const summary = document.createElement('summary');
         summary.textContent = `${section.title} (${section.fields.length})`;
         const grid = document.createElement('div');
@@ -2224,10 +3341,19 @@ const char indexhtml[] PROGMEM = R"rawliteral(
     function handleRealtimeMessage(message) {
       let handled = false;
       message.split('\n').map(line => line.trim()).filter(line => !!line).forEach(line => {
-        if (updateControlStatusFromText(line)) {
+        if (updateControlStatusLine(line)) {
+          handled = true;
+        } else if (updateControlStatusFromText(line)) {
           handled = true;
         } else if (line.startsWith('WEBUI.error=')) {
-          controlActionStatus.textContent = line.substring('WEBUI.error='.length);
+          const text = line.substring('WEBUI.error='.length);
+          controlActionStatus.textContent = text;
+          announceWarning(text);
+          handled = true;
+        } else if (line.startsWith('WEBUI.warning=')) {
+          const text = line.substring('WEBUI.warning='.length);
+          controlActionStatus.textContent = text;
+          announceWarning(text);
           handled = true;
         } else if (line.startsWith('KEY.press=')) {
           const code = Number(line.substring('KEY.press='.length));
@@ -2246,6 +3372,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
           handled = true;
         } else if (line.startsWith('FW: error:')) {
           firmwareStatus.textContent = line.substring('FW: '.length);
+          announceWarning(firmwareStatus.textContent);
           handled = true;
         }
       });
@@ -2286,7 +3413,6 @@ const char indexhtml[] PROGMEM = R"rawliteral(
 
     document.addEventListener('DOMContentLoaded', () => {
       setupControlButtons();
-      handleSectionChange(false);
       loadTftFirstUploadPreference();
       renderConfigFields();
       renderKeyboardFields();
@@ -2391,6 +3517,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
         tftUploadInProgress = false;
         tftStatus.textContent = 'TFT upload failed';
         logMessage('TFT upload failed');
+        announceWarning('TFT upload failed');
         tftFileInput.value = '';
         tftProgress.hidden = true;
         updateButtonStates();
@@ -2404,6 +3531,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       if (!file || tftUploadInProgress || firmwareUploadInProgress) return;
       if (!file.name.toLowerCase().endsWith('.bin')) {
         firmwareStatus.textContent = 'Select a compiled .bin firmware file';
+        announceWarning('Select a compiled bin firmware file');
         firmwareFileInput.value = '';
         return;
       }
@@ -2434,6 +3562,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
         } else {
           firmwareUploadInProgress = false;
           firmwareStatus.textContent = request.responseText;
+          announceWarning(request.responseText);
           firmwareProgress.hidden = true;
           updateButtonStates();
         }
@@ -2443,6 +3572,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
         stopFirmwareStatusPolling();
         firmwareStatus.textContent = 'Firmware upload failed';
         logMessage('Firmware upload failed');
+        announceWarning('Firmware upload failed');
         firmwareFileInput.value = '';
         firmwareProgress.hidden = true;
         updateButtonStates();
@@ -2894,7 +4024,13 @@ CircleBuffer inBuffer;
 CircleBuffer outBuffer;
 volatile bool webBuffersReady = false;
 QueueHandle_t webUiEventQueue = NULL;
+volatile int webUiEventPendingCount = 0;
+portMUX_TYPE webUiEventMux = portMUX_INITIALIZER_UNLOCKED;
 const int WEB_UI_EVENT_QUEUE_LENGTH = 32;
+const unsigned long WEB_UI_MOVE_TIMEOUT_MS = 750;
+volatile byte webUiHeldMoveAction = 0;
+volatile unsigned long webUiHeldMoveMillis = 0;
+volatile bool webUiMoveReleaseRequested = false;
 
 bool bufferAvailable(CircleBuffer* b) {
   return b->head != b->tail;
@@ -2951,6 +4087,9 @@ void clearBuffer(CircleBuffer* b) {
 
 WebServer server(80);
 WebSocketsServer webSocket(81);
+volatile int webSocketClientCount = 0;
+volatile bool machineStatusForcePublish = false;
+String lastMachineStatus = "";
 String wifiStatus = "No WiFi";
 unsigned long wifiStatusMillis = 0;
 bool wifiSetupApActive = false;
@@ -3671,12 +4810,83 @@ bool parseWebUiEventCommand(uint8_t* payload, size_t length, WebUiEvent* event, 
 bool queueWebUiEvent(byte actionCode, bool isPress) {
   if (webUiEventQueue == NULL) return false;
   WebUiEvent event = { actionCode, isPress };
-  return xQueueSend(webUiEventQueue, &event, 0) == pdTRUE;
+  bool queued = xQueueSend(webUiEventQueue, &event, 0) == pdTRUE;
+  if (queued) {
+    portENTER_CRITICAL(&webUiEventMux);
+    webUiEventPendingCount = webUiEventPendingCount + 1;
+    portEXIT_CRITICAL(&webUiEventMux);
+  }
+  return queued;
 }
 
 bool readWebUiEvent(WebUiEvent* event) {
-  if (webUiEventQueue == NULL) return false;
-  return xQueueReceive(webUiEventQueue, event, 0) == pdTRUE;
+  if (webUiEventQueue == NULL || webUiEventPendingCount <= 0) return false;
+  bool received = xQueueReceive(webUiEventQueue, event, 0) == pdTRUE;
+  portENTER_CRITICAL(&webUiEventMux);
+  if (received && webUiEventPendingCount > 0) webUiEventPendingCount = webUiEventPendingCount - 1;
+  else if (!received) webUiEventPendingCount = 0;
+  portEXIT_CRITICAL(&webUiEventMux);
+  return received;
+}
+
+bool isWebUiMoveAction(byte actionCode) {
+  return actionCode == B_LEFT || actionCode == B_RIGHT || actionCode == B_UP || actionCode == B_DOWN || actionCode == B_FORWARD || actionCode == B_BACK;
+}
+
+void setMoveButtonPressed(byte actionCode, bool isPress) {
+  if (actionCode == B_LEFT) {
+    buttonLeftPressed = isPress;
+  } else if (actionCode == B_RIGHT) {
+    buttonRightPressed = isPress;
+  } else if (actionCode == B_UP) {
+    buttonUpPressed = isPress;
+  } else if (actionCode == B_DOWN) {
+    buttonDownPressed = isPress;
+  } else if (actionCode == B_FORWARD) {
+    buttonForwardPressed = isPress;
+  } else if (actionCode == B_BACK) {
+    buttonBackPressed = isPress;
+  }
+}
+
+void releaseWebUiHeldMove() {
+  byte actionCode = webUiHeldMoveAction;
+  if (actionCode != 0) {
+    setMoveButtonPressed(actionCode, false);
+  }
+  webUiHeldMoveAction = 0;
+  webUiHeldMoveMillis = 0;
+}
+
+void requestWebUiMoveRelease() {
+  if (webUiHeldMoveAction == 0 && webUiEventPendingCount <= 0) return;
+  webUiMoveReleaseRequested = true;
+  queueWebUiEvent(B_LEFT, false);
+  queueWebUiEvent(B_RIGHT, false);
+  queueWebUiEvent(B_UP, false);
+  queueWebUiEvent(B_DOWN, false);
+  queueWebUiEvent(B_FORWARD, false);
+  queueWebUiEvent(B_BACK, false);
+}
+
+void processWebUiMoveFailsafe() {
+  if (webUiMoveReleaseRequested) {
+    webUiMoveReleaseRequested = false;
+    releaseWebUiHeldMove();
+  } else if (webUiHeldMoveAction != 0 && millis() - webUiHeldMoveMillis > WEB_UI_MOVE_TIMEOUT_MS) {
+    releaseWebUiHeldMove();
+    queueWebSocketText("WEBUI.warning=move released after lost heartbeat\n");
+  }
+}
+
+void updateWebUiMoveWatchdog(byte actionCode, bool isPress) {
+  if (!isWebUiMoveAction(actionCode)) return;
+  if (isPress) {
+    webUiHeldMoveAction = actionCode;
+    webUiHeldMoveMillis = millis();
+  } else if (webUiHeldMoveAction == actionCode) {
+    releaseWebUiHeldMove();
+  }
 }
 
 bool handleWebUiEventCommand(uint8_t* payload, size_t length) {
@@ -3925,7 +5135,13 @@ void firmwareUploadLog(const String& message) {
 }
 
 void handleWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
-  if (type == WStype_TEXT) {
+  if (type == WStype_CONNECTED) {
+    webSocketClientCount = webSocketClientCount + 1;
+    machineStatusForcePublish = true;
+  } else if (type == WStype_DISCONNECTED) {
+    requestWebUiMoveRelease();
+    if (webSocketClientCount > 0) webSocketClientCount = webSocketClientCount - 1;
+  } else if (type == WStype_TEXT) {
     if (handleWebUiEventCommand(payload, length)) {
       return;
     }
@@ -4652,6 +5868,8 @@ void taskWiFi(void *param) {
     server.handleClient();
     webSocket.loop();
     if (wifiStationConnected && WiFi.status() != WL_CONNECTED) {
+      requestWebUiMoveRelease();
+      webSocketClientCount = 0;
       wifiStationConnected = false;
       wifiIpAddress = "";
       setWiFiStatus("WiFi lost");
@@ -5132,50 +6350,259 @@ String printMode() {
 }
 
 unsigned long lastDisplayUpdateTime = 0;
+const unsigned long NEXTION_UPDATE_INTERVAL_MS = 100;
+const unsigned long NEXTION_WEB_UPDATE_INTERVAL_MS = 200;
+
+bool webUiIsConnected() {
+  return webSocketClientCount > 0;
+}
+
+unsigned long getDisplayUpdateIntervalMs() {
+  return webUiIsConnected() ? NEXTION_WEB_UPDATE_INTERVAL_MS : NEXTION_UPDATE_INTERVAL_MS;
+}
+
+String buildDisplayMessage(int rpm, long numpadResult, bool spindleStopped, int pitchStatusDirection) {
+  String result = "";
+  if (mode != MODE_JOYSTICK && pitchStatusDirection > 0) {
+    result = "Pitch +";
+  } else if (mode != MODE_JOYSTICK && pitchStatusDirection < 0) {
+    result = "Pitch -";
+  } else if (mode == MODE_GCODE) {
+    if (setupIndex == 1 && gcodeProgramCount == 0) {
+      result = "No stored programs";
+    } else if (setupIndex == 1) {
+      if (gcodeProgramIndex >= gcodeProgramCount) {
+        result = "Program deleted";
+      } else {
+        result = getCurrentGcodeProgramName();
+      }
+    } else if (setupIndex == 2) {
+      if (spindleStopped) result = "Turn on the spindle!";
+      else result = "Spindle on. Go?";
+    } else if (isOn) {
+      result = gcodeCommand.substring(0, 20);
+    }
+  } else if (isPassMode()) {
+    bool missingZStops = needZStops() && (z.leftStop == LONG_MAX || z.rightStop == LONG_MIN);
+    bool missingStops = missingZStops || x.leftStop == LONG_MAX || x.rightStop == LONG_MIN;
+    if (!inNumpad && missingStops) {
+      result = needZStops() ? "Set all stops" : "Set X stops";
+    } else if (numpadResult != 0 && setupIndex == 1) {
+      long passes = min(PASSES_MAX, numpadResult);
+      result = String(passes);
+      if (passes == 1) result += " pass?";
+      else result += " passes?";
+    } else if (!isOn && setupIndex == 1) {
+      result = String(turnPasses);
+      if (turnPasses == 1) result += " pass?";
+      else result += " passes?";
+    } else if (!isOn && setupIndex == 2) {
+      if (mode == MODE_FACE) {
+        result = auxForward ? "Right to left?" : "Left to right?";
+      } else if (mode == MODE_CUT) {
+        result = dupr >= 0 ? "Pitch > 0, external" : "Pitch < 0, internal";
+      } else {
+        result = auxForward ? "External?" : "Internal?";
+      }
+    } else if (mode == MODE_THREAD && !isOn && setupIndex == 3) {
+      result = "Cone ratio " + String(numpadToConeRatio(), 5) + "?";
+    } else if (!isOn && setupIndex == getLastSetupIndex()) {
+      long zOffset = getPassModeZStart() - z.pos;
+      long xOffset = getPassModeXStart() - x.pos;
+      result = "Go";
+      if (zOffset != 0) {
+        result += " ";
+        result += z.name;
+        result += printDeciMicrons(stepsToDu(&z, zOffset), 2);
+      }
+      if (xOffset != 0) {
+        result += " ";
+        result += x.name;
+        result += printDeciMicrons(stepsToDu(&x, xOffset), 2);
+      }
+      result += "?";
+    } else if (mode == MODE_SLOT && isOn && dupr == 0 && !inNumpad) {
+      result = "Set pitch";
+    } else if (isOn && numpadResult == 0) {
+      result = "Pass " + String(opIndex) + " of " + String(max(opIndex, long(turnPasses * starts)));
+    }
+  } else if (mode == MODE_CONE) {
+    if (numpadResult != 0 && setupIndex == 1) result = "Use ratio " + String(numpadToConeRatio(), 5) + "?";
+    else if (!isOn && setupIndex == 1) result = "Use ratio " + printNoTrailing0(coneRatio) + "?";
+    else if (!isOn && setupIndex == 2) result = auxForward ? "External?" : "Internal?";
+    else if (!isOn && setupIndex == 3) result = "Go?";
+    else if (isOn && numpadResult == 0) result = "Cone ratio " + printNoTrailing0(coneRatio);
+  } else if (mode == MODE_JOYSTICK && !inNumpad) {
+    String directionText = joystickLatheDirectionText(joystickLatheDirectionZ, joystickLatheDirectionX);
+    if (!JOYSTICK_ENABLED) result = "Joystick disabled";
+    else if (!joystickAvailable) result = joystickStartupWarning.length() > 0 ? joystickStartupWarning : "Joystick not connected";
+    else if (joystickLatheRapid && directionText != "") {
+      result = "Rapid ";
+      result += directionText;
+    } else if (spindlePosSync != 0 && directionText != "") {
+      result = "Sync ";
+      result += directionText;
+    } else if (pitchStatusDirection > 0) result = "Pitch +";
+    else if (pitchStatusDirection < 0) result = "Pitch -";
+    else if (!isOn && directionText != "") {
+      result = "Jog ";
+      result += directionText;
+    } else if (dupr == 0) result = "Set pitch";
+    else if (!isOn) result = "Feed off";
+    else if (directionText != "") {
+      result = "Feed ";
+      result += directionText;
+    } else result = "Feed neutral";
+  }
+
+  if (inNumpad && result == "") result = "Use " + printDupr(numpadToDeciMicrons()) + "?";
+
+  if (result == "" && (millis() - wifiStatusMillis < 7000 || !x.active || x.disabled)) result = wifiStatus;
+
+  if (result == "" && x.active && !x.disabled) result = "Diameter " + printDeciMicrons(abs(2 * getAxisPosDu(&x)), 2);
+
+  return result;
+}
+
+String webSafeText(const String& value) {
+  String result = "";
+  result.reserve(value.length());
+  for (int i = 0; i < value.length(); i++) {
+    byte c = byte(value.charAt(i));
+    if (c == 223) {
+      // skip
+    } else if (c >= 32 && c <= 126) {
+      result += char(c);
+    } else {
+      result += "?";
+    }
+  }
+  return result;
+}
+
+void appendUiLine(String* response, const char* name, const String& value) {
+  appendConfigLine(response, name, webSafeText(value));
+}
+
+void publishMachineStatus(const String& status, const String& modeText, const String& pitchText, const String& measureText,
+    const String& stepText, const String& rpmText, const String& turnsText, const String& angleText,
+    const String& xText, const String& xLeftText, const String& xRightText,
+    const String& yText, const String& yLeftText, const String& yRightText,
+    const String& zText, const String& zLeftText, const String& zRightText, const String& messageText) {
+  if (!webBuffersReady || !webUiIsConnected()) return;
+
+  String response = "";
+  response.reserve(520);
+  appendUiLine(&response, "UI.status", status);
+  appendUiLine(&response, "UI.mode", modeText);
+  appendUiLine(&response, "UI.pitch", pitchText);
+  appendUiLine(&response, "UI.measure", measureText);
+  appendUiLine(&response, "UI.step", stepText);
+  appendUiLine(&response, "UI.rpm", rpmText);
+  appendUiLine(&response, "UI.turns", turnsText);
+  appendUiLine(&response, "UI.angle", angleText);
+  appendUiLine(&response, "UI.x", xText);
+  appendUiLine(&response, "UI.xLeft", xLeftText);
+  appendUiLine(&response, "UI.xRight", xRightText);
+  appendUiLine(&response, "UI.y", yText);
+  appendUiLine(&response, "UI.yLeft", yLeftText);
+  appendUiLine(&response, "UI.yRight", yRightText);
+  appendUiLine(&response, "UI.z", zText);
+  appendUiLine(&response, "UI.zLeft", zLeftText);
+  appendUiLine(&response, "UI.zRight", zRightText);
+  appendUiLine(&response, "UI.message", messageText);
+
+  if (!machineStatusForcePublish && response == lastMachineStatus) return;
+  machineStatusForcePublish = false;
+  lastMachineStatus = response;
+  queueWebSocketText(response);
+}
 
 void updateDisplay() {
   if (tftUploadActive) return;
-  if (millis() - lastDisplayUpdateTime < 100) return;
+  if (millis() - lastDisplayUpdateTime < getDisplayUpdateIntervalMs()) return;
   lastDisplayUpdateTime = millis();
+  bool publishStatus = webBuffersReady && webUiIsConnected();
 
   long newHashLine0 = isOn + spindlePosSync + mode + measure + dupr + starts;
-  if (lcdHashLine0 != newHashLine0) {
+  bool updateLine0 = lcdHashLine0 != newHashLine0;
+  String statusText = "";
+  String modeText = "";
+  String pitchText = "";
+  String measureText = "";
+  if (updateLine0 || publishStatus) {
+    statusText = spindlePosSync ? "SYN" : (isOn ? "ON" : "OFF");
+    modeText = printMode();
+    pitchText = printDupr(dupr);
+    if (starts != 1) pitchText += " x" + String(starts);
+    measureText = measure == MEASURE_INCH ? "IN" : measure == MEASURE_METRIC ? "MM" : "TPI";
+  }
+  if (updateLine0) {
     lcdHashLine0 = newHashLine0;
-    if (spindlePosSync) setText("bStatus", "SYN");
-    else setText("bStatus", isOn ? "ON" : "OFF");
-    setText("bMode", printMode());
-    String bPitchText = printDupr(dupr);
-    if (starts != 1) bPitchText += " x" + String(starts);
-    setText("tPitch", bPitchText);
-    setText("bMeasure", measure == MEASURE_INCH ? "IN" : measure == MEASURE_METRIC ? "MM" : "TPI");
+    setText("bStatus", statusText);
+    setText("bMode", modeText);
+    setText("tPitch", pitchText);
+    setText("bMeasure", measureText);
   }
 
   int rpm = getApproxRpm();
   long newHashLine1 = moveStep + rpm + spindlePos + measure;
-  if (lcdHashLine1 != newHashLine1) {
-    lcdHashLine1 = newHashLine1;
-    setText("tStepVal", printDeciMicrons(moveStep, 5));
-    setText("tRPMVal", String(rpm));
+  bool updateLine1 = lcdHashLine1 != newHashLine1;
+  String stepText = "";
+  String rpmText = "";
+  String turnsText = "";
+  String angleText = "";
+  if (updateLine1 || publishStatus) {
+    stepText = printDeciMicrons(moveStep, 5);
+    rpmText = String(rpm);
     float turns = (float) abs(spindlePos) / ENCODER_STEPS_INT;
-    setText("tTurnsVal", String(turns, turns < 100 ? 2 : (turns < 1000 ? 1 : 0)));
-    setText("tAngleVal", String(spindleModulo(spindlePos) * 360 / ENCODER_STEPS_FLOAT, 2) + String(char(223)));
+    turnsText = String(turns, turns < 100 ? 2 : (turns < 1000 ? 1 : 0));
+    angleText = String(spindleModulo(spindlePos) * 360 / ENCODER_STEPS_FLOAT, 2) + String(char(223));
+  }
+  if (updateLine1) {
+    lcdHashLine1 = newHashLine1;
+    setText("tStepVal", stepText);
+    setText("tRPMVal", rpmText);
+    setText("tTurnsVal", turnsText);
+    setText("tAngleVal", angleText);
   }
 
   long newHashLine2 =
     x.pos + x.originPos + x.disabled + x.leftStop - x.rightStop +
     z.pos + z.originPos + z.disabled + z.leftStop - z.rightStop +
     y.pos + y.originPos + y.disabled + y.leftStop - y.rightStop + measure + x.pos % 100;
-  if (lcdHashLine2 != newHashLine2) {
+  bool updateLine2 = lcdHashLine2 != newHashLine2;
+  String xText = "";
+  String xLeftText = "";
+  String xRightText = "";
+  String yText = "";
+  String yLeftText = "";
+  String yRightText = "";
+  String zText = "";
+  String zLeftText = "";
+  String zRightText = "";
+  if (updateLine2 || publishStatus) {
+    xText = !x.active || x.disabled ? "" : printAxisPos(&x);
+    xLeftText = !x.active || x.disabled ? "" : printDistanceToLeftStop(&x);
+    xRightText = !x.active || x.disabled ? "" : printDistanceToRightStop(&x);
+    yText = !y.active || y.disabled ? "" : printAxisPos(&y);
+    yLeftText = !y.active || y.disabled ? "" : printDistanceToLeftStop(&y);
+    yRightText = !y.active || y.disabled ? "" : printDistanceToRightStop(&y);
+    zText = !z.active || z.disabled ? "" : printAxisPos(&z);
+    zLeftText = !z.active || z.disabled ? "" : printDistanceToLeftStop(&z);
+    zRightText = !z.active || z.disabled ? "" : printDistanceToRightStop(&z);
+  }
+  if (updateLine2) {
     lcdHashLine2 = newHashLine2;
-    setText("tX", !x.active || x.disabled ? "" : printAxisPos(&x));
-    setText("tXUp", !x.active || x.disabled ? "" : printDistanceToLeftStop(&x));
-    setText("tXDown", !x.active || x.disabled ? "" : printDistanceToRightStop(&x));
-    setText("tY", !y.active || y.disabled ? "" : printAxisPos(&y));
-    setText("tYUp", !y.active || y.disabled ? "" : printDistanceToLeftStop(&y));
-    setText("tYDown", !y.active || y.disabled ? "" : printDistanceToRightStop(&y));
-    setText("tZ", !z.active || z.disabled ? "" : printAxisPos(&z));
-    setText("tZLeft", !z.active || z.disabled ? "" : printDistanceToLeftStop(&z));
-    setText("tZRight", !z.active || z.disabled ? "" : printDistanceToRightStop(&z));
+    setText("tX", xText);
+    setText("tXUp", xLeftText);
+    setText("tXDown", xRightText);
+    setText("tY", yText);
+    setText("tYUp", yLeftText);
+    setText("tYDown", yRightText);
+    setText("tZ", zText);
+    setText("tZLeft", zLeftText);
+    setText("tZRight", zRightText);
   }
 
   long numpadResult = getNumpadResult();
@@ -5195,108 +6622,19 @@ void updateDisplay() {
       (mode == MODE_Y ? y.pos + y.originPos + (y.leftStop == LONG_MAX ? 123 : y.leftStop) + (y.rightStop == LONG_MIN ? 1234 : y.rightStop) + y.disabled : 0) +
       pitchStatusDirection * 149 +
       (mode == MODE_JOYSTICK ? joystickLatheDirectionZ * 97 + joystickLatheDirectionX * 101 + joystickLatheFeedSignZ * 131 + joystickLatheFeedSignX * 137 + joystickLatheRapid * 17 + JOYSTICK_ENABLED * 19 + spindlePosSync * 151 : 0) + x.pos + x.originPos + z.pos;
-  if (lcdHashLine3 != newHashLine3) {
+  bool updateLine3 = lcdHashLine3 != newHashLine3;
+  String messageText = "";
+  if (updateLine3 || publishStatus) {
+    messageText = buildDisplayMessage(rpm, numpadResult, spindleStopped, pitchStatusDirection);
+  }
+  if (updateLine3) {
     lcdHashLine3 = newHashLine3;
-    String result = "";
-    if (mode != MODE_JOYSTICK && pitchStatusDirection > 0) {
-      result = "Pitch +";
-    } else if (mode != MODE_JOYSTICK && pitchStatusDirection < 0) {
-      result = "Pitch -";
-    } else if (mode == MODE_GCODE) {
-      if (setupIndex == 1 && gcodeProgramCount == 0) {
-        result = "No stored programs";
-      } else if (setupIndex == 1) {
-        if (gcodeProgramIndex >= gcodeProgramCount) {
-          result = "Program deleted";
-        } else {
-          result = getCurrentGcodeProgramName();
-        }
-      } else if (setupIndex == 2) {
-        if (spindleStopped) result = "Turn on the spindle!";
-        else result = "Spindle on. Go?";
-      } else if (isOn) {
-        result = gcodeCommand.substring(0, 20);
-      }
-    } else if (isPassMode()) {
-      bool missingZStops = needZStops() && (z.leftStop == LONG_MAX || z.rightStop == LONG_MIN);
-      bool missingStops = missingZStops || x.leftStop == LONG_MAX || x.rightStop == LONG_MIN;
-      if (!inNumpad && missingStops) {
-        result = needZStops() ? "Set all stops" : "Set X stops";
-      } else if (numpadResult != 0 && setupIndex == 1) {
-        long passes = min(PASSES_MAX, numpadResult);
-        result = String(passes);
-        if (passes == 1) result += " pass?";
-        else result += " passes?";
-      } else if (!isOn && setupIndex == 1) {
-        result = String(turnPasses);
-        if (turnPasses == 1) result += " pass?";
-        else result += " passes?";
-      } else if (!isOn && setupIndex == 2) {
-        if (mode == MODE_FACE) {
-          result = auxForward ? "Right to left?" : "Left to right?";
-        } else if (mode == MODE_CUT) {
-          result = dupr >= 0 ? "Pitch > 0, external" : "Pitch < 0, internal";
-        } else {
-          result = auxForward ? "External?" : "Internal?";
-        }
-      } else if (mode == MODE_THREAD && !isOn && setupIndex == 3) {
-        result = "Cone ratio " + String(numpadToConeRatio(), 5) + "?";
-      } else if (!isOn && setupIndex == getLastSetupIndex()) {
-        long zOffset = getPassModeZStart() - z.pos;
-        long xOffset = getPassModeXStart() - x.pos;
-        result = "Go";
-        if (zOffset != 0) {
-          result += " ";
-          result += z.name;
-          result += printDeciMicrons(stepsToDu(&z, zOffset), 2);
-        }
-        if (xOffset != 0) {
-          result += " ";
-          result += x.name;
-          result += printDeciMicrons(stepsToDu(&x, xOffset), 2);
-        }
-        result += "?";
-      } else if (mode == MODE_SLOT && isOn && dupr == 0 && !inNumpad) {
-        result = "Set pitch";
-      } else if (isOn && numpadResult == 0) {
-        result = "Pass " + String(opIndex) + " of " + String(max(opIndex, long(turnPasses * starts)));
-      }
-    } else if (mode == MODE_CONE) {
-      if (numpadResult != 0 && setupIndex == 1) result = "Use ratio " + String(numpadToConeRatio(), 5) + "?";
-      else if (!isOn && setupIndex == 1) result = "Use ratio " + printNoTrailing0(coneRatio) + "?";
-      else if (!isOn && setupIndex == 2) result = auxForward ? "External?" : "Internal?";
-      else if (!isOn && setupIndex == 3) result = "Go?";
-      else if (isOn && numpadResult == 0) result = "Cone ratio " + printNoTrailing0(coneRatio);
-    } else if (mode == MODE_JOYSTICK && !inNumpad) {
-      String directionText = joystickLatheDirectionText(joystickLatheDirectionZ, joystickLatheDirectionX);
-      if (!JOYSTICK_ENABLED) result = "Joystick disabled";
-      else if (!joystickAvailable) result = joystickStartupWarning.length() > 0 ? joystickStartupWarning : "Joystick not connected";
-      else if (joystickLatheRapid && directionText != "") {
-        result = "Rapid ";
-        result += directionText;
-      } else if (spindlePosSync != 0 && directionText != "") {
-        result = "Sync ";
-        result += directionText;
-      } else if (pitchStatusDirection > 0) result = "Pitch +";
-      else if (pitchStatusDirection < 0) result = "Pitch -";
-      else if (!isOn && directionText != "") {
-        result = "Jog ";
-        result += directionText;
-      } else if (dupr == 0) result = "Set pitch";
-      else if (!isOn) result = "Feed off";
-      else if (directionText != "") {
-        result = "Feed ";
-        result += directionText;
-      } else result = "Feed neutral";
-    }
+    setText("t3", messageText);
+  }
 
-    if (inNumpad && result == "") result = "Use " + printDupr(numpadToDeciMicrons()) + "?";
-
-    if (result == "" && (millis() - wifiStatusMillis < 7000 || !x.active || x.disabled)) result = wifiStatus;
-
-    if (result == "" && x.active && !x.disabled) result = "Diameter " + printDeciMicrons(abs(2 * getAxisPosDu(&x)), 2);
-
-    setText("t3", result);
+  if (publishStatus) {
+    publishMachineStatus(statusText, modeText, pitchText, measureText, stepText, rpmText, turnsText, angleText,
+      xText, xLeftText, xRightText, yText, yLeftText, yRightText, zText, zLeftText, zRightText, messageText);
   }
 }
 
@@ -7446,13 +8784,16 @@ void setModeFromUi(int modeToSet, bool eventFromNextion) {
 }
 
 void processKeypadEvent() {
+  processWebUiMoveFailsafe();
   int event = 0;
   bool eventFromNextion = false;
   bool eventUsesKeyboardMap = false;
+  bool eventFromWebUi = false;
   lastNextionPageId = 255;
   WebUiEvent webUiEvent = {};
   if (readWebUiEvent(&webUiEvent)) {
     event = webUiEvent.actionCode;
+    eventFromWebUi = true;
     if (!webUiEvent.isPress) event |= PS2_BREAK;
   } else if (wsKeycode != 0) {
     event = wsKeycode;
@@ -7514,6 +8855,10 @@ void processKeypadEvent() {
     return;
   }
 
+  if (eventFromWebUi) {
+    updateWebUiMoveWatchdog(byte(keyCode), isPress);
+  }
+
   // Keyboard may not send release event if another button is pressed before first one is released.
   buttonLeftPressed = false;
   buttonRightPressed = false;
@@ -7533,18 +8878,8 @@ void processKeypadEvent() {
   } else if (isPress && mode == MODE_GCODE && setupIndex == 1 && keyCode == B_MINUS) {
     removeGcodeByName(getCurrentGcodeProgramName());
     return;
-  } else if (keyCode == B_LEFT) { // Make sure isPress=false propagates to motion flags.
-    buttonLeftPressed = isPress;
-  } else if (keyCode == B_RIGHT) {
-    buttonRightPressed = isPress;
-  } else if (keyCode == B_UP) {
-    buttonUpPressed = isPress;
-  } else if (keyCode == B_DOWN) {
-    buttonDownPressed = isPress;
-  } else if (keyCode == B_FORWARD) {
-    buttonForwardPressed = isPress;
-  } else if (keyCode == B_BACK) {
-    buttonBackPressed = isPress;
+  } else if (isWebUiMoveAction(byte(keyCode))) { // Make sure isPress=false propagates to motion flags.
+    setMoveButtonPressed(byte(keyCode), isPress);
   }
 
   // For all other keys we have no "release" logic.
@@ -8434,7 +9769,9 @@ void setup() {
 
   // Debug.
   Serial.begin(115200);
-  webUiEventQueue = xQueueCreate(WEB_UI_EVENT_QUEUE_LENGTH, sizeof(WebUiEvent));
+  if (WIFI_ENABLED) {
+    webUiEventQueue = xQueueCreate(WEB_UI_EVENT_QUEUE_LENGTH, sizeof(WebUiEvent));
+  }
 
   // Nextion.
   Serial1.begin(NEXTION_NORMAL_BAUD, SERIAL_8N1, 44, 43);
