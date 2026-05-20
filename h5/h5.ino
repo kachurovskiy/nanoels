@@ -173,6 +173,8 @@ const int32_t STARTS_MAX = 124; // No more than 124-start thread
 const long PASSES_MAX = 999; // No more turn or face passes than this
 const long DEFAULT_SAFE_DISTANCE_DU = 5000; // Step back 0.5mm from the material when moving between cuts in automated modes
 long SAFE_DISTANCE_DU = DEFAULT_SAFE_DISTANCE_DU;
+const long DEFAULT_SLOT_LEFT_REDUCTION_DU = 0; // Shorten each slotting pass by this Z distance to leave chip room in blind slots
+long SLOT_LEFT_REDUCTION_DU = DEFAULT_SLOT_LEFT_REDUCTION_DU;
 const long SAVE_DELAY_US = 5000000; // Wait 5s after last save and last change of saveable data before saving again
 const long DIRECTION_SETUP_DELAY_US = 10; // Stepper driver needs some time to adjust to direction change
 const long STEPPED_ENABLE_DELAY_MS = 100; // Delay after stepper is enabled and before issuing steps
@@ -195,7 +197,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 33
+#define SOFTWARE_VERSION 34
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -282,6 +284,7 @@ bool SHOW_KEY_PRESSES = DEFAULT_SHOW_KEY_PRESSES;
 #define B_MODE 107 // F11 - cycles through modes
 #define B_MODE_JOYSTICK 108 // F12 - sets the mode to joystick lathe
 #define B_MODE_XGEAR 109 // screen-only - sets the mode to X gearbox
+#define B_MODE_SLOT 110 // screen-only - sets the mode to slotting
 #define B_X 88 // x - zeroes X axis
 #define B_Z 90 // z - zeroes Z axis
 #define B_Y 72 // h - zeroes Y axis
@@ -346,6 +349,7 @@ KeyboardBinding keyboardBindings[] = {
   KEY_BINDING("mode", "Mode menu", B_MODE),
   KEY_BINDING("modeJoystick", "Mode joystick", B_MODE_JOYSTICK),
   KEY_BINDING("modeXGear", "Mode X gearbox", B_MODE_XGEAR),
+  KEY_BINDING("modeSlot", "Mode slot", B_MODE_SLOT),
   KEY_BINDING("zeroX", "Zero X", B_X),
   KEY_BINDING("zeroZ", "Zero Z", B_Z),
   KEY_BINDING("zeroY", "Zero Y", B_Y),
@@ -421,6 +425,7 @@ const int KEYBOARD_BINDING_COUNT = sizeof(keyboardBindings) / sizeof(keyboardBin
 #define CFG_DELAY_BETWEEN_STEPS_MS "stepDelay"
 #define CFG_ENABLE_CONTINUOUS_MOVE "contStep"
 #define CFG_SAFE_DISTANCE_DU "safeDistDu"
+#define CFG_SLOT_LEFT_REDUCTION_DU "slotLeftDu"
 #define CFG_ACTIVE_Y "yActive"
 #define CFG_ROTARY_Y "yRotary"
 #define CFG_MOTOR_STEPS_Y "yMotor"
@@ -483,6 +488,7 @@ const int KEYBOARD_BINDING_COUNT = sizeof(keyboardBindings) / sizeof(keyboardBin
 #define MODE_GCODE 9
 #define MODE_Y 10
 #define MODE_JOYSTICK 11
+#define MODE_SLOT 12
 
 #define MEASURE_METRIC 0
 #define MEASURE_INCH 1
@@ -1182,7 +1188,8 @@ const char indexhtml[] PROGMEM = R"rawliteral(
       {
         title: 'Automated modes',
         fields: [
-          { key: 'safeDistanceDu', label: 'Safe retract distance', unit: 'mm', min: 0, max: 1000, step: 0.0001, firmwareScale: 10000, help: 'Distance the auxiliary axis backs away from the material between automated passes. Set to 0 to disable the extra retract.' }
+          { key: 'safeDistanceDu', label: 'Safe retract distance', unit: 'mm', min: 0, max: 1000, step: 0.0001, firmwareScale: 10000, help: 'Distance the auxiliary axis backs away from the material between automated passes. Set to 0 to disable the extra retract.' },
+          { key: 'slotLeftReductionDu', label: 'Slot left reduction', unit: 'mm/pass', min: 0, max: 1000, step: 0.0001, firmwareScale: 10000, help: 'Shortens each successive slotting left cut by this Z distance for blind slots. Set to 0 for full-length passes.' }
         ]
       },
       {
@@ -1298,6 +1305,7 @@ const char indexhtml[] PROGMEM = R"rawliteral(
           { key: 'modeFace', label: 'Mode face' },
           { key: 'modeCone', label: 'Mode cone' },
           { key: 'modeCut', label: 'Mode cut' },
+          { key: 'modeSlot', label: 'Mode slot' },
           { key: 'modeThread', label: 'Mode thread' },
           { key: 'modeEllipse', label: 'Mode ellipse' },
           { key: 'modeGcode', label: 'Mode GCode' },
@@ -2636,6 +2644,7 @@ void setMachineConfigDefaults() {
   DELAY_BETWEEN_STEPS_MS = DEFAULT_DELAY_BETWEEN_STEPS_MS;
   ENABLE_CONTINUOUS_MOVE = DEFAULT_ENABLE_CONTINUOUS_MOVE;
   SAFE_DISTANCE_DU = DEFAULT_SAFE_DISTANCE_DU;
+  SLOT_LEFT_REDUCTION_DU = DEFAULT_SLOT_LEFT_REDUCTION_DU;
   ACTIVE_Y = DEFAULT_ACTIVE_Y;
   ROTARY_Y = DEFAULT_ROTARY_Y;
   MOTOR_STEPS_Y = DEFAULT_MOTOR_STEPS_Y;
@@ -2716,6 +2725,7 @@ void normalizeMachineConfig() {
   JOYSTICK_PULSE_QUEUE_LIMIT = clampIntValue(JOYSTICK_PULSE_QUEUE_LIMIT, 1, 1000000);
   JOYSTICK_NORMAL_REVOLUTIONS_PER_SECOND = clampFloatValue(JOYSTICK_NORMAL_REVOLUTIONS_PER_SECOND, 0.01, 1000.0);
   JOYSTICK_RAPID_REVOLUTIONS_PER_SECOND = clampFloatValue(JOYSTICK_RAPID_REVOLUTIONS_PER_SECOND, 0.01, 1000.0);
+  SLOT_LEFT_REDUCTION_DU = clampLongValue(SLOT_LEFT_REDUCTION_DU, 0, 10000000);
   if (SPEED_START_Z > SPEED_MANUAL_MOVE_Z) SPEED_START_Z = SPEED_MANUAL_MOVE_Z;
   if (SPEED_START_X > SPEED_MANUAL_MOVE_X) SPEED_START_X = SPEED_MANUAL_MOVE_X;
   if (SPEED_START_Y > SPEED_MANUAL_MOVE_Y) SPEED_START_Y = SPEED_MANUAL_MOVE_Y;
@@ -2757,6 +2767,7 @@ void loadMachineConfig() {
   DELAY_BETWEEN_STEPS_MS = cfg.getLong(CFG_DELAY_BETWEEN_STEPS_MS, DELAY_BETWEEN_STEPS_MS);
   ENABLE_CONTINUOUS_MOVE = cfg.getBool(CFG_ENABLE_CONTINUOUS_MOVE, ENABLE_CONTINUOUS_MOVE);
   SAFE_DISTANCE_DU = cfg.getLong(CFG_SAFE_DISTANCE_DU, SAFE_DISTANCE_DU);
+  SLOT_LEFT_REDUCTION_DU = cfg.getLong(CFG_SLOT_LEFT_REDUCTION_DU, SLOT_LEFT_REDUCTION_DU);
   ACTIVE_Y = cfg.getBool(CFG_ACTIVE_Y, ACTIVE_Y);
   ROTARY_Y = cfg.getBool(CFG_ROTARY_Y, ROTARY_Y);
   MOTOR_STEPS_Y = cfg.getLong(CFG_MOTOR_STEPS_Y, MOTOR_STEPS_Y);
@@ -2826,6 +2837,7 @@ void saveMachineConfig() {
   cfg.putLong(CFG_DELAY_BETWEEN_STEPS_MS, DELAY_BETWEEN_STEPS_MS);
   cfg.putBool(CFG_ENABLE_CONTINUOUS_MOVE, ENABLE_CONTINUOUS_MOVE);
   cfg.putLong(CFG_SAFE_DISTANCE_DU, SAFE_DISTANCE_DU);
+  cfg.putLong(CFG_SLOT_LEFT_REDUCTION_DU, SLOT_LEFT_REDUCTION_DU);
   cfg.putBool(CFG_ACTIVE_Y, ACTIVE_Y);
   cfg.putBool(CFG_ROTARY_Y, ROTARY_Y);
   cfg.putLong(CFG_MOTOR_STEPS_Y, MOTOR_STEPS_Y);
@@ -3014,6 +3026,7 @@ bool readMachineConfigFromRequest(String* error) {
     readLongConfigArg("delayBetweenStepsMs", &DELAY_BETWEEN_STEPS_MS, 0, 10000, error) &&
     readBoolConfigArg("enableContinuousMove", &ENABLE_CONTINUOUS_MOVE, error) &&
     readLongConfigArg("safeDistanceDu", &SAFE_DISTANCE_DU, 0, 10000000, error) &&
+    readLongConfigArg("slotLeftReductionDu", &SLOT_LEFT_REDUCTION_DU, 0, 10000000, error) &&
     readBoolConfigArg("activeY", &ACTIVE_Y, error) &&
     readBoolConfigArg("rotaryY", &ROTARY_Y, error) &&
     readLongConfigArg("yMotorSteps", &MOTOR_STEPS_Y, 1, 1000000, error) &&
@@ -3224,7 +3237,7 @@ bool shouldConsumeKeyboardCapture(byte physicalCode, bool isPress) {
 
 String getMachineConfigResponse() {
   String response = "";
-  response.reserve(2550);
+  response.reserve(2600);
   appendConfigLine(&response, "encoderPpr", ENCODER_PPR);
   appendConfigLine(&response, "encoderBacklash", ENCODER_BACKLASH);
   appendConfigLine(&response, "axisEncoderBacklash", AXIS_ENCODER_BACKLASH);
@@ -3254,6 +3267,7 @@ String getMachineConfigResponse() {
   appendConfigLine(&response, "delayBetweenStepsMs", DELAY_BETWEEN_STEPS_MS);
   appendConfigLine(&response, "enableContinuousMove", ENABLE_CONTINUOUS_MOVE);
   appendConfigLine(&response, "safeDistanceDu", SAFE_DISTANCE_DU);
+  appendConfigLine(&response, "slotLeftReductionDu", SLOT_LEFT_REDUCTION_DU);
   appendConfigLine(&response, "activeY", ACTIVE_Y);
   appendConfigLine(&response, "rotaryY", ROTARY_Y);
   appendConfigLine(&response, "yMotorSteps", MOTOR_STEPS_Y);
@@ -4374,6 +4388,10 @@ long stepsToDu(Axis* a, long steps) {
   return round(steps * a->screwPitch / a->motorSteps);
 }
 
+long duToSteps(Axis* a, long du) {
+  return round(du * a->motorSteps / a->screwPitch);
+}
+
 long getAxisPosDu(Axis* a) {
   return stepsToDu(a, a->pos + a->originPos);
 }
@@ -4447,11 +4465,11 @@ String joystickLatheDirectionText(int zDirection, int xDirection) {
 }
 
 bool needZStops() {
-  return mode == MODE_TURN || mode == MODE_FACE || mode == MODE_THREAD || mode == MODE_ELLIPSE;
+  return mode == MODE_TURN || mode == MODE_FACE || mode == MODE_THREAD || mode == MODE_ELLIPSE || mode == MODE_SLOT;
 }
 
 bool isPassMode() {
-  return mode == MODE_TURN || mode == MODE_FACE || mode == MODE_CUT || mode == MODE_THREAD || mode == MODE_ELLIPSE;
+  return mode == MODE_TURN || mode == MODE_FACE || mode == MODE_CUT || mode == MODE_THREAD || mode == MODE_ELLIPSE || mode == MODE_SLOT;
 }
 
 bool isGearboxMode() {
@@ -4484,7 +4502,7 @@ int getJoystickPitchStatusDirection() {
 int getLastSetupIndex() {
   if (mode == MODE_CONE || mode == MODE_GCODE) return 2;
   if (mode == MODE_THREAD) return 4;
-  if (mode == MODE_TURN || mode == MODE_FACE || mode == MODE_CUT || mode == MODE_ELLIPSE) return 3;
+  if (mode == MODE_TURN || mode == MODE_FACE || mode == MODE_CUT || mode == MODE_ELLIPSE || mode == MODE_SLOT) return 3;
   return 0;
 }
 
@@ -4498,6 +4516,7 @@ bool isGearboxManualMove(Axis* a) {
 
 long getPassModeZStart() {
   if (mode == MODE_TURN || mode == MODE_THREAD) return dupr > 0 ? z.rightStop : z.leftStop;
+  if (mode == MODE_SLOT) return z.rightStop;
   if (mode == MODE_FACE) return auxForward ? z.rightStop : z.leftStop;
   if (mode == MODE_ELLIPSE) return dupr > 0 ? z.leftStop : z.rightStop;
   return z.pos;
@@ -4505,6 +4524,7 @@ long getPassModeZStart() {
 
 long getPassModeXStart() {
   if (mode == MODE_TURN || mode == MODE_THREAD) return auxForward ? x.rightStop : x.leftStop;
+  if (mode == MODE_SLOT) return auxForward ? x.rightStop : x.leftStop;
   if (mode == MODE_FACE || mode == MODE_CUT) return dupr > 0 ? x.rightStop : x.leftStop;
   if (mode == MODE_ELLIPSE) return x.rightStop;
   return x.pos;
@@ -4600,6 +4620,7 @@ String printMode() {
   if (mode == MODE_TURN) return "TURN";
   if (mode == MODE_FACE) return "FACE";
   if (mode == MODE_CUT) return "CUT";
+  if (mode == MODE_SLOT) return "SLOT";
   if (mode == MODE_THREAD) return "THREAD";
   if (mode == MODE_ELLIPSE) return "ELLIP";
   if (mode == MODE_GCODE) return "GCODE";
@@ -4733,6 +4754,8 @@ void updateDisplay() {
           result += printDeciMicrons(stepsToDu(&x, xOffset), 2);
         }
         result += "?";
+      } else if (mode == MODE_SLOT && isOn && dupr == 0 && !inNumpad) {
+        result = "Set pitch";
       } else if (isOn && numpadResult == 0) {
         result = "Pass " + String(opIndex) + " of " + String(max(opIndex, long(turnPasses * starts)));
       }
@@ -6228,7 +6251,9 @@ void applyDupr() {
   bool signReverse = isOn && (isGearboxMode() || mode == MODE_CONE) && dupr != 0 && nextDupr == -dupr;
   bool joystickSamePitchMagnitude = mode == MODE_JOYSTICK && abs(nextDupr) == abs(dupr);
   dupr = nextDupr;
-  if (joystickSamePitchMagnitude) {
+  if (mode == MODE_SLOT) {
+    return;
+  } else if (joystickSamePitchMagnitude) {
     return;
   } else if (signReverse) {
     applyDuprSignReverse();
@@ -6901,6 +6926,7 @@ int processNextionMessage() {
         case 21: code = B_MODE_Y; break;
         case 23: code = B_MODE_XGEAR; break;
         case 25: code = B_MODE_JOYSTICK; break;
+        case 27: code = B_MODE_SLOT; break;
       }
     }
     if (code != 0) {
@@ -7084,7 +7110,8 @@ void processKeypadEvent() {
     else if (mode == MODE_TURN) setModeFromTask(MODE_FACE);
     else if (mode == MODE_FACE) setModeFromTask(MODE_CONE);
     else if (mode == MODE_CONE) setModeFromTask(MODE_CUT);
-    else if (mode == MODE_CUT) setModeFromTask(MODE_THREAD);
+    else if (mode == MODE_CUT) setModeFromTask(MODE_SLOT);
+    else if (mode == MODE_SLOT) setModeFromTask(MODE_THREAD);
     else if (mode == MODE_THREAD) setModeFromTask(MODE_ELLIPSE);
     else if (mode == MODE_ELLIPSE) setModeFromTask(MODE_GCODE);
     else if (mode == MODE_GCODE) setModeFromTask(MODE_ASYNC);
@@ -7101,6 +7128,8 @@ void processKeypadEvent() {
     setModeFromUi(MODE_CONE, eventFromNextion);
   } else if (keyCode == B_MODE_CUT) {
     setModeFromUi(MODE_CUT, eventFromNextion);
+  } else if (keyCode == B_MODE_SLOT) {
+    setModeFromUi(MODE_SLOT, eventFromNextion);
   } else if (keyCode == B_MODE_THREAD) {
     setModeFromUi(MODE_THREAD, eventFromNextion);
   }
@@ -7526,6 +7555,75 @@ void modeCut() {
   }
 }
 
+long duPerSecondToStepsPerSecond(Axis* a, long duPerSecond) {
+  long speed = round(abs(duPerSecond) * a->motorSteps / a->screwPitch);
+  return speed < 1 ? 1 : speed;
+}
+
+void modeSlot() {
+  if (z.movingManually || x.movingManually || turnPasses <= 0 ||
+      z.leftStop == LONG_MAX || z.rightStop == LONG_MIN ||
+      x.leftStop == LONG_MAX || x.rightStop == LONG_MIN) {
+    setIsOnFromLoop(false);
+    return;
+  }
+
+  long zStartStop = z.rightStop;
+  long zEndStop = z.leftStop;
+  long xStartStop = auxForward ? x.rightStop : x.leftStop;
+  long xEndStop = auxForward ? x.leftStop : x.rightStop;
+
+  if (opIndex == 0) {
+    z.speedMax = z.speedManualMove;
+    x.speedMax = x.speedManualMove;
+    stepToFinal(&z, zStartStop);
+    stepToFinal(&x, xStartStop);
+    if (z.pos == zStartStop && x.pos == xStartStop) {
+      opIndex = 1;
+      opSubIndex = 0;
+    }
+  } else if (opIndex <= turnPasses) {
+    long xPos = xEndStop - round((xEndStop - xStartStop) * (turnPasses - opIndex) / float(turnPasses));
+    long zReduction = duToSteps(&z, SLOT_LEFT_REDUCTION_DU) * (opIndex - 1);
+    long zEndPos = zEndStop - zReduction;
+    if (zEndPos < zStartStop) zEndPos = zStartStop;
+
+    if (opSubIndex == 0) {
+      x.speedMax = x.speedManualMove;
+      stepToFinal(&x, xPos);
+      if (x.pos == xPos) {
+        opSubIndex = 1;
+      }
+    } else if (opSubIndex == 1) {
+      if (dupr == 0) {
+        stepToFinal(&z, z.pos);
+        return;
+      }
+      z.speedMax = duPerSecondToStepsPerSecond(&z, dupr);
+      stepToContinuous(&z, zEndPos);
+      if (z.pos == zEndPos) {
+        opSubIndex = 2;
+      }
+    } else if (opSubIndex == 2) {
+      x.speedMax = x.speedManualMove;
+      stepToFinal(&x, xStartStop);
+      if (x.pos == xStartStop) {
+        opSubIndex = 3;
+      }
+    } else if (opSubIndex == 3) {
+      z.speedMax = z.speedManualMove;
+      stepToFinal(&z, zStartStop);
+      if (z.pos == zStartStop) {
+        opSubIndex = 0;
+        opIndex++;
+      }
+    }
+  } else {
+    setIsOnFromLoop(false);
+    beep();
+  }
+}
+
 void modeEllipse(Axis* main, Axis* aux) {
   if (main->movingManually || aux->movingManually || turnPasses <= 0 ||
       main->leftStop == LONG_MAX || main->rightStop == LONG_MIN ||
@@ -7812,7 +7910,7 @@ void setup() {
   savedShowTacho = showTacho = pref.getBool(PREF_SHOW_TACHO);
   savedMoveStep = moveStep = pref.getLong(PREF_MOVE_STEP, MOVE_STEP_1);
   savedMode = pref.getInt(PREF_MODE);
-  if (savedMode < MODE_NORMAL || savedMode > MODE_JOYSTICK || (savedMode == MODE_Y && !ACTIVE_Y)) savedMode = MODE_NORMAL;
+  if (savedMode < MODE_NORMAL || savedMode > MODE_SLOT || (savedMode == MODE_Y && !ACTIVE_Y)) savedMode = MODE_NORMAL;
   setModeFromLoop(savedMode);
   savedMeasure = measure = pref.getInt(PREF_MEASURE);
   savedConeRatio = coneRatio = pref.getFloat(PREF_CONE_RATIO, coneRatio);
@@ -7868,7 +7966,7 @@ void loop() {
     cancelJoystickLatheSync();
     resetJoystickLatheFeedPosition();
   }
-  if (!isOn || dupr == 0 || spindlePosSync != 0) {
+  if (!isOn || (dupr == 0 && mode != MODE_SLOT) || spindlePosSync != 0) {
     // None of the modes work.
     if (mode == MODE_JOYSTICK && (!isOn || dupr == 0)) {
       resetJoystickLatheFeedPosition();
@@ -7885,6 +7983,8 @@ void loop() {
     modeTurn(&x, &z);
   } else if (mode == MODE_CUT) {
     modeCut();
+  } else if (mode == MODE_SLOT) {
+    modeSlot();
   } else if (mode == MODE_CONE) {
     modeCone();
   } else if (mode == MODE_THREAD) {

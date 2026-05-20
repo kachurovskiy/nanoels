@@ -455,6 +455,14 @@ Operation can be stopped at any time by pressing 🖥️`mStop` / ⌨️`Esc` or
 
 Handwheels are ignored when this mode is on.
 
+### Automatic slotting
+
+Press `bMode` until `SLOT` is shown. Slotting moves the cutter in on X, feeds Z to the left, retracts X, then returns Z to the right. The spindle does not drive this mode; only Z and X move.
+
+All Z and X soft limits must be set before the operation can be started. The number of passes controls the X increments between the selected internal or external start and end limits. Pitch magnitude is used as the left feed distance per second and can be adjusted while slotting is running. Setting pitch to 0 pauses the left feed until pitch is increased again. X moves and the return to the right use the configured manual move speeds.
+
+The Web UI setting `Slot left reduction` defaults to 0. For blind slots, increase it slightly to shorten each successive left cut and leave space for chip accumulation near the blind end.
+
 ### Automatic threading
 
 Press 🖥️`bMode` to switch to the automatic threading which will cut a thread (optionally multi-start one) in multiple passes.
