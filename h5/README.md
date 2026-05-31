@@ -116,6 +116,7 @@ Pulse motion wheels for Z and X axes (`ZPULSE`, `XPULSE`) are wired in the same 
 - 2€ [6-pin terminal](https://de.aliexpress.com/item/1005006895741900.html)
 - 2€ [5V to 3V regulator LM1117T-3.3](https://de.aliexpress.com/item/1005005691591247.html)
 - [3D printed joystick case parts](https://github.com/kachurovskiy/nanoels/tree/main/h5/joystick)
+- [4xM3 10mm bolts](https://github.com/user-attachments/assets/4981138c-4b91-403d-91d5-b71684435139)
 
 Joystick is optional, and disabled by default in `h5.ino`. A 1-, 2-, or 3-axis potentiometer joystick is supported. Enable joystick support only after wiring the joystick, and enable only the joystick inputs that are actually connected:
 
