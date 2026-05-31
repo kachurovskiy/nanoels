@@ -111,7 +111,13 @@ Pulse motion wheels for Z and X axes (`ZPULSE`, `XPULSE`) are wired in the same 
 
 ### Optional joystick
 
-Joystick support is experimental, optional, and disabled by default in `h5.ino`. A 1-, 2-, or 3-axis potentiometer joystick is supported. Enable joystick support only after wiring the joystick, and enable only the joystick inputs that are actually connected:
+- 14€ [D400B-M4](https://de.aliexpress.com/item/1005003970393584.html)
+- 5€ [custom PCB](pcb/Gerber_PCB_JoystickH5_2026-05-14.zip) ordered on jlcpcb.com
+- 2€ [6-pin terminal](https://de.aliexpress.com/item/1005006895741900.html)
+- 2€ [5V to 3V regulator LM1117T-3.3](https://de.aliexpress.com/item/1005005691591247.html)
+- [3D printed joystick case parts](https://github.com/kachurovskiy/nanoels/tree/main/h5/joystick)
+
+Joystick is optional, and disabled by default in `h5.ino`. A 1-, 2-, or 3-axis potentiometer joystick is supported. Enable joystick support only after wiring the joystick, and enable only the joystick inputs that are actually connected:
 
 - `JSIGNAL` carries signals only: `JZ`, `JX`, `JY`, `JBUTTON`
 - Power the joystick potentiometers from `JPOWER` 5V through a resistor divider that brings the joystick supply down to about 3.3V, or use a small 3.3V regulator sharing controller `GND`; do not feed 5V into the potentiometers because the ESP32 ADC pins are not 5V analog inputs
@@ -122,6 +128,8 @@ Joystick support is experimental, optional, and disabled by default in `h5.ino`.
 - In `JOY` mode, use `ON`/`OFF` as the feed clutch. With feed off, Z/X deflection jogs the carriage or cross-slide normally. With feed on, Z/X deflection commands spindle-synchronized feed using the configured pitch magnitude. Pressing the joystick button while Z or X is deflected performs rapid movement. If `Button toggles ON/OFF` is enabled, a short button click while Z and X are neutral toggles the feed clutch. After the first feed engagement, `JOY` preserves the thread phase and waits for the correct spindle angle before later feed engagements.
 
 **WARNING:** disconnecting joystick when controller is powered on can lead to random movements due to floating analog inputs.
+
+## Scale terminals
 
 Scale terminals aren't used in the code yet.
 
