@@ -197,7 +197,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 35
+#define SOFTWARE_VERSION 36
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -224,8 +224,8 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 #define Y_DIR 2
 #define Y_STEP 17
 
-#define Y_PULSE_A 45
-#define Y_PULSE_B 48
+#define Y_PULSE_A 46
+#define Y_PULSE_B 3
 
 #define JOY_Z 4
 #define JOY_X 5

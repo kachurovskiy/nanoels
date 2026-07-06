@@ -107,7 +107,7 @@ Z and X axes - stepper terminal for the lead screws:
 - DIR - connect to stepper driver DIR-
 - STEP - connect to stepper driver PUL-
 
-Pulse motion wheels for Z and X axes (`ZPULSE`, `XPULSE`) are wired in the same manner as the encoder. For any encoder terminal, switch `A` and `B` wires to invert the encoder direction.
+Pulse motion wheels for Z, X, and optional Y axes (`ZPULSE`, `XPULSE`, `YPULSE`) are wired in the same manner as the encoder. For any encoder terminal, switch `A` and `B` wires to invert the encoder direction.
 
 ### Optional joystick
 
