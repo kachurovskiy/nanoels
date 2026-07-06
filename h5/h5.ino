@@ -197,7 +197,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 36
+#define SOFTWARE_VERSION 37
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -6732,6 +6732,15 @@ void setMeasure(int value) {
   moveStep = measure == MEASURE_METRIC ? MOVE_STEP_1 : MOVE_STEP_IMP_1;
 }
 
+void resetGcodeState() {
+  gcodeCommand = "";
+  gcodeFeedDuPerSec = GCODE_FEED_DEFAULT_DU_SEC;
+  gcodeAbsolutePositioning = true;
+  gcodeInBrace = false;
+  gcodeInSemicolon = false;
+  setMeasure(MEASURE_METRIC);
+}
+
 void waitForPendingPosNear0(Axis* a) {
   while (abs(a->pendingPos) > a->motorSteps / 3) {
     taskYIELD();
@@ -7904,11 +7913,7 @@ void taskGcode(void *param) {
       gcodeInitialized = false;
     } else if (!gcodeInitialized) {
       gcodeInitialized = true;
-      gcodeCommand = "";
-      gcodeAbsolutePositioning = true;
-      gcodeFeedDuPerSec = GCODE_FEED_DEFAULT_DU_SEC;
-      gcodeInBrace = false;
-      gcodeInSemicolon = false;
+      resetGcodeState();
     }
     // Implementing a relevant subset of RS274 (Gcode) and GRBL (state management) covering basic use cases.
     char receivedChar = '\0';
@@ -7949,7 +7954,7 @@ void taskGcode(void *param) {
       } else if (receivedChar == '~' /* resume */) {
         setIsOnFromTask(true);
       } else if (receivedChar == '%' /* start/end marker */) {
-        // Not using % markers in this implementation.
+        resetGcodeState();
       } else if (receivedChar == '?' /* status */) {
         writeBuffer(&outBuffer, "<");
         writeBuffer(&outBuffer, isOn ? "Run" : "Idle");
@@ -8354,6 +8359,7 @@ void buttonOnOffPress(bool on) {
         beep();
       } else {
         gcodeProgram += '\n'; // ensures the last line is executed
+        resetGcodeState();
         setIsOnFromTask(true);
       }
     }
