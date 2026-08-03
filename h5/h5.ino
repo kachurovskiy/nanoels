@@ -197,7 +197,7 @@ const bool SPINDLE_PAUSES_GCODE = true; // pause GCode execution when spindle st
 const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 
 // To be incremented whenever a measurable improvement is made.
-#define SOFTWARE_VERSION 37
+#define SOFTWARE_VERSION 38
 
 // To be changed whenever a different PCB / encoder / stepper / ... design is used.
 #define HARDWARE_VERSION 5
@@ -3739,6 +3739,7 @@ void buttonOnOffPress(bool on);
 void resetJoystickLatheFeedPosition();
 void cancelJoystickLatheSync();
 void resetJoystickLatheFeed();
+void updateAsyncTimerSettings();
 
 bool inNumpad = false;
 int numpadDigits[20];
@@ -6007,6 +6008,9 @@ void setIsOnFromLoop(bool on) {
     markOrigin();
   }
   if (on) {
+    if (mode == MODE_ASYNC || mode == MODE_Y) {
+      updateAsyncTimerSettings();
+    }
     isOn = true;
     opDuprSign = dupr >= 0 ? 1 : -1;
     opDupr = dupr;
