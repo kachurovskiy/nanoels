@@ -112,7 +112,7 @@ Pulse motion wheels for Z, X, and optional Y axes (`ZPULSE`, `XPULSE`, `YPULSE`)
 ### Optional joystick
 
 - 14€ [D400B-M4](https://de.aliexpress.com/item/1005003970393584.html)
-- 5€ [custom PCB](pcb/Gerber_PCB_JoystickH5_2026-05-14.zip) ordered on jlcpcb.com
+- 5€ [custom PCB](https://raw.githubusercontent.com/kachurovskiy/nanoels/refs/heads/main/h5/joystick/Gerber_PCB_JoystickH5_2026-05-14.zip) ordered on jlcpcb.com
 - 2€ [6-pin terminal](https://de.aliexpress.com/item/1005006895741900.html)
 - 2€ [5V to 3V regulator LM1117T-3.3](https://de.aliexpress.com/item/1005005691591247.html)
 - [3D printed joystick case parts](https://github.com/kachurovskiy/nanoels/tree/main/h5/joystick)
