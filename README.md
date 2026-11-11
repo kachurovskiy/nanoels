@@ -16,6 +16,8 @@ CNC and electronic lead screw controller based on ESP32-S3 that supports up to 3
 
 See [h5 folder for hardware files, software and assembly](https://github.com/kachurovskiy/nanoels/tree/main/h5).
 
+[ScrewSync](https://github.com/donataso/ScrewSync) is an alternative firmware for H5 hardware, built on Zephyr with a Nextion touch UI and a web client. It supports Z and X axes only and requires [different connector assignments](https://github.com/donataso/ScrewSync/blob/main/docs/install.md).
+
 # NanoEls H4
 
 CNC and electronic lead screw controller based on ESP32-S3 that supports up to 4 axes:
